@@ -1,0 +1,170 @@
+.home {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Hero ── */
+.hero {
+  background: linear-gradient(135deg, #fdf4ff 0%, #fae8ff 50%, #f0abfc22 100%);
+  padding-block: var(--space-12) var(--space-10);
+}
+
+.heroSub {
+  font-size: var(--text-lg);
+  color: var(--color-neutral-600);
+  margin-top: var(--space-2);
+}
+
+
+.heroInner {
+  text-align: center;
+  max-width: var(--max-w-4xl);
+  margin-inline: auto;
+}
+
+.heroBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: white;
+  border: 1px solid var(--color-brand-200);
+  color: var(--color-brand-700);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  margin-bottom: var(--space-6);
+  box-shadow: var(--shadow-sm);
+}
+
+.heroTitle {
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  font-weight: 800;
+  color: var(--color-neutral-900);
+  line-height: 1.1;
+  margin-bottom: var(--space-4);
+}
+
+.heroAccent {
+  background: linear-gradient(135deg, var(--color-brand-600), var(--color-brand-400));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.heroSubtitle {
+  font-size: var(--text-lg);
+  color: var(--color-neutral-600);
+  max-width: 480px;
+  margin-inline: auto;
+  margin-bottom: var(--space-12);
+}
+
+.heroCampaigns {
+  width: 100%;
+}
+
+/* ── Campaign Card ── */
+.campaignCard {
+  cursor: pointer;
+  height: 100%;
+}
+
+.campaignImage {
+  aspect-ratio: 4/3;
+  background: linear-gradient(135deg, var(--color-brand-100), var(--color-brand-200));
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.campaignImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--transition-slow);
+}
+
+.campaignCard:hover .campaignImage img {
+  transform: scale(1.05);
+}
+
+.campaignImagePlaceholder {
+  font-size: 4rem;
+  opacity: 0.5;
+}
+
+/* ── How It Works ── */
+.howItWorks {
+  background: var(--color-neutral-900);
+  padding-block: var(--space-16);
+}
+
+.sectionTitle {
+  text-align: center;
+  font-size: var(--text-3xl);
+  color: white;
+  margin-bottom: var(--space-10);
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-6);
+  max-width: var(--max-w-4xl);
+  margin-inline: auto;
+}
+
+@media (min-width: 768px) {
+  .steps { grid-template-columns: repeat(4, 1fr); }
+}
+
+.stepCard {
+  text-align: center;
+  padding: var(--space-6);
+  background: rgba(255,255,255,0.05);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.stepEmoji {
+  font-size: 2.5rem;
+  margin-bottom: var(--space-3);
+}
+
+.stepTitle {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: white;
+  margin-bottom: var(--space-2);
+}
+
+.stepDesc {
+  font-size: var(--text-sm);
+  color: var(--color-neutral-400);
+  line-height: 1.5;
+}
+
+/* ── Footer ── */
+.footer {
+  background: var(--color-neutral-950);
+  color: var(--color-neutral-500);
+  padding-block: var(--space-6);
+  font-size: var(--text-sm);
+}
+
+.footer .container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.footer a {
+  color: var(--color-brand-400);
+}
+
+.footer a:hover { text-decoration: underline; }
