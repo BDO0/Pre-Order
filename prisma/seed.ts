@@ -2,11 +2,20 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import pg from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { createPoolConfig } from "../src/lib/pg-ssl";
 import bcrypt from "bcryptjs";
 
 const { Pool } = pg;
-const connectionString = process.env.DATABASE_URL!;
-const pool = new Pool({ connectionString });
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error(
+    "DATABASE_URL is not set. Copy .env.example to .env and provide a Postgres connection string."
+  );
+}
+
+// Shared with the Next.js runtime so TLS and timeouts cannot drift apart.
+const pool = new Pool(createPoolConfig(connectionString));
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 

@@ -38,7 +38,9 @@ export const deliveryInfoSchema = z.discriminatedUnion("type", [
 // ORDER ITEM
 // ─────────────────────────────────────────────────────────────
 export const orderItemSchema = z.object({
-  variantId: z.string().cuid("Invalid variant"),
+  // Existence, not format: seeded variant ids are `{productId}-{colour}-{size}`
+  // and were rejected by `z.cuid()` even though the row exists.
+  variantId: z.string().min(1, "Invalid variant"),
   quantity: z.number().int().min(1, "Quantity must be at least 1").max(100),
 });
 
@@ -47,8 +49,13 @@ export const orderItemSchema = z.object({
 // ─────────────────────────────────────────────────────────────
 export const orderSubmissionSchema = z.object({
   idempotencyKey: z.string().uuid("Invalid idempotency key"),
-  campaignId: z.string().cuid("Invalid campaign"),
-  paymentMethodId: z.string().cuid("Invalid payment method"),
+  // IDs are validated for EXISTENCE in the service layer (a missing row is
+  // reported as CAMPAIGN_NOT_FOUND / INVALID_PAYMENT_METHOD); they must not be
+  // format-checked here. The seed uses deterministic ids such as "pm-gcash",
+  // which `z.cuid()` rejected, so the seeded catalogue could not be ordered at
+  // all.
+  campaignId: z.string().min(1, "Invalid campaign"),
+  paymentMethodId: z.string().min(1, "Invalid payment method"),
   items: z.array(orderItemSchema).min(1, "At least one item is required"),
   customerInfo: customerInfoSchema,
   deliveryInfo: deliveryInfoSchema,

@@ -1,0 +1,255 @@
+import "dotenv/config";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { PrismaClient } from "@prisma/client";
+import type { OrderSubmission } from "@/lib/validation";
+
+// Integration tests need a real Postgres. They deliberately do NOT fall back to
+// DATABASE_URL: point TEST_DATABASE_URL at a throwaway database (a Supabase
+// branch, or a local Postgres) and this file activates. Without it every test is
+// reported as skipped rather than failed, so `npm test` stays useful when no
+// database is available.
+//
+// This is the acceptance gate for the atomic-capacity work in
+// src/lib/order-service.ts. Against the previous implementation the first two
+// tests fail: a plain findUnique read let concurrent checkouts all observe the
+// same stock level, and remainingCapacity went negative.
+const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
+
+type CreateOrder = (typeof import("@/lib/order-service"))["createOrder"];
+type ReleaseCapacity = (typeof import("@/lib/order-service"))["releaseOrderCapacity"];
+
+function uniqueSuffix(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+describe.skipIf(!TEST_DATABASE_URL)("createOrder capacity guarantees", () => {
+  let prisma!: PrismaClient;
+  let createOrder!: CreateOrder;
+  let releaseOrderCapacity!: ReleaseCapacity;
+  let campaignId!: string;
+  let paymentMethodId!: string;
+  const productIds: string[] = [];
+
+  beforeAll(async () => {
+    // @/lib/db reads DATABASE_URL once, when the module is first evaluated, so
+    // the override has to happen before the dynamic import below.
+    process.env.DATABASE_URL = TEST_DATABASE_URL;
+
+    ({ prisma } = await import("@/lib/db"));
+    ({ createOrder, releaseOrderCapacity } = await import("@/lib/order-service"));
+
+    const campaign = await prisma.campaign.create({
+      data: { name: "Concurrency suite", slug: `suite-${uniqueSuffix()}`, status: "OPEN" },
+    });
+    campaignId = campaign.id;
+
+    const paymentMethod = await prisma.paymentMethod.create({
+      data: { name: "Test payment", requiresProof: false, active: true },
+    });
+    paymentMethodId = paymentMethod.id;
+  });
+
+  afterAll(async () => {
+    if (!prisma) return;
+
+    // Child rows first: order items reference variants, variants reference
+    // products, and every order references the campaign.
+    await prisma.orderItem.deleteMany({
+      where: { variant: { productId: { in: productIds } } },
+    });
+    await prisma.orderStatusHistory.deleteMany({ where: { order: { campaignId } } });
+    await prisma.auditLog.deleteMany({ where: { order: { campaignId } } });
+    await prisma.order.deleteMany({ where: { campaignId } });
+    // Leaves any pre-existing customers (and their orders) untouched.
+    await prisma.customer.deleteMany({ where: { orders: { none: {} } } });
+    await prisma.productVariant.deleteMany({ where: { productId: { in: productIds } } });
+    await prisma.campaignProduct.deleteMany({ where: { productId: { in: productIds } } });
+    await prisma.product.deleteMany({ where: { id: { in: productIds } } });
+    await prisma.campaign.delete({ where: { id: campaignId } });
+    await prisma.paymentMethod.delete({ where: { id: paymentMethodId } });
+    await prisma.$disconnect();
+  });
+
+  /** Creates an orderable product+variant. `variantCapacity: null` = unlimited. */
+  async function makeProduct(options: {
+    variantCapacity: number | null;
+    preorderLimit?: number | null;
+  }) {
+    const product = await prisma.product.create({
+      data: {
+        name: "Concurrency Shirt",
+        slug: `concurrency-shirt-${uniqueSuffix()}`,
+        price: 100,
+        images: [],
+        active: true,
+        preorderEnabled: true,
+        preorderStatus: "OPEN",
+        preorderLimit: options.preorderLimit ?? null,
+        preorderReserved: 0,
+      },
+    });
+    productIds.push(product.id);
+
+    const variant = await prisma.productVariant.create({
+      data: {
+        productId: product.id,
+        size: "M",
+        color: "Black",
+        capacity: options.variantCapacity,
+        remainingCapacity: options.variantCapacity,
+        active: true,
+      },
+    });
+
+    await prisma.campaignProduct.create({
+      data: { campaignId, productId: product.id },
+    });
+
+    return { product, variant };
+  }
+
+  /** A valid OrderSubmission; a fresh idempotency key every call. */
+  function submission(variantId: string, quantity: number): OrderSubmission {
+    return {
+      idempotencyKey: crypto.randomUUID(),
+      campaignId,
+      paymentMethodId,
+      items: [{ variantId, quantity }],
+      customerInfo: {
+        fullName: "Test Customer",
+        mobileNumber: `0999${String(Math.floor(1_000_000 + Math.random() * 8_999_999))}`,
+      },
+      deliveryInfo: { type: "PICKUP" },
+    };
+  }
+
+  it("never oversells a variant when checkouts run concurrently", async () => {
+    const CAPACITY = 5;
+    const ATTEMPTS = 15;
+    const { variant } = await makeProduct({ variantCapacity: CAPACITY });
+
+    const results = await Promise.allSettled(
+      Array.from({ length: ATTEMPTS }, () => createOrder(submission(variant.id, 1)))
+    );
+
+    const fulfilled = results.filter((result) => result.status === "fulfilled");
+    const rejected = results.filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected"
+    );
+
+    // Exactly as many orders as there was stock: no more (oversell) and no
+    // fewer (the check must not refuse what it can actually satisfy).
+    expect(fulfilled).toHaveLength(CAPACITY);
+    expect(rejected).toHaveLength(ATTEMPTS - CAPACITY);
+
+    // Every refusal is a capacity refusal, not an incidental error.
+    for (const failure of rejected) {
+      expect(failure.reason).toMatchObject({ code: "INSUFFICIENT_CAPACITY" });
+    }
+
+    // The invariant the old read-then-write implementation broke.
+    const after = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variant.id },
+    });
+    expect(after.remainingCapacity).toBe(0);
+
+    const sold = await prisma.orderItem.aggregate({
+      where: { variantId: variant.id },
+      _sum: { quantity: true },
+    });
+    expect(sold._sum.quantity).toBe(CAPACITY);
+  });
+
+  it("enforces the product pre-order limit when the variant is unlimited", async () => {
+    const LIMIT = 3;
+    const ATTEMPTS = 15;
+    const { product, variant } = await makeProduct({
+      variantCapacity: null,
+      preorderLimit: LIMIT,
+    });
+
+    const results = await Promise.allSettled(
+      Array.from({ length: ATTEMPTS }, () => createOrder(submission(variant.id, 1)))
+    );
+
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(LIMIT);
+
+    const after = await prisma.product.findUniqueOrThrow({ where: { id: product.id } });
+    expect(after.preorderReserved).toBe(LIMIT);
+
+    // Unlimited variant capacity must stay unlimited (NULL, never 0).
+    const variantAfter = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variant.id },
+    });
+    expect(variantAfter.remainingCapacity).toBeNull();
+  });
+
+  it("gives every concurrent order a unique, well-formed reference", async () => {
+    const COUNT = 12;
+    const { variant } = await makeProduct({ variantCapacity: null });
+
+    const results = await Promise.all(
+      Array.from({ length: COUNT }, () => createOrder(submission(variant.id, 1)))
+    );
+
+    const references = results.map((result) => result.order.reference);
+    expect(new Set(references).size).toBe(COUNT);
+
+    for (const reference of references) {
+      expect(reference).toMatch(/^PO-\d{8}-\d{4,}$/);
+    }
+  });
+
+  it("reuses the existing order when the same idempotency key is submitted twice", async () => {
+    const { variant } = await makeProduct({ variantCapacity: 1 });
+    const payload = submission(variant.id, 1);
+
+    const first = await createOrder(payload);
+    const second = await createOrder(payload);
+
+    expect(second.idempotent).toBe(true);
+    expect(second.order.reference).toBe(first.order.reference);
+
+    // A replay must not consume a second unit of stock.
+    const after = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variant.id },
+    });
+    expect(after.remainingCapacity).toBe(0);
+  });
+
+  it("returns reserved capacity to the pool when an order is voided", async () => {
+    const { product, variant } = await makeProduct({ variantCapacity: 4 });
+
+    const created = await createOrder(submission(variant.id, 2));
+    const reserved = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variant.id },
+    });
+    expect(reserved.remainingCapacity).toBe(2);
+
+    const order = await prisma.order.findFirstOrThrow({
+      where: { reference: created.order.reference },
+      select: { id: true },
+    });
+
+    // Mirrors what PATCH /api/admin/orders/[id] does on the way to CANCELLED or
+    // REJECTED. That route also requires an authenticated session, which is why
+    // the service function is exercised directly here.
+    await prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: "CANCELLED" },
+      });
+      await releaseOrderCapacity(tx, order.id);
+    });
+
+    const variantAfter = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variant.id },
+    });
+    expect(variantAfter.remainingCapacity).toBe(4);
+
+    const productAfter = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+    });
+    expect(productAfter.preorderReserved).toBe(0);
+  });
+});
