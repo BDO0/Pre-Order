@@ -52,6 +52,20 @@ describe.skipIf(!TEST_DATABASE_URL)("createOrder capacity guarantees", () => {
   afterAll(async () => {
     if (!prisma) return;
 
+    // Capture the customers this suite created (every submission generates a
+    // fresh mobile number) before their orders are removed. Testing for
+    // `orders: { none: {} }` instead would delete every order-less customer in
+    // the database, including real ones that simply have not ordered yet.
+    const suiteOrders = await prisma.order.findMany({
+      where: { campaignId },
+      select: { customerId: true },
+    });
+    const customerIds = [
+      ...new Set(
+        suiteOrders.map((order) => order.customerId).filter((id): id is string => id !== null)
+      ),
+    ];
+
     // Child rows first: order items reference variants, variants reference
     // products, and every order references the campaign.
     await prisma.orderItem.deleteMany({
@@ -60,8 +74,8 @@ describe.skipIf(!TEST_DATABASE_URL)("createOrder capacity guarantees", () => {
     await prisma.orderStatusHistory.deleteMany({ where: { order: { campaignId } } });
     await prisma.auditLog.deleteMany({ where: { order: { campaignId } } });
     await prisma.order.deleteMany({ where: { campaignId } });
-    // Leaves any pre-existing customers (and their orders) untouched.
-    await prisma.customer.deleteMany({ where: { orders: { none: {} } } });
+    // Scoped to the suite's own customers; anything else is left untouched.
+    await prisma.customer.deleteMany({ where: { id: { in: customerIds } } });
     await prisma.productVariant.deleteMany({ where: { productId: { in: productIds } } });
     await prisma.campaignProduct.deleteMany({ where: { productId: { in: productIds } } });
     await prisma.product.deleteMany({ where: { id: { in: productIds } } });

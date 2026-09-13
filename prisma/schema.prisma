@@ -330,3 +330,21 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+// ─────────────────────────────────────────────────────────────
+// ORDER REFERENCE COUNTER
+// ─────────────────────────────────────────────────────────────
+
+// Per-day counter behind generateOrderReference(). One row per day, advanced by
+// a single atomic upsert so concurrent checkouts cannot receive the same order
+// reference. Declared here to keep the schema in step with the database; the
+// allocation itself uses raw SQL because Prisma's upsert is not atomic against
+// a concurrent insert.
+model OrderCounter {
+  day       DateTime @id @db.Date
+  lastValue Int      @default(0) @map("last_value")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("order_counters")
+}
+

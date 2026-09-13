@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# The template documents every variable the app reads, so it must ship with the
+# repo. Only the real .env (which holds live secrets) stays ignored.
+!.env.example
 
 # vercel
 .vercel

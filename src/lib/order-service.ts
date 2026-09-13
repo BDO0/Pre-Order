@@ -38,7 +38,13 @@ function uniqueViolationTarget(error: unknown): string | null {
   if (typeof target === "string") return target.toLowerCase();
 
   const constraint = (error as { constraint?: unknown }).constraint;
-  return typeof constraint === "string" ? constraint.toLowerCase() : "";
+  if (typeof constraint === "string") return constraint.toLowerCase();
+
+  // Prisma 7 with a driver adapter can report the violation only through the
+  // message ("Unique constraint failed on the constraint: `x_key`"), which made
+  // this return "" and turned the reference retry below into dead code.
+  const message = (error as { message?: unknown }).message;
+  return typeof message === "string" ? message.toLowerCase() : "";
 }
 
 /** A collision on `orders.reference` — safe to retry with a new number. */
@@ -227,6 +233,13 @@ export async function createOrder(input: OrderSubmission) {
   // its own WHERE clause against the newly committed row — so two simultaneous
   // checkouts can never both claim the last unit. The previous
   // `findUnique` + `update` pair read stale rows and oversold the stock.
+  // Prisma's default 2s wait for a pooled connection was too tight once a dozen
+  // checkouts arrived at the same moment against a remote database: the checkout
+  // failed with "Unable to start a transaction in the given time" even though
+  // stock was available. Waiting longer is strictly better than refusing an
+  // order that could have been accepted.
+  const TRANSACTION_OPTIONS = { maxWait: 15_000, timeout: 20_000 } as const;
+
   const writeOrder = (reference: string) => prisma.$transaction(async (tx) => {
     for (const item of resolvedItems) {
       // Claim the variant capacity. `decrement` on a NULL column stays NULL,
@@ -371,7 +384,7 @@ export async function createOrder(input: OrderSubmission) {
     });
 
     return newOrder;
-  });
+  }, TRANSACTION_OPTIONS);
 
   // ── Step 8b: Persist with a collision-free reference ────────
   // The per-day reference is allocated optimistically. `orders.reference` is
