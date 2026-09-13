@@ -49,5 +49,10 @@ next-env.d.ts
 # NEVER commit these: they are user data, not source.
 /public/uploads
 
+# Payment proofs live OUTSIDE public/ on purpose: they are screenshots of a
+# customer's banking app (names, account numbers, sometimes GPS metadata). They
+# are only readable through /api/admin/proofs, which checks the session first.
+/private
+
 # local tooling scratch
 /.cline-*

@@ -18,6 +18,13 @@ export default function AdminSettingsPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Store settings (delivery fee). Held as a string because that is what the
+  // number input yields; the API coerces and re-validates it.
+  const [shippingFee, setShippingFee] = useState("");
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsDenied, setSettingsDenied] = useState(false);
+
   const showMsg = (type: "success" | "error", text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 3000);
@@ -29,7 +36,40 @@ export default function AdminSettingsPage() {
       .then(json => setMethods(json.data ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    fetch("/api/admin/settings")
+      .then(async (r) => {
+        if (r.status === 401 || r.status === 403) {
+          setSettingsDenied(true);
+          return;
+        }
+        const json = await r.json();
+        if (typeof json.data?.shippingFee === "number") {
+          setShippingFee(String(json.data.shippingFee));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setSettingsLoading(false));
   }, []);
+
+  const handleSaveSettings = async () => {
+    setSettingsSaving(true);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shippingFee: Number(shippingFee) }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error?.message || "Failed to save settings");
+      setShippingFee(String(json.data.shippingFee));
+      showMsg("success", "Store settings saved. The storefront now charges the new fee.");
+    } catch (err) {
+      showMsg("error", err instanceof Error ? err.message : "Failed to save settings");
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
 
   const handleUpdate = async (method: PaymentMethod) => {
     setSaving(method.id);
@@ -141,6 +181,52 @@ export default function AdminSettingsPage() {
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* Settings */}
+      <div className="card" style={{ maxWidth: "700px", marginBottom: "var(--space-6)" }}>
+        <div className="card-body">
+          <h2 style={{ fontSize: "var(--text-lg)", fontWeight: 700, marginBottom: "var(--space-2)", color: "var(--color-brand-700)" }}>
+            🚚 Store Settings
+          </h2>
+          <p style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-500)", marginBottom: "var(--space-5)" }}>
+            Storefront pricing. The delivery fee is read from here by checkout, the cart and the order
+            service, so the amount shown to a customer is always the amount charged.
+          </p>
+
+          {settingsDenied ? (
+            <p style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-500)" }}>
+              🔒 Your role does not permit changing store settings.
+            </p>
+          ) : (
+            <>
+              <div className="form-group" style={{ maxWidth: "260px" }}>
+                <label className="form-label">Standard Delivery Fee (₱)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  min={0}
+                  step="0.01"
+                  value={shippingFee}
+                  onChange={(e) => setShippingFee(e.target.value)}
+                  disabled={settingsLoading || settingsSaving}
+                />
+                <p style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-400)", marginTop: "var(--space-1)" }}>
+                  Store pickup is always free. Set 0 to deliver free of charge.
+                </p>
+              </div>
+
+              <button
+                className="btn btn-primary btn-sm"
+                style={{ marginTop: "var(--space-3)" }}
+                onClick={handleSaveSettings}
+                disabled={settingsLoading || settingsSaving}
+              >
+                {settingsSaving ? "Saving..." : "Save Settings"}
+              </button>
+            </>
           )}
         </div>
       </div>

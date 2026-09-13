@@ -30,6 +30,9 @@ export default function NewProductPage() {
       if (imageFile) {
         const uploadData = new FormData();
         uploadData.append("file", imageFile);
+        // Product imagery is public storefront content, so it lands in
+        // public/uploads and the API requires products.write for this purpose.
+        uploadData.append("purpose", "PRODUCT_IMAGE");
         const uploadRes = await fetch("/api/upload", { method: "POST", body: uploadData });
         const uploadJson = await uploadRes.json();
         if (!uploadRes.ok) throw new Error(uploadJson.error?.message || "Failed to upload image.");

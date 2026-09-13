@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/api-guard";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ success: false, error: { code: "UNAUTHORIZED" } }, { status: 401 });
+    // Payment account details are customer-facing storefront configuration, so
+    // they sit behind `settings.write` rather than any orders permission.
+    const guard = await requirePermission("settings.write", request);
+    if (!guard.ok) return guard.response;
 
     const { id } = await params;
     const body = await request.json();
@@ -21,6 +23,16 @@ export async function PATCH(
         accountNumber: accountNumber || null,
         instructions: instructions || null,
         active: active ?? true,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actor: guard.actor,
+        action: "paymentMethod.updated",
+        // Deliberately not logging the account number itself.
+        newValue: { paymentMethodId: id, name: updated.name, active: updated.active },
+        metadata: { role: guard.role },
       },
     });
 

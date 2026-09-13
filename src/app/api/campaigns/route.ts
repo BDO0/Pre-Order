@@ -1,8 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const limited = enforceRateLimit(request, RATE_LIMITS.publicRead);
+    if (limited) return limited;
+
     const now = new Date();
 
     const campaigns = await prisma.campaign.findMany({

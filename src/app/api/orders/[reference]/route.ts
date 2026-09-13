@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ reference: string }> }
 ) {
   try {
+    // The lookup is guarded by reference + mobile number, so the mobile number
+    // is the only secret. Rate limiting is what stops it being brute-forced.
+    const limited = enforceRateLimit(request, RATE_LIMITS.orderLookup);
+    if (limited) return limited;
+
     const { reference } = await params;
     const { searchParams } = new URL(request.url);
     const mobileNumber = searchParams.get("mobile");

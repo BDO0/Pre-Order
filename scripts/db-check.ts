@@ -18,6 +18,7 @@ import pg from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { createPoolConfig } from "../src/lib/pg-ssl";
 import { CAPACITY_RELEASING_STATUSES } from "../src/lib/order-state-machine";
+import { DEFAULT_SHIPPING_FEE, SETTING_KEYS } from "../src/lib/pricing";
 
 const { Pool } = pg;
 
@@ -94,6 +95,7 @@ async function main(): Promise<void> {
     paymentProofs,
     statusHistory,
     auditLogs,
+    settings,
   ] = await Promise.all([
     prisma.admin.count(),
     prisma.campaign.count(),
@@ -107,6 +109,7 @@ async function main(): Promise<void> {
     prisma.paymentProof.count(),
     prisma.orderStatusHistory.count(),
     prisma.auditLog.count(),
+    prisma.setting.count(),
   ]);
 
   heading("Rows");
@@ -123,6 +126,7 @@ async function main(): Promise<void> {
     payment_proofs: paymentProofs,
     order_status_history: statusHistory,
     audit_logs: auditLogs,
+    settings,
   };
   for (const [name, count] of Object.entries(counts)) {
     console.log(`  ${name.padEnd(22)} ${String(count).padStart(6)}`);
@@ -344,9 +348,60 @@ async function main(): Promise<void> {
     );
   }
 
+  // ── Configuration ───────────────────────────────────────────────────────
+  heading("Configuration");
+  const settingRows = await prisma.setting.findMany({
+    select: { key: true, value: true, updatedAt: true },
+    orderBy: { key: "asc" },
+  });
+
+  if (settingRows.length === 0) {
+    console.log("  (no settings rows — the application falls back to its defaults)");
+  }
+
+  let shippingFeeValue: unknown;
+  for (const row of settingRows) {
+    if (row.key === SETTING_KEYS.shippingFee) shippingFeeValue = row.value;
+    console.log(
+      `  ${row.key} = ${JSON.stringify(row.value)}` +
+        ` (updated ${row.updatedAt.toISOString().slice(0, 10)})`
+    );
+  }
+
+  const feeIsUsable =
+    typeof shippingFeeValue === "number"
+      ? Number.isFinite(shippingFeeValue) && shippingFeeValue >= 0
+      : typeof shippingFeeValue === "string" && shippingFeeValue.trim() !== ""
+        ? Number.isFinite(Number(shippingFeeValue)) && Number(shippingFeeValue) >= 0
+        : false;
+  check(
+    `delivery fee is a usable number (${JSON.stringify(shippingFeeValue ?? null)})`,
+    feeIsUsable,
+    "checkout would silently fall back to the built-in default"
+  );
+
   // ── Notes ───────────────────────────────────────────────────────────────
   heading("Notes");
   let notes = 0;
+
+  if (settingRows.length === 0 || shippingFeeValue === undefined) {
+    console.log(
+      `  - No ${SETTING_KEYS.shippingFee} row; checkout uses the built-in default of ${DEFAULT_SHIPPING_FEE}.`
+    );
+    notes += 1;
+  }
+
+  // Proofs uploaded before proofs were moved out of `public/` are still readable
+  // by anyone who has (or guesses) the URL. New proofs are not.
+  const legacyProofs = await prisma.paymentProof.count({
+    where: { fileKey: { startsWith: "/uploads/" } },
+  });
+  if (legacyProofs > 0) {
+    console.log(
+      `  - ${legacyProofs} payment proof(s) still live at a public /uploads path and remain readable without a session.`
+    );
+    notes += 1;
+  }
 
   if (products === 0) {
     console.log("  - Catalogue is empty; run `npm run db:seed`.");

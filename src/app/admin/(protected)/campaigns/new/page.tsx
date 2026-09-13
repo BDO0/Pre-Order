@@ -53,6 +53,9 @@ export default function NewCampaignPage() {
       if (imageFile) {
         const uploadData = new FormData();
         uploadData.append("file", imageFile);
+        // Campaign covers are public storefront content: public/uploads, and the
+        // API requires campaigns.write for this purpose.
+        uploadData.append("purpose", "CAMPAIGN_IMAGE");
         const uploadRes = await fetch("/api/upload", { method: "POST", body: uploadData });
         const uploadJson = await uploadRes.json();
         if (!uploadRes.ok) throw new Error(uploadJson.error?.message || "Failed to upload image.");

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/api-guard";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ success: false, error: { code: "UNAUTHORIZED" } }, { status: 401 });
+    const guard = await requirePermission("campaigns.read", request);
+    if (!guard.ok) return guard.response;
 
     const { id } = await params;
     const campaign = await prisma.campaign.findUnique({
@@ -33,8 +33,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ success: false, error: { code: "UNAUTHORIZED" } }, { status: 401 });
+    const guard = await requirePermission("campaigns.write", request);
+    if (!guard.ok) return guard.response;
 
     const { id } = await params;
     const body = await request.json();
@@ -71,7 +71,7 @@ export async function PATCH(
 
     await prisma.auditLog.create({
       data: {
-        actor: session.user.email ?? "admin",
+        actor: guard.actor,
         action: "campaign.updated",
         newValue: { campaignId: id, status, name },
       },
@@ -89,8 +89,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ success: false, error: { code: "UNAUTHORIZED" } }, { status: 401 });
+    const guard = await requirePermission("campaigns.write", request);
+    if (!guard.ok) return guard.response;
 
     const { id } = await params;
 

@@ -1,14 +1,22 @@
 "use client";
 
 import { useCartStore } from "@/store/cart";
+import { computeShippingFee } from "@/lib/pricing";
+import { useStoreSettings } from "@/hooks/use-store-settings";
 import Link from "next/link";
 import styles from "./cart.module.css";
 
 export default function CartPage() {
   const { items, updateQuantity, removeItem, clearCart, getSubtotal, campaignSlug } = useCartStore();
 
+  // The delivery fee is configuration, not a constant. Pickup is free, so the
+  // cart labels this as the delivery estimate rather than the final charge.
+  const { shippingFee } = useStoreSettings();
+
   const subtotal = getSubtotal();
-  const shipping = items.length > 0 ? 150 : 0;
+  const shipping = items.length > 0
+    ? computeShippingFee({ deliveryType: "DELIVERY", settings: { shippingFee } })
+    : 0;
   const total = subtotal + shipping;
 
   if (items.length === 0) {
@@ -111,7 +119,7 @@ export default function CartPage() {
                 <span>₱{subtotal.toLocaleString()}</span>
               </div>
               <div className={styles.summaryRow}>
-                <span>Shipping</span>
+                <span>Shipping (delivery)</span>
                 <span>{shipping > 0 ? `₱${shipping.toLocaleString()}` : "Free"}</span>
               </div>
               <div className={`${styles.summaryRow} ${styles.summaryTotal}`}>
@@ -123,6 +131,9 @@ export default function CartPage() {
               </Link>
               <p className={styles.summaryNote}>
                 ✓ Final price will be verified at checkout
+              </p>
+              <p className={styles.summaryNote}>
+                Store pickup is free — choose it at checkout.
               </p>
             </div>
           </div>

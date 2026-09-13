@@ -2,6 +2,9 @@ import { prisma } from "@/lib/db";
 import { generateOrderReference } from "@/lib/order-number";
 import { detectDuplicate } from "@/lib/duplicate-detection";
 import { notificationService } from "@/lib/notification-service";
+import { getStoreSettings } from "@/lib/settings";
+import { computeShippingFee } from "@/lib/pricing";
+import { mimeTypeForKey } from "@/lib/uploads";
 import type { OrderSubmission } from "@/lib/validation";
 import type { Prisma } from "@prisma/client";
 
@@ -208,10 +211,15 @@ export async function createOrder(input: OrderSubmission) {
     0
   );
 
-  const shippingAmount =
-    input.deliveryInfo.type === "DELIVERY"
-      ? 150 // flat rate V1 — make configurable in Phase 6
-      : 0;
+  // ── Step 5b: Delivery fee ──────────────────────────────────
+  // Read from the settings table rather than a literal, through the same helper
+  // that publishes /api/settings/public to the storefront — so the fee shown in
+  // the cart and the fee charged here can never drift apart. Pickup is free.
+  const storeSettings = await getStoreSettings();
+  const shippingAmount = computeShippingFee({
+    deliveryType: input.deliveryInfo.type,
+    settings: storeSettings,
+  });
 
   const total = subtotal + shippingAmount;
 
@@ -368,7 +376,9 @@ export async function createOrder(input: OrderSubmission) {
         data: {
           orderId: newOrder.id,
           fileKey: input.paymentProofKey,
-          mimeType: "image/jpeg", // determined by upload handler
+          // Derived from the stored key's extension. Uploads are re-encoded to
+          // WebP, so hardcoding image/jpeg would mislabel every new proof.
+          mimeType: mimeTypeForKey(input.paymentProofKey),
         },
       });
     }

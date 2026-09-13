@@ -1,10 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 // Public endpoint — no auth required
 // Returns active payment methods for display in the customer checkout form
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const limited = enforceRateLimit(request, RATE_LIMITS.publicRead);
+    if (limited) return limited;
+
     const methods = await prisma.paymentMethod.findMany({
       where: { active: true },
       select: {

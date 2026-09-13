@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/api-guard";
+import { hasPermission } from "@/lib/permissions";
 import { orderStatusUpdateSchema } from "@/lib/validation";
 import {
   assertValidTransition,
+  getValidNextStatuses,
   releasesCapacity,
 } from "@/lib/order-state-machine";
+import { allowedPaymentActions } from "@/lib/payment-state-machine";
 import { releaseOrderCapacity } from "@/lib/order-service";
-import type { OrderStatus } from "@prisma/client";
+import type { OrderStatus, PaymentStatus } from "@prisma/client";
+import {
+  CUSTOMER_PII_FIELDS,
+  DELIVERY_PII_FIELDS,
+  redactSnapshot,
+} from "@/lib/redaction";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ success: false, error: { code: "UNAUTHORIZED", message: "Unauthorized." } }, { status: 401 });
+    const guard = await requirePermission("orders.read", request);
+    if (!guard.ok) return guard.response;
 
     const { id } = await params;
 
@@ -40,7 +48,50 @@ export async function GET(
       return NextResponse.json({ success: false, error: { code: "ORDER_NOT_FOUND", message: "Order not found." } }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: order });
+    // What this viewer may do, decided server-side and shipped with the payload.
+    // The UI renders exactly these flags, so it cannot offer an action the API
+    // would refuse — and a role without `customers.read` (e.g. PRODUCT_MANAGER)
+    // never receives the customer's contact details in the first place, which is
+    // the part of a permission that actually protects anyone.
+    const canUpdateOrder = hasPermission(guard.role, "orders.update");
+    const canVerifyPayment = hasPermission(guard.role, "payments.verify");
+    const canReadCustomer = hasPermission(guard.role, "customers.read");
+
+    const customerSnapshot = canReadCustomer
+      ? order.customerSnapshot
+      : redactSnapshot(
+          order.customerSnapshot as Record<string, unknown>,
+          CUSTOMER_PII_FIELDS
+        );
+
+    const deliverySnapshot = canReadCustomer
+      ? order.deliverySnapshot
+      : redactSnapshot(
+          order.deliverySnapshot as Record<string, unknown>,
+          DELIVERY_PII_FIELDS
+        );
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...order,
+        customerSnapshot,
+        deliverySnapshot,
+        // Empty arrays for a viewer who may not act, so no button is rendered.
+        allowedTransitions: canUpdateOrder
+          ? getValidNextStatuses(order.status as OrderStatus)
+          : [],
+        allowedPaymentActions: canVerifyPayment
+          ? allowedPaymentActions(order.paymentStatus as PaymentStatus)
+          : [],
+        capabilities: {
+          updateOrder: canUpdateOrder,
+          verifyPayment: canVerifyPayment,
+          readCustomer: canReadCustomer,
+        },
+        viewerRole: guard.role,
+      },
+    });
   } catch (error) {
     console.error("[GET /api/admin/orders/[id]]", error);
     return NextResponse.json({ success: false, error: { code: "SERVER_ERROR", message: "Something went wrong." } }, { status: 500 });
@@ -52,8 +103,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ success: false, error: { code: "UNAUTHORIZED", message: "Unauthorized." } }, { status: 401 });
+    const guard = await requirePermission("orders.update", request);
+    if (!guard.ok) return guard.response;
 
     const { id } = await params;
     const body = await request.json();
@@ -94,7 +145,7 @@ export async function PATCH(
           orderId: id,
           fromStatus: order.status as OrderStatus,
           toStatus: newStatus as OrderStatus,
-          changedBy: session.user?.email ?? "admin",
+          changedBy: guard.actor,
           note: note ?? null,
         },
       });
@@ -102,18 +153,26 @@ export async function PATCH(
       await tx.auditLog.create({
         data: {
           orderId: id,
-          actor: session.user?.email ?? "admin",
+          actor: guard.actor,
           action: "order.updated",
           oldValue: { status: order.status },
           newValue: { status: newStatus },
-          metadata: { note, capacityReleased },
+          metadata: { note, capacityReleased, role: guard.role },
         },
       });
 
       return updatedOrder;
     });
 
-    return NextResponse.json({ success: true, data: { id: updated.id, status: updated.status } });
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: updated.id,
+        status: updated.status,
+        // Refreshed here so the caller can re-render without a second round trip.
+        allowedTransitions: getValidNextStatuses(updated.status as OrderStatus),
+      },
+    });
   } catch (error) {
     if (error instanceof Error && error.message.includes("ORDER_INVALID_TRANSITION")) {
       return NextResponse.json({ success: false, error: { code: "ORDER_INVALID_TRANSITION", message: "This status change is not allowed." } }, { status: 422 });

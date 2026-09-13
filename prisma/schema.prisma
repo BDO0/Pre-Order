@@ -348,3 +348,24 @@ model OrderCounter {
   @@map("order_counters")
 }
 
+// ─────────────────────────────────────────────────────────────
+// SETTINGS (operator-editable configuration)
+// ─────────────────────────────────────────────────────────────
+
+// Key/value store for values the shop owner can change without a deploy.
+//
+// JSONB rather than one column per setting: adding a knob is a seed/UI change
+// instead of a migration. The key registry and defaults live in
+// src/lib/pricing.ts (SETTING_KEYS / normaliseShippingFee), which is also what
+// keeps a hand-edited row from ever producing a NaN total.
+//
+// Currently holds `pricing.shipping_fee`, replacing the flat `150` that used to
+// be hardcoded in the order service, the cart and the checkout summary.
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("settings")
+}
+

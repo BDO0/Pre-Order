@@ -3,13 +3,33 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import {
+  hasPermission,
+  ROLE_LABELS,
+  type Permission,
+} from "@/lib/permissions";
+import type { AdminRole } from "@prisma/client";
 
-const NAV_ITEMS = [
-  { href: "/admin/dashboard", label: "Dashboard", icon: "📊" },
-  { href: "/admin/orders",    label: "Orders",     icon: "📋" },
-  { href: "/admin/products",  label: "Products",   icon: "👗" },
-  { href: "/admin/campaigns", label: "Campaigns",  icon: "🔗" },
-  { href: "/admin/settings",  label: "Settings",   icon: "⚙️" },
+/**
+ * Each destination declares the permission it needs, and the list is filtered by
+ * the same matrix the API enforces.
+ *
+ * This is convenience, not security: hiding a link only stops someone wandering
+ * into a screen that would render empty. The route handler behind every screen
+ * calls requirePermission() itself, so replays and deep links are rejected
+ * server-side regardless of what the nav shows.
+ */
+const NAV_ITEMS: readonly {
+  href: string;
+  label: string;
+  icon: string;
+  permission: Permission;
+}[] = [
+  { href: "/admin/dashboard", label: "Dashboard", icon: "📊", permission: "reports.read" },
+  { href: "/admin/orders",    label: "Orders",     icon: "📋", permission: "orders.read" },
+  { href: "/admin/products",  label: "Products",   icon: "👗", permission: "products.read" },
+  { href: "/admin/campaigns", label: "Campaigns",  icon: "🔗", permission: "campaigns.read" },
+  { href: "/admin/settings",  label: "Settings",   icon: "⚙️", permission: "settings.write" },
 ];
 
 export default function AdminLayoutClient({
@@ -17,9 +37,22 @@ export default function AdminLayoutClient({
   user,
 }: {
   children: React.ReactNode;
-  user: { name?: string | null; email?: string | null };
+  user: {
+    name?: string | null;
+    email?: string | null;
+    role?: AdminRole | string | null;
+  };
 }) {
   const pathname = usePathname();
+
+  const visibleItems = NAV_ITEMS.filter((item) =>
+    hasPermission(user.role, item.permission)
+  );
+
+  const roleLabel =
+    typeof user.role === "string" && user.role in ROLE_LABELS
+      ? ROLE_LABELS[user.role as AdminRole]
+      : "Unknown role";
 
   return (
     <div className="admin-layout">
@@ -31,7 +64,7 @@ export default function AdminLayoutClient({
         </div>
 
         <nav className="admin-nav" aria-label="Admin navigation">
-          {NAV_ITEMS.map((item) => (
+          {visibleItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -50,6 +83,22 @@ export default function AdminLayoutClient({
             </p>
             <p style={{ color: "rgb(255 255 255 / 0.55)", fontSize: "var(--text-xs)", marginTop: "2px" }}>
               {user.email}
+            </p>
+            {/* Staff should be able to see what they are allowed to do. */}
+            <p
+              style={{
+                display: "inline-block",
+                marginTop: "var(--space-2)",
+                padding: "2px var(--space-2)",
+                borderRadius: "var(--radius-md)",
+                background: "rgb(255 255 255 / 0.12)",
+                color: "rgb(255 255 255 / 0.75)",
+                fontSize: "var(--text-xs)",
+                fontWeight: 600,
+                letterSpacing: "0.02em",
+              }}
+            >
+              {roleLabel}
             </p>
           </div>
           <button

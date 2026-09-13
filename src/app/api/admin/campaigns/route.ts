@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/api-guard";
 import { campaignSchema } from "@/lib/validation";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ success: false, error: { code: "UNAUTHORIZED", message: "Unauthorized." } }, { status: 401 });
+    const guard = await requirePermission("campaigns.read", request);
+    if (!guard.ok) return guard.response;
 
     const campaigns = await prisma.campaign.findMany({
       include: {
@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ success: false, error: { code: "UNAUTHORIZED", message: "Unauthorized." } }, { status: 401 });
+    const guard = await requirePermission("campaigns.write", request);
+    if (!guard.ok) return guard.response;
 
     const body = await request.json();
     const parsed = campaignSchema.safeParse(body);
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     await prisma.auditLog.create({
       data: {
-        actor: session.user.email ?? "admin",
+        actor: guard.actor,
         action: "campaign.created",
         newValue: { campaignId: campaign.id, name: campaign.name },
       },

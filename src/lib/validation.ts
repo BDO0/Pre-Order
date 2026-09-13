@@ -92,6 +92,44 @@ export const orderStatusUpdateSchema = z.object({
 });
 
 // ─────────────────────────────────────────────────────────────
+// ADMIN: PAYMENT VERIFICATION
+// ─────────────────────────────────────────────────────────────
+export const paymentActionSchema = z.object({
+  action: z.enum(["VERIFY", "REJECT", "REFUND"]),
+  // Optional context for the audit trail ("proof matches BPI transfer").
+  note: z.string().max(500, "Note is too long").optional(),
+});
+
+// ─────────────────────────────────────────────────────────────
+// ADMIN: INTERNAL NOTES
+// ─────────────────────────────────────────────────────────────
+export const internalNotesSchema = z.object({
+  // Empty string is allowed and clears the note: staff need a way to undo.
+  notes: z.string().max(2000, "Note is too long"),
+});
+
+// ─────────────────────────────────────────────────────────────
+// ADMIN: STORE SETTINGS
+// ─────────────────────────────────────────────────────────────
+export const settingsUpdateSchema = z
+  .object({
+    // coerce: the settings form submits an <input type="number"> value, which
+    // arrives as a string in JSON.
+    shippingFee: z.coerce
+      .number()
+      .min(0, "Fee cannot be negative")
+      .max(100_000, "Fee is unreasonably high")
+      .optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "No settings provided",
+  });
+
+export type PaymentActionInput = z.infer<typeof paymentActionSchema>;
+export type InternalNotesInput = z.infer<typeof internalNotesSchema>;
+export type SettingsUpdateInput = z.infer<typeof settingsUpdateSchema>;
+
+// ─────────────────────────────────────────────────────────────
 // PRODUCT
 // ─────────────────────────────────────────────────────────────
 export const productSchema = z.object({

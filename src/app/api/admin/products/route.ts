@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/api-guard";
 import { productSchema } from "@/lib/validation";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ success: false, error: { code: "UNAUTHORIZED", message: "Unauthorized." } }, { status: 401 });
+    const guard = await requirePermission("products.read", request);
+    if (!guard.ok) return guard.response;
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") ?? "1");
@@ -37,8 +37,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) return NextResponse.json({ success: false, error: { code: "UNAUTHORIZED", message: "Unauthorized." } }, { status: 401 });
+    const guard = await requirePermission("products.write", request);
+    if (!guard.ok) return guard.response;
 
     const body = await request.json();
     const parsed = productSchema.safeParse(body);
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     await prisma.auditLog.create({
       data: {
-        actor: session.user.email ?? "admin",
+        actor: guard.actor,
         action: "product.created",
         newValue: { productId: product.id, name: product.name },
       },

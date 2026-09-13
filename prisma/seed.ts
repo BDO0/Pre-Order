@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import pg from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { createPoolConfig } from "../src/lib/pg-ssl";
+import { DEFAULT_SHIPPING_FEE, SETTING_KEYS } from "../src/lib/pricing";
 import bcrypt from "bcryptjs";
 
 const { Pool } = pg;
@@ -83,6 +84,20 @@ async function main() {
   });
 
   console.log(`✅ Payment methods: ${gcash.name}, ${maya.name}, ${cod.name}`);
+
+  // ── Store Settings ────────────────────────────────────────
+  // Seeded so a fresh database carries an explicit delivery fee rather than
+  // relying on the application fallback. `update: {}` leaves an operator's edit
+  // alone — re-seeding must never silently reset a live price.
+  const shippingFeeSetting = await prisma.setting.upsert({
+    where: { key: SETTING_KEYS.shippingFee },
+    update: {},
+    create: { key: SETTING_KEYS.shippingFee, value: DEFAULT_SHIPPING_FEE },
+  });
+
+  console.log(
+    `✅ Settings: ${shippingFeeSetting.key} = ${JSON.stringify(shippingFeeSetting.value)}`
+  );
 
   // ── Sample Products ───────────────────────────────────────
   const shirt = await prisma.product.upsert({

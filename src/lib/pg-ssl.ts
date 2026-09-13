@@ -48,14 +48,19 @@ export function resolveSsl(connectionString: string): pg.PoolConfig["ssl"] {
  * one of the two.
  */
 export function createPoolConfig(connectionString: string): pg.PoolConfig {
+  // A serverless platform starts many short-lived instances, and each one used
+  // to open up to ten sockets. Behind the Supabase pooler that is wasteful; for
+  // a serverless deploy set PGPOOL_MAX=1 and let Supavisor do the multiplexing.
+  const configuredMax = Number.parseInt(process.env.PGPOOL_MAX ?? "", 10);
+  const max =
+    Number.isFinite(configuredMax) && configuredMax > 0 ? configuredMax : 10;
+
   return {
     connectionString,
     ssl: resolveSsl(connectionString),
     // Fail fast instead of leaving the request hanging forever when the
     // database is unreachable (e.g. a paused Supabase project).
     connectionTimeoutMillis: 10_000,
-    // Serverless platforms start many short-lived instances; a small pool per
-    // instance avoids exhausting the database's connection limit.
-    max: 10,
+    max,
   };
 }

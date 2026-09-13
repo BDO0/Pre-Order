@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useCartStore } from "@/store/cart";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { computeShippingFee, type DeliveryType } from "@/lib/pricing";
+import { useStoreSettings } from "@/hooks/use-store-settings";
 import styles from "./checkout.module.css";
 
 interface PaymentMethod {
@@ -57,8 +59,16 @@ export default function CheckoutPage() {
     }
   }, [items, router]);
 
+  const { shippingFee } = useStoreSettings();
+
   const subtotal = getSubtotal();
-  const shipping = formData.deliveryType === "DELIVERY" ? 150 : 0;
+  // Pickup is free; delivery uses the operator-configured fee, published by
+  // /api/settings/public. The server recomputes this from the same setting when
+  // the order is created, so the browser can never negotiate its own total.
+  const shipping = computeShippingFee({
+    deliveryType: formData.deliveryType as DeliveryType,
+    settings: { shippingFee },
+  });
   const total = subtotal + shipping;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -88,6 +98,10 @@ export default function CheckoutPage() {
         }
         const uploadData = new FormData();
         uploadData.append("file", proofFile);
+        // Marks this as customer PII: the upload route stores it outside the
+        // public directory and re-encodes it, and accepts it without a session
+        // because a shopper is not logged in.
+        uploadData.append("purpose", "PAYMENT_PROOF");
         const uploadRes = await fetch("/api/upload", { method: "POST", body: uploadData });
         const uploadJson = await uploadRes.json();
         if (!uploadRes.ok) throw new Error(uploadJson.error?.message || "Failed to upload payment proof.");
@@ -201,7 +215,7 @@ export default function CheckoutPage() {
                 <label className={styles.radioLabel}>
                   <input type="radio" name="deliveryType" value="DELIVERY"
                     checked={formData.deliveryType === "DELIVERY"} onChange={handleInputChange} />
-                  Standard Delivery (₱150)
+                  Standard Delivery (₱{shippingFee})
                 </label>
                 <label className={styles.radioLabel}>
                   <input type="radio" name="deliveryType" value="PICKUP"
