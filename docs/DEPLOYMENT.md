@@ -14,9 +14,13 @@ Copy `.env.example` and fill it in. Required:
 | Variable | Why |
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string. |
-| `AUTH_SECRET` (or `NEXTAUTH_SECRET`) | Signs the admin session JWT. A weak or shared value is a full admin compromise. Generate with `openssl rand -base64 32`. |
-| `NEXTAUTH_URL` | Absolute origin of the deployment, e.g. `https://admin.example.com`. |
+| `AUTH_SECRET` | Signs the admin session JWT. A weak or shared value is a full admin compromise. Generate with `openssl rand -base64 32`. |
+| `AUTH_URL` | Canonical origin, e.g. `https://admin.example.com`. This is also the switch that makes Auth.js trust the Host header: without `AUTH_URL`, `AUTH_TRUST_HOST`, `VERCEL` or `CF_PAGES`, a **production** build answers every `/api/auth/*` request with `UntrustedHost` (HTTP 500). Because the proxy converts auth failures into a redirect to the login page, that misconfiguration presents as "every password is rejected" rather than as a config error. |
 | `APP_URL` | **Must equal the deployed origin.** See §5. |
+
+`NEXTAUTH_SECRET` / `NEXTAUTH_URL` are the Auth.js v4 names. The secret is still
+honoured, but the URL is **not** used for the host-trust decision — set
+`AUTH_URL`.
 
 `TEST_DATABASE_URL` is only for the integration tests and must never point at
 production.
