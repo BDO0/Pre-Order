@@ -127,9 +127,17 @@ describe("buildSnapshotAnswers", () => {
     );
   });
 
-  it("accepts a dropdown choice regardless of capitalisation, storing what was typed", () => {
+  it("accepts a dropdown choice regardless of capitalisation, storing the offered spelling", () => {
+    // The dropdown offers one spelling, so the answer recorded is that one: the
+    // order screen renders this value, and "medium" under a field offering
+    // "Medium" would be the shop's own data disagreeing with itself.
     const answers = buildSnapshotAnswers([SIZE], [{ fieldId: "size", value: "medium" }]);
-    expect(answers[0].value).toBe("medium");
+    expect(answers[0].value).toBe("Medium");
+
+    // Anything else in the answer is kept as typed - only a dropdown has a list
+    // to canonicalise against.
+    const phone = buildSnapshotAnswers([PHONE], [{ fieldId: "mobile_number", value: "0917 123 4567" }]);
+    expect(phone[0].value).toBe("0917 123 4567");
 
     expectCode(
       () => buildSnapshotAnswers([SIZE], [{ fieldId: "size", value: "Extra Large" }]),

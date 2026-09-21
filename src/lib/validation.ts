@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { INSTAGRAM_HANDLE_HINT, normaliseInstagramHandle } from "@/lib/instagram";
+import { MAX_ANSWER_LENGTH } from "@/lib/order-answers";
 
 // ─────────────────────────────────────────────────────────────
 // CUSTOMER INFO
@@ -45,6 +46,27 @@ export const orderItemSchema = z.object({
 });
 
 // ─────────────────────────────────────────────────────────────
+// ORDER ANSWERS (the operator-defined checkout questions)
+// ─────────────────────────────────────────────────────────────
+/**
+ * One answer to one operator-defined question.
+ *
+ * `fieldId` carries the field's `key`, not its row id: the key is what a stored
+ * snapshot names, and it is what survives a question being recreated. The value
+ * is only checked here for being a string of a sane length — the rules that need
+ * the field definition itself (required, email shape, "one of the listed
+ * options") live in `buildSnapshotAnswers`, which is the one place that holds
+ * both halves and can therefore judge them.
+ */
+export const checkoutAnswerSchema = z.object({
+  fieldId: z.string().trim().min(1, "Invalid question").max(60, "Invalid question"),
+  value: z.string().max(MAX_ANSWER_LENGTH, "That answer is too long"),
+});
+
+/** Most questions one order may carry an answer for. */
+const MAX_ANSWERS = 50;
+
+// ─────────────────────────────────────────────────────────────
 // ORDER SUBMISSION
 // ─────────────────────────────────────────────────────────────
 export const orderSubmissionSchema = z.object({
@@ -52,6 +74,13 @@ export const orderSubmissionSchema = z.object({
   batchId: z.string().min(1, "Invalid batch"),
   items: z.array(orderItemSchema).min(1, "At least one item is required"),
   customerInfo: customerInfoSchema,
+  // Answers to whatever the operator asked for. Defaulted rather than optional
+  // so every caller states an array and the type cannot describe a payload that
+  // omits them: `createOrder` feeds this straight to `buildSnapshotAnswers`, and
+  // `undefined` there would silently skip the required-question check. A shop
+  // with no questions configured sends `[]`, which is the existing behaviour
+  // exactly.
+  answers: z.array(checkoutAnswerSchema).max(MAX_ANSWERS, "Too many answers").default([]),
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -186,9 +215,16 @@ export const productCreateSchema = productSchema.extend({
 /**
  * Editing a product, from the screen that exists.
  *
- * Only the fields that screen manages: it cannot set the slug, the description,
- * the pre-order window or its limit, so those keys are not accepted rather than
- * accepted and then ignored.
+ * Only the fields that screen manages: it cannot set the slug, the description
+ * or the pre-order window, so those keys are not accepted rather than accepted
+ * and then ignored.
+ *
+ * `preorderLimit` used to be on that list, because no screen had a box for it -
+ * which meant the cap was only ever set by `prisma/seed.ts`, and a product an
+ * operator created was unlimited no matter what the product form said. Now that
+ * both product screens send it, it is accepted, and taken from `productSchema`
+ * rather than retyped so the create and edit paths cannot come to disagree about
+ * what a valid limit is.
  */
 export const productUpdateSchema = z.object({
   name: z.string().trim().min(2, "Product name is required"),
@@ -196,6 +232,7 @@ export const productUpdateSchema = z.object({
   category: z.string().trim().max(120, "That category is too long").optional().nullable().transform(blankToNull),
   active: z.boolean().optional(),
   preorderStatus: z.enum(PREORDER_STATUSES).optional(),
+  preorderLimit: productSchema.shape.preorderLimit,
   images: z.array(z.string().max(1000)).max(10).optional(),
   variants: productVariantListSchema.optional(),
 });

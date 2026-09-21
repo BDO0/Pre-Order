@@ -9,15 +9,21 @@
 import { OrderError } from "@/lib/order-error";
 import type { FormFieldType } from "@prisma/client";
 
-/** One answered field, as stored in `orders.customerSnapshot.answers`. */
-export interface SnapshotAnswer {
+/**
+ * One answered field, as stored in `orders.customerSnapshot.answers`.
+ *
+ * Declared as a type alias rather than an interface on purpose: a type alias
+ * gets an implicit index signature, which is what makes an array of these
+ * assignable to Prisma's `InputJsonValue` when the snapshot is written.
+ */
+export type SnapshotAnswer = {
   key: string;
   label: string;
   type: FormFieldType;
   value: string;
   /** Whether the definition was marked sensitive when this answer was written. */
   sensitive: boolean;
-}
+};
 
 /** A field as the checkout page (and the admin list) sees it. */
 export interface PublicFormField {
@@ -166,7 +172,9 @@ export function buildSnapshotAnswers(
     }
     seen.add(entry.fieldId);
 
-    const value = entry.value.trim();
+    // `let` because a dropdown answer is canonicalised below: the stored value is
+    // the spelling the field offers, not the spelling the payload used.
+    let value = entry.value.trim();
 
     if (value === "") {
       if (field.required) reject(field.label, "is required.", "FORM_FIELD_REQUIRED");
@@ -194,21 +202,32 @@ export function buildSnapshotAnswers(
           reject(field.label, "must be a number.", "FORM_ANSWER_INVALID");
         }
         break;
-      case "SELECT":
-        // Case-insensitive so a stale option list cannot reject a valid choice
-        // over capitalisation, but the stored value is the operator's spelling.
-        if (
-          !field.options.some(
-            (option) => option.toLowerCase() === value.toLowerCase()
-          )
-        ) {
-          reject(
+      case "SELECT": {
+        // Matched case-insensitively, so a stale option list cannot reject a valid
+        // choice over capitalisation. What is *stored*, though, is the operator's
+        // spelling and not the customer's: this value is rendered back on the order
+        // screen, and an answer reading "medium" under a field that offers "Medium"
+        // is the shop's own data contradicting itself. Nothing legitimate can
+        // differ anyway — a dropdown offers one spelling — so a payload that
+        // disagrees is either a cached page or a hand-rolled request, and either
+        // way the honest record is what the form would have shown.
+        const option = field.options.find(
+          (candidate) => candidate.toLowerCase() === value.toLowerCase()
+        );
+
+        if (option === undefined) {
+          // `return`, not a bare call: `reject` is typed `never`, and this is what
+          // lets the assignment below read a value the compiler knows is a string.
+          return reject(
             field.label,
             "must be one of the listed options.",
             "FORM_ANSWER_INVALID"
           );
         }
+
+        value = option;
         break;
+      }
       default:
         break;
     }

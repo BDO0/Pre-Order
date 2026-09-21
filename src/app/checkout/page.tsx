@@ -5,7 +5,8 @@ import { useCartStore } from "@/store/cart";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { INSTAGRAM_HANDLE_HINT } from "@/lib/instagram";
-import { SHOP_INSTAGRAM_HANDLE } from "@/lib/site";
+import { SHOP_INSTAGRAM_HANDLE, SITE_NAME } from "@/lib/site";
+import { MAX_ANSWER_LENGTH, type PublicFormField } from "@/lib/order-answers";
 import styles from "./checkout.module.css";
 
 export default function CheckoutPage() {
@@ -17,7 +18,19 @@ export default function CheckoutPage() {
 
   const [fullName, setFullName] = useState("");
   const [instagramHandle, setInstagramHandle] = useState("");
-  
+
+  // The operator-defined questions, and the customer's answers to them.
+  //
+  // `questions` starts empty, and an empty list is a fully working state: a shop
+  // that has defined no questions shows none and checks out exactly as it did
+  // before any of this existed.
+  const [questions, setQuestions] = useState<PublicFormField[]>([]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  // Tracked separately from `questions.length` so "there are none" and "we never
+  // managed to ask" cannot be confused — the second blocks the order, because a
+  // required question the customer cannot see is a rejection they cannot fix.
+  const [questionsFailed, setQuestionsFailed] = useState(false);
+
   // State for confirmation modal
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
@@ -27,12 +40,69 @@ export default function CheckoutPage() {
     }
   }, [items, router]);
 
+  // Fetched on the client rather than rendered on the server: this page is a
+  // client component driven by the cart store, so there is nothing to render
+  // before hydration anyway, and a slow or unhappy endpoint delays one section
+  // instead of the whole page.
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/form-fields")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
+      .then((json) => {
+        if (cancelled) return;
+        if (!json?.success || !Array.isArray(json.data)) {
+          setQuestionsFailed(true);
+          return;
+        }
+        setQuestions(json.data as PublicFormField[]);
+      })
+      .catch(() => {
+        if (!cancelled) setQuestionsFailed(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Checked here so a missing answer is a sentence next to the button rather
+  // than a round trip that ends in a generic error. The server enforces the same
+  // rule against the field definitions it actually holds, which is what makes
+  // this convenience rather than the guard.
+  const missingRequired = questions.filter(
+    (question) => question.required && !(answers[question.key] ?? "").trim()
+  );
+
+  /** The questions the customer actually filled in, for the confirmation modal. */
+  const answeredQuestions = questions.filter(
+    (question) => (answers[question.key] ?? "").trim() !== ""
+  );
+
+  // The questions section is only numbered when it is on screen: a constant
+  // "2." would leave the payment section reading "3." with nothing above it in
+  // a shop that asks no questions at all.
+  const paymentStep = questions.length > 0 ? 3 : 2;
+
   const subtotal = getSubtotal();
 
   const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !instagramHandle.trim()) {
       setError("Please fill in all required details.");
+      return;
+    }
+    if (questionsFailed) {
+      setError("We could not load every question. Please reload the page and try again.");
+      return;
+    }
+    if (missingRequired.length > 0) {
+      const labels = missingRequired.map((question) => `"${question.label}"`).join(", ");
+      setError(
+        missingRequired.length === 1
+          ? `Please answer ${labels}.`
+          : `Please answer all of these: ${labels}.`
+      );
       return;
     }
     setError(null);
@@ -55,6 +125,14 @@ export default function CheckoutPage() {
           fullName,
           instagramHandle,
         },
+        // Every question, answered or not. The server is what decides which ones
+        // mattered, and it can only say "this one is required" about a question
+        // it was actually sent; a blank answer to an optional one is dropped
+        // there rather than stored as an empty string.
+        answers: questions.map((question) => ({
+          fieldId: question.key,
+          value: (answers[question.key] ?? "").trim(),
+        })),
       };
 
       const orderRes = await fetch("/api/orders", {
@@ -94,13 +172,80 @@ export default function CheckoutPage() {
     }
   };
 
+  /**
+   * One operator-defined question, as the customer fills it in.
+   *
+   * A plain function rather than a nested component: a component declared inside
+   * this one is a new type on every render, which remounts the input and drops
+   * the caret every time a keystroke lands.
+   *
+   * `type` maps to the matching native input so the browser's own keyboard and
+   * validation help out (`tel`, `email`, `number`); SELECT falls back to a text
+   * input if the operator saved no options, because a dropdown with no choices
+   * asks nothing and cannot be answered.
+   */
+  const renderQuestion = (question: PublicFormField) => {
+    const value = answers[question.key] ?? "";
+    const inputId = `answer-${question.key}`;
+
+    const update = (next: string) =>
+      setAnswers((current) => ({ ...current, [question.key]: next }));
+
+    const shared = {
+      id: inputId,
+      name: inputId,
+      className: "form-input",
+      value,
+      required: question.required,
+      placeholder: question.placeholder ?? undefined,
+      maxLength: MAX_ANSWER_LENGTH,
+    };
+
+    const inputType =
+      question.type === "PHONE"
+        ? "tel"
+        : question.type === "EMAIL"
+          ? "email"
+          : question.type === "NUMBER"
+            ? "number"
+            : "text";
+
+    return (
+      <div className="form-group" key={question.key}>
+        <label
+          htmlFor={inputId}
+          className={question.required ? "form-label form-label-required" : "form-label"}
+        >
+          {question.label}
+        </label>
+
+        {question.type === "TEXTAREA" ? (
+          <textarea {...shared} rows={4} onChange={(e) => update(e.target.value)} />
+        ) : question.type === "SELECT" && question.options.length > 0 ? (
+          <select {...shared} onChange={(e) => update(e.target.value)}>
+            <option value="">{question.placeholder ?? "Choose one"}</option>
+            {question.options.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input {...shared} type={inputType} onChange={(e) => update(e.target.value)} />
+        )}
+
+        {question.helpText && <span className="form-hint">{question.helpText}</span>}
+      </div>
+    );
+  };
+
   if (items.length === 0) return null;
 
   return (
     <div className={styles.page}>
       <nav className="navbar">
         <div className="container navbar-inner">
-          <Link href="/" className="navbar-brand">ANA Clothing</Link>
+          <Link href="/" className="navbar-brand">{SITE_NAME}</Link>
           <Link href="/cart" className="btn btn-ghost btn-sm">← Back to Cart</Link>
         </div>
       </nav>
@@ -116,8 +261,8 @@ export default function CheckoutPage() {
             <section className={styles.sectionCard}>
               <h2 className={styles.sectionTitle}>1. Who are you?</h2>
               <p style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-500)", marginBottom: "var(--space-5)" }}>
-                Two details is all we need. We&apos;ll message you on Instagram to sort out
-                sizing, payment and delivery.
+                Your name and your Instagram account, plus anything else we ask for
+                below. Sizing, payment and delivery are all settled in Instagram DM.
               </p>
               <div className={styles.grid}>
                 <div className="form-group">
@@ -150,8 +295,25 @@ export default function CheckoutPage() {
               </div>
             </section>
 
+            {questions.length > 0 && (
+              <section className={styles.sectionCard}>
+                <h2 className={styles.sectionTitle}>2. A few details we need</h2>
+                <p
+                  style={{
+                    fontSize: "var(--text-sm)",
+                    color: "var(--color-neutral-500)",
+                    marginBottom: "var(--space-5)",
+                  }}
+                >
+                  We ask these before we can pack your order. Anything we still need
+                  after this, we will sort out with you in DM.
+                </p>
+                <div className={styles.grid}>{questions.map(renderQuestion)}</div>
+              </section>
+            )}
+
             <section className={styles.sectionCard}>
-              <h2 className={styles.sectionTitle}>2. Payment &amp; shipping</h2>
+              <h2 className={styles.sectionTitle}>{paymentStep}. Payment &amp; shipping</h2>
               <div className={styles.paymentInstructions}>
                 <p>
                   <strong>Everything is settled on Instagram.</strong>
@@ -228,6 +390,11 @@ export default function CheckoutPage() {
                 <h3 style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-neutral-500)", marginBottom: "var(--space-2)" }}>Your Details</h3>
                 <p><strong>Name:</strong> {fullName}</p>
                 <p><strong>Instagram:</strong> {instagramHandle}</p>
+                {answeredQuestions.map((question) => (
+                  <p key={question.key}>
+                    <strong>{question.label}:</strong> {(answers[question.key] ?? "").trim()}
+                  </p>
+                ))}
               </div>
               
               <div style={{ marginBottom: "var(--space-6)" }}>
