@@ -193,8 +193,8 @@ const blankToNull = (value: string | null | undefined): string | null | undefine
 export const productVariantWriteSchema = productVariantSchema
   .pick({ size: true, color: true, capacity: true })
   .extend({
-    size: z.string().trim().max(60, "That size is too long").optional().nullable().transform(blankToNull),
-    color: z.string().trim().max(60, "That colour is too long").optional().nullable().transform(blankToNull),
+    size: z.string().trim().max(200, "That size is too long").optional().nullable().transform(blankToNull),
+    color: z.string().trim().max(200, "That colour is too long").optional().nullable().transform(blankToNull),
   });
 
 /**

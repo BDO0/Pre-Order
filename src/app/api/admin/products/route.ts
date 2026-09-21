@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/api-guard";
 import { ensureProductInOpenBatch } from "@/lib/batch-service";
 import { uniqueViolationTarget } from "@/lib/prisma-errors";
+import { expandVariantPayload } from "@/lib/variant-plan";
 import { productCreateSchema } from "@/lib/validation";
 
 export async function GET(request: NextRequest) {
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     // create: a capacity sent as a string, or any key the table does not have,
     // came back as an unhandled Prisma error - a 500 for what is really a bad
     // request.
-    const variantRows = (variants ?? []).map((variant) => ({
+    const variantRows = expandVariantPayload(variants ?? []).map((variant) => ({
       size: variant.size ?? null,
       color: variant.color ?? null,
       // A variant that has just been created has consumed nothing, so its

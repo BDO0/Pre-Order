@@ -1,6 +1,11 @@
 import type { Prisma } from "@prisma/client";
 import { CAPACITY_RELEASING_STATUSES } from "@/lib/order-state-machine";
-import { describeVariant, planVariantSync, type IncomingVariant } from "@/lib/variant-plan";
+import {
+  describeVariant,
+  expandVariantPayload,
+  planVariantSync,
+  type IncomingVariant,
+} from "@/lib/variant-plan";
 
 /**
  * Variant writes: the one place that decides what happens to a product's
@@ -45,6 +50,7 @@ import { describeVariant, planVariantSync, type IncomingVariant } from "@/lib/va
 export {
   variantKey,
   describeVariant,
+  expandVariantPayload,
   nextRemainingCapacity,
   planVariantSync,
 } from "@/lib/variant-plan";
@@ -128,13 +134,15 @@ export async function syncProductVariants(
     orderBy: { createdAt: "asc" },
   });
 
+  const expanded = expandVariantPayload(incoming);
+
   // Only needed when a capacity is actually being set on a variant that has no
   // stored pair to measure consumption from.
-  const liveOrdered = incoming.some((variant) => variant.capacity != null)
+  const liveOrdered = expanded.some((variant) => variant.capacity != null)
     ? await liveOrderedByVariant(tx, productId)
     : new Map<string, number>();
 
-  const plan = planVariantSync(existing, incoming, liveOrdered);
+  const plan = planVariantSync(existing, expanded, liveOrdered);
 
   if (plan.conflicts.length > 0) {
     const conflict = plan.conflicts[0];

@@ -221,18 +221,20 @@ export function planVariantSync(
 export const MAX_VARIANTS = 200;
 
 /**
- * Splits a comma-separated box into distinct values.
+ * Splits a delimiter-separated input into distinct values.
  *
+ * Supports commas (`,`), full-width commas (`，`), semicolons (`;`), and newlines (`\n`, `\r`).
  * Case is folded for the comparison only, and the first spelling wins: "Black,
  * black" is one option called "Black". `variantKey` folds case anyway, so a
  * duplicate row would be quietly collapsed by the sync after the operator had
  * watched it appear in the grid.
  */
-export function parseVariantList(raw: string): string[] {
+export function parseVariantList(raw: string | null | undefined): string[] {
+  if (!raw) return [];
   const seen = new Set<string>();
   const values: string[] = [];
 
-  for (const part of raw.split(",")) {
+  for (const part of raw.split(/[\n\r,;\uFF0C]+/)) {
     const value = part.trim();
     if (!value) continue;
     const key = value.toLowerCase();
@@ -242,6 +244,47 @@ export function parseVariantList(raw: string): string[] {
   }
 
   return values;
+}
+
+/**
+ * Normalises an incoming variant list, expanding any row whose size or colour
+ * was sent as a comma-separated list into distinct variant rows.
+ *
+ * For example: `{ color: "Black, Red, Blue", size: "M", capacity: 10 }`
+ * expands to 3 variants:
+ *   - M / Black (capacity: 10)
+ *   - M / Red (capacity: 10)
+ *   - M / Blue (capacity: 10)
+ */
+export function expandVariantPayload<
+  T extends { size?: string | null; color?: string | null; capacity?: number | null }
+>(variants: readonly T[]): T[] {
+  const result: T[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const v of variants) {
+    const sizes = v.size ? parseVariantList(v.size) : [null];
+    const colors = v.color ? parseVariantList(v.color) : [null];
+
+    const sizeList = sizes.length > 0 ? sizes : [null];
+    const colorList = colors.length > 0 ? colors : [null];
+
+    for (const color of colorList) {
+      for (const size of sizeList) {
+        const key = variantKey(size, color);
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+
+        result.push({
+          ...v,
+          size,
+          color,
+        });
+      }
+    }
+  }
+
+  return result;
 }
 
 /** One option on a product: a size, a colour, or both. */

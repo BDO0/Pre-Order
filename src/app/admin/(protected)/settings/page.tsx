@@ -149,7 +149,10 @@ export default function AdminSettingsPage() {
     sensitive: draft.sensitive,
     options:
       draft.type === "SELECT"
-        ? draft.options.split("\n").map((line) => line.trim()).filter(Boolean)
+        ? draft.options
+            .split(/[\n\r,;\uFF0C]+/)
+            .map((line) => line.trim())
+            .filter(Boolean)
         : [],
     active: draft.active,
   });
@@ -331,13 +334,13 @@ export default function AdminSettingsPage() {
 
         {draft.type === "SELECT" && (
           <div className="form-group" style={{ marginTop: "var(--space-3)" }}>
-            <label className="form-label">Choices (one per line)</label>
+            <label className="form-label">Choices (comma-separated or one per line)</label>
             <textarea
               className="form-input"
               rows={4}
               value={draft.options}
               onChange={(e) => setDraft({ ...draft, options: e.target.value })}
-              placeholder={"Small\nMedium\nLarge"}
+              placeholder={"Small, Medium, Large\n— or one per line"}
             />
           </div>
         )}

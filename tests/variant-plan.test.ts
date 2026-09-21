@@ -4,6 +4,7 @@ import {
   buildVariantPayload,
   describeRetirements,
   describeVariant,
+  expandVariantPayload,
   parseCapacityInput,
   parseVariantList,
   planVariantSync,
@@ -47,6 +48,15 @@ describe("parseVariantList", () => {
     expect(parseVariantList("   ")).toEqual([]);
   });
 
+  it("splits on comma, semicolon, full-width comma, and newlines", () => {
+    expect(parseVariantList("Black, Red, Blue")).toEqual(["Black", "Red", "Blue"]);
+    expect(parseVariantList("Black; Red; Blue")).toEqual(["Black", "Red", "Blue"]);
+    expect(parseVariantList("Black，Red，Blue")).toEqual(["Black", "Red", "Blue"]);
+    expect(parseVariantList("Black\nRed\nBlue")).toEqual(["Black", "Red", "Blue"]);
+    expect(parseVariantList(null)).toEqual([]);
+    expect(parseVariantList(undefined)).toEqual([]);
+  });
+
   it("folds case for the comparison only, keeping the spelling typed first", () => {
     // `variantKey` folds case, so "Black, black" is one option to the database.
     // Collapsing it here means the grid the operator sees matches the options
@@ -57,6 +67,35 @@ describe("parseVariantList", () => {
   it("uses the same identity the sync uses, so the grid and the rows agree", () => {
     expect(variantKey(" m ", "Black")).toBe(variantKey("M", "black"));
     expect(variantKey("", null)).toBe(variantKey(null, undefined));
+  });
+});
+
+describe("expandVariantPayload", () => {
+  it("expands a single variant with comma-separated colors into multiple distinct variants", () => {
+    const raw = [{ color: "Black, Red, Blue", size: "M", capacity: 10 }];
+    expect(expandVariantPayload(raw)).toEqual([
+      { color: "Black", size: "M", capacity: 10 },
+      { color: "Red", size: "M", capacity: 10 },
+      { color: "Blue", size: "M", capacity: 10 },
+    ]);
+  });
+
+  it("expands comma-separated sizes and colors across all combinations", () => {
+    const raw = [{ color: "Black, White", size: "S, M", capacity: 5 }];
+    expect(expandVariantPayload(raw)).toEqual([
+      { color: "Black", size: "S", capacity: 5 },
+      { color: "Black", size: "M", capacity: 5 },
+      { color: "White", size: "S", capacity: 5 },
+      { color: "White", size: "M", capacity: 5 },
+    ]);
+  });
+
+  it("leaves already-distinct variants untouched", () => {
+    const raw = [
+      { color: "Black", size: "S", capacity: 10 },
+      { color: "White", size: "S", capacity: 10 },
+    ];
+    expect(expandVariantPayload(raw)).toEqual(raw);
   });
 });
 

@@ -106,8 +106,8 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
         // White used to load with "Black" in the colour box, so saving the form
         // for any reason - renaming it, correcting the price - retired White, and
         // the screen said "Product updated successfully".
-        const sizes = [...new Set(onSale.map((v) => v.size).filter((s): s is string => Boolean(s)))];
-        const colors = [...new Set(onSale.map((v) => v.color).filter((c): c is string => Boolean(c)))];
+        const sizes = [...new Set(onSale.flatMap((v) => (v.size ? parseVariantList(v.size) : [])))];
+        const colors = [...new Set(onSale.flatMap((v) => (v.color ? parseVariantList(v.color) : [])))];
 
         const seeded: Record<string, string> = {};
         for (const variant of onSale) {

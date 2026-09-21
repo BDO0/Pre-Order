@@ -20,12 +20,14 @@ export function normaliseFieldOptions(
   const result: string[] = [];
 
   for (const option of options) {
-    const trimmed = option.trim();
-    if (trimmed === "") continue;
-    const fingerprint = trimmed.toLowerCase();
-    if (seen.has(fingerprint)) continue;
-    seen.add(fingerprint);
-    result.push(trimmed);
+    for (const part of option.split(/[\n\r,;\uFF0C]+/)) {
+      const trimmed = part.trim();
+      if (trimmed === "") continue;
+      const fingerprint = trimmed.toLowerCase();
+      if (seen.has(fingerprint)) continue;
+      seen.add(fingerprint);
+      result.push(trimmed);
+    }
   }
 
   return result;
