@@ -16,14 +16,34 @@ import type pg from "pg";
  * verify the server certificate. Pinning the provider's CA bundle is the
  * stronger option once the database provider is final.
  */
+/**
+ * The hosts this project treats as "a database on this machine".
+ *
+ * One definition, used by two callers with opposite needs: `resolveSsl` must not
+ * force TLS on a local Postgres (which has it off), and the demo seed must refuse
+ * to run against anything but local (see `prisma/seed.ts`). A second copy of this
+ * list would sooner or later disagree with this one.
+ */
+export function isLocalDatabaseHost(connectionString: string): boolean {
+  try {
+    const host = new URL(connectionString).hostname;
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host.endsWith(".local")
+    );
+  } catch {
+    // Unparseable: not something to write demo data into either way.
+    return false;
+  }
+}
+
 export function resolveSsl(connectionString: string): pg.PoolConfig["ssl"] {
-  let host = "";
   let sslmode: string | null = null;
 
   try {
-    const url = new URL(connectionString);
-    host = url.hostname;
-    sslmode = url.searchParams.get("sslmode");
+    sslmode = new URL(connectionString).searchParams.get("sslmode");
   } catch {
     return { rejectUnauthorized: false };
   }
@@ -32,13 +52,7 @@ export function resolveSsl(connectionString: string): pg.PoolConfig["ssl"] {
   if (sslmode === "verify-full") return { rejectUnauthorized: true };
   if (sslmode) return { rejectUnauthorized: false };
 
-  const isLocalHost =
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "::1" ||
-    host.endsWith(".local");
-
-  return isLocalHost ? false : { rejectUnauthorized: false };
+  return isLocalDatabaseHost(connectionString) ? false : { rejectUnauthorized: false };
 }
 
 /**

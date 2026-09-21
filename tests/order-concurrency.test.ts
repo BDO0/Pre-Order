@@ -1,7 +1,8 @@
 import "dotenv/config";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { PrismaClient } from "@prisma/client";
 import type { OrderSubmission } from "@/lib/validation";
+import { readSnapshotAnswers } from "@/lib/order-answers";
 
 // Integration tests need a real Postgres. They deliberately do NOT fall back to
 // DATABASE_URL: point TEST_DATABASE_URL at a throwaway database (a Supabase
@@ -28,6 +29,14 @@ describe.skipIf(!TEST_DATABASE_URL)("createOrder capacity guarantees", () => {
   let releaseOrderCapacity!: ReleaseCapacity;
   let batchId!: string;
   const productIds: string[] = [];
+  /**
+   * Checkout questions these tests define, by key.
+   *
+   * Tracked so `afterAll` can remove them again: a *required* question left in
+   * the database would make every later run of this file refuse its orders, and
+   * the failure would look like a concurrency bug rather than like leftovers.
+   */
+  const formFieldKeys: string[] = [];
 
   beforeAll(async () => {
     // @/lib/db reads DATABASE_URL once, when the module is first evaluated, so
@@ -41,6 +50,23 @@ describe.skipIf(!TEST_DATABASE_URL)("createOrder capacity guarantees", () => {
       data: { name: "Concurrency suite", slug: `suite-${uniqueSuffix()}`, status: "OPEN" },
     });
     batchId = batch.id;
+  });
+
+  /**
+   * Retires any checkout question a test defined, as soon as that test ends.
+   *
+   * A live *required* question would otherwise follow the next test around and
+   * fail it with FORM_FIELD_REQUIRED — a failure that reads like a capacity bug.
+   * `active: false` + `deletedAt` is exactly what the admin UI's delete does;
+   * `afterAll` removes the rows for good.
+   */
+  afterEach(async () => {
+    if (!prisma || formFieldKeys.length === 0) return;
+
+    await prisma.orderFormField.updateMany({
+      where: { key: { in: formFieldKeys } },
+      data: { active: false, deletedAt: new Date() },
+    });
   });
 
   afterAll(async () => {
@@ -73,6 +99,9 @@ describe.skipIf(!TEST_DATABASE_URL)("createOrder capacity guarantees", () => {
     await prisma.productVariant.deleteMany({ where: { productId: { in: productIds } } });
     await prisma.batchProduct.deleteMany({ where: { productId: { in: productIds } } });
     await prisma.product.deleteMany({ where: { id: { in: productIds } } });
+    // The questions this suite defined. `order_form_fields.key` is unique, so a
+    // key that is gone can never be recreated with different content.
+    await prisma.orderFormField.deleteMany({ where: { key: { in: formFieldKeys } } });
     await prisma.batch.delete({ where: { id: batchId } });
     await prisma.$disconnect();
   });
@@ -115,8 +144,40 @@ describe.skipIf(!TEST_DATABASE_URL)("createOrder capacity guarantees", () => {
     return { product, variant };
   }
 
+  /**
+   * Creates one live checkout question for a test, under a key unique to this
+   * run, and remembers it for cleanup.
+   */
+  async function makeField(overrides: {
+    label: string;
+    type?: "TEXT" | "TEXTAREA" | "PHONE" | "EMAIL" | "NUMBER" | "SELECT";
+    required?: boolean;
+    options?: string[];
+    sensitive?: boolean;
+    active?: boolean;
+  }) {
+    const key = `suite_${uniqueSuffix()}`;
+    formFieldKeys.push(key);
+
+    return prisma.orderFormField.create({
+      data: {
+        key,
+        label: overrides.label,
+        type: overrides.type ?? "TEXT",
+        required: overrides.required ?? true,
+        options: overrides.options ?? [],
+        sensitive: overrides.sensitive ?? false,
+        active: overrides.active ?? true,
+      },
+    });
+  }
+
   /** A valid OrderSubmission; a fresh idempotency key and Instagram handle per call. */
-  function submission(variantId: string, quantity: number): OrderSubmission {
+  function submission(
+    variantId: string,
+    quantity: number,
+    answers: { fieldId: string; value: string }[] = []
+  ): OrderSubmission {
     return {
       idempotencyKey: crypto.randomUUID(),
       batchId,
@@ -127,6 +188,11 @@ describe.skipIf(!TEST_DATABASE_URL)("createOrder capacity guarantees", () => {
         // phone number, and the handle has to be unique per customer row.
         instagramHandle: `tester${Math.random().toString(36).slice(2, 10)}`,
       },
+      // `createOrder` loads the live checkout questions and validates the
+      // submitted answers against them before it touches capacity. These tests
+      // pass none unless they are about answers, and every question they do
+      // define is removed again in afterAll.
+      answers,
     };
   }
 
@@ -258,5 +324,108 @@ describe.skipIf(!TEST_DATABASE_URL)("createOrder capacity guarantees", () => {
       where: { id: product.id },
     });
     expect(productAfter.preorderReserved).toBe(0);
+  });
+
+  it("refuses an order that skips a required question, consuming nothing", async () => {
+    const { product, variant } = await makeProduct({ variantCapacity: 2 });
+    const size = await makeField({
+      label: "Size",
+      type: "SELECT",
+      options: ["Small", "Large"],
+    });
+
+    // The customer never filled it in - a cached page, or a hand-rolled payload.
+    const payload = submission(variant.id, 1);
+    await expect(createOrder(payload)).rejects.toMatchObject({ code: "FORM_FIELD_REQUIRED" });
+
+    // The point of validating before the capacity claim: the claim is
+    // destructive, so a rejected form must not have taken a unit with it.
+    const variantAfter = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variant.id },
+    });
+    expect(variantAfter.remainingCapacity).toBe(2);
+
+    const productAfter = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+    });
+    expect(productAfter.preorderReserved).toBe(0);
+
+    // Nothing at all was written: the customer row is created inside the
+    // transaction, and no transaction was ever opened.
+    expect(
+      await prisma.customer.count({
+        where: { instagramHandle: payload.customerInfo.instagramHandle },
+      })
+    ).toBe(0);
+
+    // The same order succeeds once the question is answered with a listed
+    // option, which is what the checkout page does after it renders the field.
+    const answered = await createOrder(
+      submission(variant.id, 1, [{ fieldId: size.key, value: "Small" }])
+    );
+    expect(answered.idempotent).toBe(false);
+  });
+
+  it("stores each answer with the label, type and sensitivity that were on screen", async () => {
+    const { variant } = await makeProduct({ variantCapacity: 1 });
+    const size = await makeField({
+      label: "Size",
+      type: "SELECT",
+      options: ["Small", "Large"],
+    });
+    const mobile = await makeField({ label: "Mobile Number", type: "PHONE", sensitive: true });
+
+    const created = await createOrder(
+      submission(variant.id, 1, [
+        // Lower case on purpose: the choice is valid (comparison is
+        // case-insensitive) but the stored value is the operator's spelling, so
+        // the order queue cannot invent a render of its own.
+        { fieldId: size.key, value: "large" },
+        { fieldId: mobile.key, value: "  0917 123 4567  " },
+      ])
+    );
+
+    const order = await prisma.order.findFirstOrThrow({
+      where: { reference: created.order.reference },
+      select: { customerSnapshot: true },
+    });
+
+    expect(readSnapshotAnswers(order.customerSnapshot)).toEqual([
+      {
+        key: size.key,
+        label: "Size",
+        type: "SELECT",
+        value: "Large",
+        sensitive: false,
+      },
+      {
+        key: mobile.key,
+        label: "Mobile Number",
+        type: "PHONE",
+        value: "0917 123 4567",
+        sensitive: true,
+      },
+    ]);
+  });
+
+  it("ignores a question that is switched off or deleted, so nobody can answer it", async () => {
+    const { variant } = await makeProduct({ variantCapacity: 1 });
+    const hidden = await makeField({ label: "Hidden question", active: false });
+
+    // `active: false` and `deletedAt` both mean "stop asking". Answering anyway
+    // is a payload the form could not have produced, so it is refused rather
+    // than quietly dropped: a silent drop would look like the answer was taken.
+    await expect(
+      createOrder(submission(variant.id, 1, [{ fieldId: hidden.key, value: "yes" }]))
+    ).rejects.toMatchObject({ code: "INVALID_FORM_FIELD" });
+
+    await prisma.orderFormField.update({
+      where: { id: hidden.id },
+      data: { active: true, deletedAt: new Date() },
+    });
+
+    await expect(
+      createOrder(submission(variant.id, 1, [{ fieldId: hidden.key, value: "yes" }]))
+    ).rejects.toMatchObject({ code: "INVALID_FORM_FIELD" });
   });
 });

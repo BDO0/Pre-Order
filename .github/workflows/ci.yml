@@ -1,0 +1,60 @@
+# What CI is for here.
+#
+# The commands below are the same ones a person runs before trusting a change, and
+# until now nothing ran them but a person. The engine is the part of this app whose
+# failure mode is a lost paid order, and the trap in changing it is not that the
+# code stops compiling - it is that it still compiles and still passes the eye
+# test. `npm test` covers the unit tests for the capacity, order number and variant
+# rules; `npm run test:db` then runs the concurrency suite that actually opens
+# Postgres, against a throwaway cluster it starts and deletes. That step used to be
+# impossible: those tests report themselves as skipped without a database, so the
+# only suite that can catch an oversell never ran anywhere.
+#
+# Nothing in this workflow writes to the repository or to a real database.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck, lint and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The Prisma client is generated code, not a checked-in artefact, so
+      # `tsc` cannot see `@prisma/client` until this has run.
+      - name: Generate the Prisma client
+        run: npm run db:generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      # The real-Postgres suite: concurrent checkouts, capacity release, the
+      # checkout-answer path. It starts its own cluster from `embedded-postgres`
+      # (the Linux binaries install as an optional dependency) and deletes it
+      # afterwards, so nothing here needs a database service to exist.
+      - name: Integration tests (throwaway Postgres)
+        run: npm run test:db
