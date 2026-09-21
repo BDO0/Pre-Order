@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { isKnownRole, ROLE_LABELS } from "@/lib/permissions";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, SEEDED_DEFAULT_PASSWORD } from "@/lib/admin-password";
 
 /**
  * Change the password for the signed-in account.
@@ -10,11 +11,9 @@ import { isKnownRole, ROLE_LABELS } from "@/lib/permissions";
  * sends one — so it can only ever change the password of whoever is looking at
  * it. Every rule the server enforces is stated up front here too, because a
  * rule that only appears after a rejected attempt wastes a minute of someone's
- * night.
+ * night; the numbers come from `src/lib/admin-password.ts`, so the hint and the
+ * rejection can never disagree.
  */
-
-const MIN_PASSWORD_LENGTH = 12;
-const MAX_PASSWORD_LENGTH = 72;
 
 export default function AccountClient({
   email,
@@ -115,9 +114,9 @@ export default function AccountClient({
               marginBottom: "var(--space-5)",
             }}
           >
-            The setup script creates the first admin with a password written in plain text in
-            the repository. Changing it here is the step that makes this shop yours; nothing
-            else in the app depends on the old one.
+            Setup creates the first admin account with a password it generates and prints
+            once. Changing it here — to something only you know — is the step that makes
+            this shop yours; nothing else in the app depends on the old one.
           </p>
 
           <div
@@ -187,9 +186,9 @@ export default function AccountClient({
                   marginTop: "var(--space-1)",
                 }}
               >
-                At least {MIN_PASSWORD_LENGTH} characters, and not the password the setup
-                script ships with. A phrase you will remember beats a jumble you will end up
-                writing on a note.
+                At least {MIN_PASSWORD_LENGTH} characters and at most {MAX_PASSWORD_LENGTH}, and not
+                the old demo password (<code>{SEEDED_DEFAULT_PASSWORD}</code>) this project used to
+                ship. A phrase you will remember beats a jumble you will end up writing on a note.
               </p>
             </div>
 
@@ -257,8 +256,10 @@ export default function AccountClient({
               password nobody remembers changing is visible there.
             </li>
             <li>
-              There is no email reset: no mail is configured, by design. If the password is
-              lost, someone with database access resets it.
+              There is no email reset: no mail is configured, by design. If the password is lost,
+              someone with shell and database access resets it with
+              <code> npm run admin:create -- --email you@example.com --reset-password</code>,
+              which prints the new password once.
             </li>
           </ul>
         </div>

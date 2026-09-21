@@ -3,17 +3,18 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/api-guard";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { passwordProblem } from "@/lib/admin-password";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Change your own password.
  *
- * Why this endpoint exists: the seeded admin password is `admin123`, it is
- * written in `prisma/seed.ts`, and the seed script itself prints it to the
- * console. Until an operator can replace it from inside the app, the correct
- * advice is "run the seed script" — which is not advice a shop owner can follow
- * at 11pm before a drop.
+ * Why this endpoint exists: the account an operator signs in with is created by
+ * a setup script (`npm run db:seed` or `npm run admin:create`), and until they
+ * can replace the password that script chose, the only way to fix a leaked one
+ * is to run that script again from a shell with database credentials — which is
+ * not advice a shop owner can follow at 11pm before a drop.
  *
  * Three deliberate choices:
  *
@@ -23,18 +24,10 @@ export const dynamic = "force-dynamic";
  *   • The current password is required. A stolen session cookie should not be
  *     enough to lock the real operator out of their own shop.
  *   • The new password is never logged, not even on failure.
+ *
+ * The rules for what counts as an acceptable password live in
+ * `src/lib/admin-password.ts`, which the setup scripts import too.
  */
-
-/** Long enough to survive a real guess budget, short enough to be typeable. */
-const MIN_PASSWORD_LENGTH = 12;
-/**
- * bcrypt hashes at most 72 bytes of input and *silently* ignores the rest, so a
- * 200-character password would be no stronger than its first 72 bytes. Refusing
- * it outright is more honest than pretending it was used in full.
- */
-const MAX_PASSWORD_LENGTH = 72;
-/** The default the seed script ships. Refused as a new password. */
-const SEEDED_DEFAULT_PASSWORD = "admin123";
 
 function badRequest(code: string, message: string) {
   return NextResponse.json(
@@ -81,28 +74,16 @@ export async function POST(request: NextRequest) {
     if (currentPassword === "") {
       return badRequest("VALIDATION_ERROR", "Your current password is required.");
     }
-    if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      return badRequest(
-        "VALIDATION_ERROR",
-        `Your new password must be at least ${MIN_PASSWORD_LENGTH} characters.`
-      );
-    }
-    if (newPassword.length > MAX_PASSWORD_LENGTH) {
-      return badRequest(
-        "VALIDATION_ERROR",
-        `Your new password must be at most ${MAX_PASSWORD_LENGTH} characters.`
-      );
+    // One rule for the length, the ceiling and the old demo default; the same
+    // function is what `scripts/admin-create.ts` refuses a password with.
+    const problem = passwordProblem(newPassword);
+    if (problem) {
+      return badRequest("VALIDATION_ERROR", problem);
     }
     if (newPassword === currentPassword) {
       return badRequest(
         "VALIDATION_ERROR",
         "Your new password must be different from your current one."
-      );
-    }
-    if (newPassword === SEEDED_DEFAULT_PASSWORD) {
-      return badRequest(
-        "VALIDATION_ERROR",
-        "That is the password the setup script ships with. Please choose a different one."
       );
     }
 
