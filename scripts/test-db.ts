@@ -231,6 +231,10 @@ async function main(): Promise<number> {
         heading("Seeding the demo catalogue (this database only)");
         const seeded = runCli(resolve("node_modules/tsx/dist/cli.mjs"), ["prisma/seed.ts"], env);
         if (seeded !== 0) throw new Error(`The demo seed exited with ${seeded}.`);
+
+        heading("Seeding the first admin account (this database only)");
+        const seededAdmin = runCli(resolve("node_modules/tsx/dist/cli.mjs"), ["prisma/seed-admin.ts"], env);
+        if (seededAdmin !== 0) throw new Error(`The admin seed exited with ${seededAdmin}.`);
       }
 
       heading("Starting next dev against the throwaway database");

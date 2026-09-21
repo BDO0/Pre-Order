@@ -49,7 +49,9 @@ question you will have later.
    pre-orders you place together and receive together. Nothing can be ordered
    until a product is in one.
 5. **Create your products** (👗 **Products**). For each one you set the price,
-   the sizes, the colours, and **how many you can take**.
+   the sizes, the colours, and **how many you can take**. Note that a new
+   product gets one image at creation; more images can be added later by editing
+   the product.
 6. **Decide your checkout questions** (⚙️ **Settings**). Customers are always
    asked for their full name and Instagram username. Anything else you want —
    phone number, address, a note — you add here, without anyone changing code.

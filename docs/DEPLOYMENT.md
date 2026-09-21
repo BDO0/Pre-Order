@@ -209,8 +209,10 @@ rotate — but there is a short list to work through before real customers arriv
       generate one (`--reset-password` for an account that already exists).
 - [ ] **Set a strong `AUTH_SECRET`** and confirm the session cookie is `Secure`
       behind TLS.
-- [ ] **Confirm storage works from the deployed host**: upload one product image
-      and check that the returned URL loads. On Vercel this means
+- [ ] **Configure storage before uploading imagery.** Local disk won't survive on a
+      serverless host, and re-uploading a whole catalogue is painful. Confirm
+      storage works from the deployed host: upload one product image and check
+      that the returned URL loads. On Vercel this means
       `STORAGE_PROVIDER=supabase` (§4).
 - [ ] **Set `APP_URL` to the real domain** and confirm a pre-order link unfurls
       with its Open Graph card (paste it into any chat that renders previews).
@@ -220,7 +222,29 @@ rotate — but there is a short list to work through before real customers arriv
 
 ---
 
-## 7. Recording an order that arrived by DM
+## 7. Purging demo data
+
+If your database contains the seeded demo products or test orders (from running `npm run db:seed:demo` or the integration tests against the live database), you must purge them before opening the shop to real orders.
+
+The purge script deletes demo stock, drops, and test customers while preserving any live orders, and safely recomputes the capacities.
+
+1. **Dry run:**
+   ```bash
+   npm run demo:purge
+   ```
+   The dry run will output exactly what it plans to delete and what it will hold back. At the bottom, it will print a `target` token (your project ref or host).
+
+2. **Apply:**
+   Once you're satisfied with the dry run output, apply the deletion by passing the confirm token shown in the dry run:
+   ```bash
+   npm run demo:purge -- --apply --confirm <token>
+   ```
+
+A JSON backup of all deleted rows and a `restore.sql` file are automatically generated in the `backups` directory before any deletions occur.
+
+---
+
+## 8. Recording an order that arrived by DM
 
 There is no "create order" button in the admin panel, and that is deliberate: the
 order service is the only thing allowed to claim capacity, so an order created by
@@ -251,7 +275,7 @@ Two things to expect:
 
 ---
 
-## 8. Post-deploy smoke test
+## 9. Post-deploy smoke test
 
 1. `GET /api/health` → `200`, `database: "up"`, and a `storage` block naming the
    driver you expect.
