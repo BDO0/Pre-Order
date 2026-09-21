@@ -3,6 +3,12 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useCartStore } from "@/store/cart";
+// The shop's own Instagram handle. This header used to spell the handle out as
+// a literal, which quietly pinned the one piece of trust copy on the page to
+// whatever the placeholder account was called: setting
+// NEXT_PUBLIC_INSTAGRAM_HANDLE changed the other nine places it appears and not
+// this one.
+import { SHOP_INSTAGRAM_HANDLE } from "@/lib/site";
 import styles from "./storefront.module.css";
 
 export interface Variant {
@@ -220,7 +226,7 @@ export default function StorefrontClient({
           </div>
           <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
             <span style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)", fontWeight: 600 }}>
-              DM: @ana.clothing
+              DM: @{SHOP_INSTAGRAM_HANDLE}
             </span>
           </div>
         </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { variantCountLabel, stockSummary } from "@/lib/variant-stock";
 
 /**
  * A row of the catalogue table, as `/api/admin/products` returns it.
@@ -18,7 +19,16 @@ interface AdminProductRow {
   /** Prisma `Decimal` arrives as a string over JSON; rendered through `Number()`. */
   price: string | number;
   images: string[];
-  variants?: { id: string }[];
+  /**
+   * Every variant row, retired ones included — the endpoint does not filter them.
+   * `stockSummary` and `activeVariantCount` are what decide which of them count.
+   */
+  variants?: {
+    id: string;
+    active?: boolean;
+    capacity?: number | null;
+    remainingCapacity?: number | null;
+  }[];
   active: boolean;
   preorderStatus: string;
 }
@@ -63,15 +73,16 @@ export default function AdminProductsPage() {
                 <th>Category</th>
                 <th>Base Price</th>
                 <th>Variants</th>
+                <th>Stock Left</th>
                 <th>Status</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} style={{ textAlign: "center", padding: "var(--space-8)" }}>Loading...</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: "center", padding: "var(--space-8)" }}>Loading...</td></tr>
               ) : products.length === 0 ? (
-                <tr><td colSpan={7} style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--color-neutral-500)" }}>No products found</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--color-neutral-500)" }}>No products found</td></tr>
               ) : products.map(product => (
                 <tr key={product.id}>
                   <td style={{ width: "60px" }}>
@@ -88,7 +99,12 @@ export default function AdminProductsPage() {
                   </td>
                   <td>{product.category || "—"}</td>
                   <td>₱{Number(product.price).toLocaleString()}</td>
-                  <td>{product.variants?.length || 0} variants</td>
+                  <td>
+                    {/* Live variants, not rows: retired variants are kept for their
+                        order history and would otherwise be counted as sellable. */}
+                    {variantCountLabel(product.variants)}
+                  </td>
+                  <td>{stockSummary(product.variants)}</td>
                   <td>
                     <span className={`badge ${product.active ? 'badge-open' : 'badge-closed'}`}>
                       {product.active ? "Active" : "Inactive"}

@@ -3,6 +3,34 @@
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  buildVariantMatrix,
+  buildVariantPayload,
+  describeRetirements,
+  describeVariant,
+  parseCapacityInput,
+  parseVariantList,
+  variantKey,
+  type StoredVariant,
+  type VariantFormRow,
+} from "@/lib/variant-plan";
+
+/**
+ * A variant of the product being edited, as the endpoint returns it.
+ *
+ * `capacity` and `remainingCapacity` are here because the stock box has to show
+ * what is already claimed: `capacity - remainingCapacity` is the number of units
+ * live orders hold, and a capacity below that is refused by the API. An operator
+ * who cannot see that number types one that fails.
+ */
+interface ProductVariantDetail {
+  id: string;
+  size: string | null;
+  color: string | null;
+  capacity: number | null;
+  remainingCapacity: number | null;
+  active: boolean;
+}
 
 /**
  * The product this form edits, as `GET /api/admin/products/[id]` returns it.
@@ -17,8 +45,9 @@ interface ProductDetail {
   price: string | number;
   preorderStatus: string;
   active: boolean;
+  preorderLimit: number | null;
   images: unknown;
-  variants?: { size: string; color: string | null }[];
+  variants?: ProductVariantDetail[];
 }
 
 export default function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
@@ -36,8 +65,29 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     preorderStatus: "OPEN",
     active: true,
     sizes: "",
-    color: "",
+    colors: "",
+    preorderLimit: "",
   });
+
+  /**
+   * What is typed into each stock box, keyed by option.
+   *
+   * Blank means "no limit". Seeded from the options the product actually has, so
+   * saving an untouched form sends back the capacity it was already holding
+   * instead of clearing it.
+   */
+  const [stock, setStock] = useState<Record<string, string>>({});
+  const [fillValue, setFillValue] = useState("");
+
+  /**
+   * Every variant as stored, retired ones included.
+   *
+   * The grid is built from the active ones - showing a retired size as if it were
+   * still on sale would un-retire it on the next save - but the plan needs the
+   * retired ones as well, to tell "this option is coming back" apart from "this
+   * option was never here".
+   */
+  const [storedVariants, setStoredVariants] = useState<StoredVariant[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
 
@@ -49,9 +99,21 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
         if (!res.ok) throw new Error(json.error?.message || "Failed to load product");
 
         const p = json.data as ProductDetail;
-        // Extract unique sizes and single color from variants (simplified)
-        const sizes = [...new Set((p.variants || []).map((v) => v.size).filter(Boolean))].join(", ");
-        const firstColor = (p.variants || [])[0]?.color || "";
+        const variants = p.variants ?? [];
+        const onSale = variants.filter((variant) => variant.active);
+
+        // Every colour on sale, not just the first one's. A product with Black and
+        // White used to load with "Black" in the colour box, so saving the form
+        // for any reason - renaming it, correcting the price - retired White, and
+        // the screen said "Product updated successfully".
+        const sizes = [...new Set(onSale.map((v) => v.size).filter((s): s is string => Boolean(s)))];
+        const colors = [...new Set(onSale.map((v) => v.color).filter((c): c is string => Boolean(c)))];
+
+        const seeded: Record<string, string> = {};
+        for (const variant of onSale) {
+          seeded[variantKey(variant.size, variant.color)] =
+            variant.capacity === null ? "" : String(variant.capacity);
+        }
 
         setFormData({
           name: p.name,
@@ -59,9 +121,21 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           price: String(p.price),
           preorderStatus: p.preorderStatus,
           active: p.active,
-          sizes,
-          color: firstColor,
+          sizes: sizes.join(", "),
+          colors: colors.join(", "),
+          preorderLimit: p.preorderLimit === null ? "" : String(p.preorderLimit),
         });
+        setStock(seeded);
+        setStoredVariants(
+          variants.map((variant) => ({
+            id: variant.id,
+            size: variant.size,
+            color: variant.color,
+            capacity: variant.capacity,
+            remainingCapacity: variant.remainingCapacity,
+            active: variant.active,
+          }))
+        );
         setExistingImages(Array.isArray(p.images) ? (p.images as string[]) : []);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Failed to load product");
@@ -72,6 +146,56 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     fetchProduct();
   }, [id]);
 
+  const rows: VariantFormRow[] = buildVariantMatrix(
+    parseVariantList(formData.sizes),
+    parseVariantList(formData.colors)
+  ).map((row) => ({ ...row, capacity: stock[variantKey(row.size, row.color)] ?? "" }));
+
+  // What the product is already holding, for the hint beside each box.
+  const storedByKey = new Map(
+    storedVariants
+      .filter((variant) => variant.active)
+      .map((variant) => [variantKey(variant.size, variant.color), variant])
+  );
+
+  const setStockFor = (row: VariantFormRow, value: string) => {
+    const key = variantKey(row.size, row.color);
+    setStock((previous) => ({ ...previous, [key]: value }));
+  };
+
+  /** One number for every option - "I can get 10 of each, whatever the size". */
+  const fillEveryBox = () => {
+    const parsed = parseCapacityInput(fillValue);
+    if (!parsed.ok) {
+      setError(parsed.message);
+      return;
+    }
+
+    setError("");
+    const next: Record<string, string> = {};
+    for (const row of rows) {
+      next[variantKey(row.size, row.color)] = fillValue.trim();
+    }
+    setStock((previous) => ({ ...previous, ...next }));
+  };
+
+  /**
+   * "8 left of 30 - 22 already ordered" beside a stock box.
+   *
+   * The number the API refuses to go below, in the place where the mistake would
+   * be made: a capacity under `ordered` comes back as an error, and an operator
+   * with no way to see `ordered` can only guess.
+   */
+  const stockHint = (row: VariantFormRow): string => {
+    const stored = storedByKey.get(variantKey(row.size, row.color));
+    if (!stored || stored.capacity === null || stored.remainingCapacity === null) return "";
+
+    const ordered = stored.capacity - stored.remainingCapacity;
+    return ordered > 0
+      ? `${stored.remainingCapacity} left of ${stored.capacity} — ${ordered} already ordered`
+      : `${stored.capacity} available`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -79,6 +203,38 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     setSuccess("");
 
     try {
+      // Saving with no options left would take the whole product off the
+      // storefront, which is what the Disabled status is for. Saying so beats
+      // letting a cleared field quietly empty a product.
+      if (rows.length === 0) {
+        throw new Error(
+          "This would leave the product with nothing to choose, so nobody could order it. Add a size or a colour, or set the status to Disabled to take it off the storefront."
+        );
+      }
+
+      const payload = buildVariantPayload(rows);
+      if (!payload.ok) throw new Error(payload.message);
+
+      const limit = parseCapacityInput(formData.preorderLimit);
+      if (!limit.ok) throw new Error(`Total for this product: ${limit.message}`);
+
+      // Say what is about to disappear, before it does. The list comes from the
+      // same function the server runs, so it is what will actually happen rather
+      // than a second opinion that can disagree with it.
+      const retiring = describeRetirements(storedVariants, payload.variants);
+      if (retiring.length > 0) {
+        const confirmed = window.confirm(
+          `Saving will take ${retiring.length} option${retiring.length === 1 ? "" : "s"} off the storefront:\n\n` +
+            retiring.map((name) => `\u2022 ${name}`).join("\n") +
+            "\n\nPast orders for them are untouched, and you can put them back by adding the size or colour again." +
+            "\n\nSave anyway?"
+        );
+        if (!confirmed) {
+          setLoading(false);
+          return;
+        }
+      }
+
       let finalImages = existingImages;
 
       // If a new image file was selected, upload it first
@@ -92,9 +248,6 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
         finalImages = [uploadJson.data.url];
       }
 
-      const sizeList = formData.sizes.split(",").map(s => s.trim()).filter(Boolean);
-      const variants = sizeList.map(size => ({ size, color: formData.color || undefined }));
-
       const res = await fetch(`/api/admin/products/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -104,30 +257,34 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           price: Number(formData.price),
           active: formData.active,
           preorderStatus: formData.preorderStatus,
+          preorderLimit: limit.capacity,
           images: finalImages,
-          // Always sent, even when the list is empty. Leaving the key out used
-          // to mean "the variants are not what this screen is editing", so
-          // clearing the field and saving changed nothing at all - while the hint
-          // below promised the sizes would be replaced. An empty list now says
-          // what it means: this product has no sizes.
-          variants,
+          // Always sent, and now always non-empty: this screen refuses a save
+          // that would leave a product with no options at all. The API still
+          // honours an empty list, for requests that are not this form.
+          variants: payload.variants,
         }),
       });
 
       const json = await res.json();
       if (!res.ok) throw new Error(json.error?.message || "Failed to update product");
 
-      // Say what happened to the sizes. "Product updated" was true but useless
+      // Say what happened to the options. "Product updated" was true but useless
       // when saving the form had just retired two of them.
       const changes = json.meta?.variantChanges as
         | { created: number; updated: number; retired: number }
         | null
         | undefined;
+      const added = changes?.created ?? 0;
       const retired = changes?.retired ?? 0;
 
+      const did: string[] = [];
+      if (added > 0) did.push(`${added} new option${added === 1 ? "" : "s"} added`);
+      if (retired > 0) did.push(`${retired} retired`);
+
       setSuccess(
-        retired > 0
-          ? `Product updated. ${retired} size${retired === 1 ? "" : "s"} retired; their past orders are untouched.`
+        did.length > 0
+          ? `Product updated. ${did.join(", ")}; past orders are untouched.`
           : "Product updated successfully!"
       );
       setTimeout(() => router.push("/admin/products"), 1200);
@@ -202,20 +359,95 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
               </select>
             </div>
 
+            <div style={{ display: "flex", gap: "var(--space-4)" }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Sizes (comma separated)</label>
+                <input type="text" className="form-input" value={formData.sizes}
+                  onChange={e => setFormData({ ...formData, sizes: e.target.value })}
+                  placeholder="S, M, L, XL" />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Colours (comma separated)</label>
+                <input type="text" className="form-input" value={formData.colors}
+                  onChange={e => setFormData({ ...formData, colors: e.target.value })}
+                  placeholder="Black, White" />
+                <span className="form-hint">Every colour is paired with every size.</span>
+              </div>
+            </div>
+
+            {/* One row per size x colour, each with its own stock box. This replaces
+                a single colour text field, which is why a product in two colours
+                used to load showing only one of them. */}
             <div className="form-group">
-              <label className="form-label form-label-required">Sizes (comma separated)</label>
-              <input required type="text" className="form-input" value={formData.sizes}
-                onChange={e => setFormData({ ...formData, sizes: e.target.value })}
-                placeholder="S, M, L, XL" />
-              <span className="form-hint">⚠ Saving replaces the size list. A size you remove is retired, not deleted,
-so its past orders still count and you can add it back.</span>
+              <label className="form-label">How many you can take</label>
+              {rows.length === 0 ? (
+                <p style={{ fontSize: "var(--text-sm)", color: "var(--color-error)", margin: 0 }}>
+                  ⚠ No options. Add a size or a colour, or a customer has nothing to choose.
+                </p>
+              ) : (
+                <>
+                  <span className="form-hint" style={{ display: "block", marginBottom: "var(--space-2)" }}>
+                    {rows.length} option{rows.length === 1 ? "" : "s"}. Leave a box empty for no limit on that one.
+                  </span>
+
+                  <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", marginBottom: "var(--space-3)" }}>
+                    <input
+                      type="number"
+                      min="1"
+                      className="form-input"
+                      style={{ maxWidth: "120px" }}
+                      value={fillValue}
+                      onChange={e => setFillValue(e.target.value)}
+                      placeholder="e.g. 10"
+                      aria-label="Stock to give every option"
+                    />
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={fillEveryBox}>
+                      Give every option this many
+                    </button>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+                    {rows.map((row) => {
+                      const hint = stockHint(row);
+                      return (
+                        <div key={variantKey(row.size, row.color)}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+                            <span style={{ flex: 1, fontSize: "var(--text-sm)", fontWeight: 500 }}>{describeVariant(row)}</span>
+                            <input
+                              type="number"
+                              min="1"
+                              className="form-input"
+                              style={{ maxWidth: "130px" }}
+                              value={row.capacity}
+                              onChange={e => setStockFor(row, e.target.value)}
+                              placeholder="no limit"
+                              aria-label={`How many ${describeVariant(row)} you can take`}
+                            />
+                          </div>
+                          {hint && (
+                            <span className="form-hint" style={{ display: "block", marginTop: "2px" }}>{hint}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="form-group">
-              <label className="form-label">Color (Optional)</label>
-              <input type="text" className="form-input" value={formData.color}
-                onChange={e => setFormData({ ...formData, color: e.target.value })}
-                placeholder="e.g. Black" />
+              <label className="form-label">Total for this product</label>
+              <input
+                type="number"
+                min="1"
+                className="form-input"
+                value={formData.preorderLimit}
+                onChange={e => setFormData({ ...formData, preorderLimit: e.target.value })}
+                placeholder="no limit"
+              />
+              <span className="form-hint">
+                A cap across every option together. Leave it empty for no limit. The boxes above are the ones that stop one size from selling out quietly.
+              </span>
             </div>
 
             {/* Product Image */}
@@ -272,4 +504,8 @@ so its past orders still count and you can add it back.</span>
       </div>
     </div>
   );
+
+
+
+
 }

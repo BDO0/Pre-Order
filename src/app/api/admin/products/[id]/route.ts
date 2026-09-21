@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/api-guard";
 import { productUpdateSchema } from "@/lib/validation";
 import { ensureProductInOpenBatch } from "@/lib/batch-service";
+import { uniqueViolationTarget } from "@/lib/prisma-errors";
 import { syncProductVariants, VariantSyncError } from "@/lib/product-variants";
 
 export async function GET(
@@ -116,6 +117,20 @@ export async function PATCH(
       return NextResponse.json(
         { success: false, error: { code: "VALIDATION_ERROR", message: error.message } },
         { status: 400 }
+      );
+    }
+    // Renaming a product's slug onto another product's slug is the edit-screen
+    // version of the same collision the create route now reports as a 409.
+    if (uniqueViolationTarget(error)?.includes("slug")) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "SLUG_TAKEN",
+            message: "Another product already uses that URL slug. Pick a different one.",
+          },
+        },
+        { status: 409 }
       );
     }
     console.error("[PATCH /api/admin/products/[id]]", error);

@@ -277,7 +277,7 @@ export default async function PreorderPage({ params }: Props) {
         <nav className="navbar">
           <div className="container navbar-inner">
             <Link href="/" className="navbar-brand">
-              ANA Clothing
+              {SITE_NAME}
             </Link>
             <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
               <Link href="/" className="btn btn-ghost btn-sm">

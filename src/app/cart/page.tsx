@@ -2,6 +2,7 @@
 
 import { useCartStore } from "@/store/cart";
 import Link from "next/link";
+import { SITE_NAME } from "@/lib/site";
 import styles from "./cart.module.css";
 
 export default function CartPage() {
@@ -19,7 +20,7 @@ export default function CartPage() {
       <div className={styles.page}>
         <nav className="navbar">
           <div className="container navbar-inner">
-            <Link href="/" className="navbar-brand">ANA Clothing</Link>
+            <Link href="/" className="navbar-brand">{SITE_NAME}</Link>
           </div>
         </nav>
         <div className="container" style={{ paddingBlock: "var(--space-16)" }}>
@@ -42,7 +43,7 @@ export default function CartPage() {
     <div className={styles.page}>
       <nav className="navbar">
         <div className="container navbar-inner">
-          <Link href="/" className="navbar-brand">ANA Clothing</Link>
+          <Link href="/" className="navbar-brand">{SITE_NAME}</Link>
           {batchSlug && (
             <Link href={`/`} className="btn btn-ghost btn-sm">
               ← Continue Shopping

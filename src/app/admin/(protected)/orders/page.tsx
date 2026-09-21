@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import type { OrderStatus, PaymentStatus } from "@prisma/client";
 
@@ -25,9 +25,37 @@ interface AdminOrderRow {
   isNewCustomer: boolean;
   isPossibleDuplicate: boolean;
   customerSnapshot: unknown;
-  batch: { id: string; name: string; slug: string; status: string } | null;
+  /**
+   * Always present: `Order.batchId` is a required column, so the list endpoint's
+   * `include` can never come back null. It was typed nullable here, which is what
+   * let an "unassigned" badge sit in this table for a state the database does not
+   * allow.
+   */
+  batch: { id: string; name: string; slug: string; status: string };
   items: { quantity: number; productNameSnapshot: string; unitPriceAtPurchase: string | number }[];
 }
+
+/**
+ * Every status the queue can be filtered by, with the wording the operator sees.
+ *
+ * One list rather than the two there used to be: the dropdown's options and the
+ * check on what a URL is allowed to ask for. `buildOrderWhere` passes `status`
+ * to Prisma as an enum, so `?status=typo` was a 500 rather than the empty list
+ * its comment promised. `AWAITING_PAYMENT` was missing from the dropdown
+ * altogether, though the state machine can put an order there.
+ */
+const STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
+  { value: "PENDING", label: "Pending" },
+  { value: "AWAITING_PAYMENT", label: "Awaiting Payment" },
+  { value: "PAYMENT_REVIEW", label: "Payment Review" },
+  { value: "CONFIRMED", label: "Confirmed" },
+  { value: "PROCESSING", label: "Processing" },
+  { value: "READY", label: "Ready for Pickup" },
+  { value: "SHIPPED", label: "Shipped" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "CANCELLED", label: "Cancelled" },
+  { value: "REJECTED", label: "Rejected" },
+];
 
 export default function AdminOrdersPage() {
   const searchParams = useSearchParams();
@@ -36,17 +64,60 @@ export default function AdminOrdersPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   
-  // Filters
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  // Read from the URL so the dashboard's action items and the Batches screen can
-  // deep-link straight into a filtered queue: "orders not in a batch", "unpaid
-  // first-time customers", "this batch".
-  const [batchFilter] = useState(searchParams.get("batchId") ?? "");
-  const [paymentFilter] = useState(searchParams.get("paymentStatus") ?? "");
-  const [customerTypeFilter] = useState(searchParams.get("customerType") ?? "");
+  const router = useRouter();
+  const pathname = usePathname();
 
+  /**
+   * The filters, read from the URL on every render instead of copied into state
+   * once.
+   *
+   * They used to be `useState(searchParams.get(...))` initialisers, which run on
+   * mount and never again. "Clear filters" is a link to `/admin/orders` - the
+   * same route - so the screen re-rendered with empty search params while the
+   * table went on showing the filtered rows and the banner went on saying
+   * "Showing unpaid". The URL is the single source of truth now.
+   *
+   * `status` was not read from the URL at all, which made the dashboard's most
+   * useful action item - "Orders awaiting your approval", linking to
+   * `/admin/orders?status=PENDING` - open the unfiltered queue instead.
+   */
+  const statusParam = searchParams.get("status") ?? "";
+  const statusFilter = STATUS_OPTIONS.some((option) => option.value === statusParam)
+    ? (statusParam as OrderStatus)
+    : "";
+  const batchFilter = searchParams.get("batchId") ?? "";
+  const paymentFilter = searchParams.get("paymentStatus") ?? "";
+  const customerTypeFilter = searchParams.get("customerType") ?? "";
+
+  // The one filter that is not in the URL: a search box that wrote to the address
+  // bar on every keystroke would leave a history entry per letter.
+  const [search, setSearch] = useState("");
+
+  /** Puts one filter in the URL, where the other four already live. */
+  const setFilter = (key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) params.set(key, value);
+    else params.delete(key);
+    const query = params.toString();
+    // Page 1, because the old page number belonged to a longer list: filtering a
+    // queue down and still being on page 3 shows an empty table.
+    setPage(1);
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setPage(1);
+    router.replace(pathname, { scroll: false });
+  };
+
+  // What the banner says the table is showing. The status filter was missing from
+  // it, so a queue narrowed to Pending still read as unfiltered.
   const filterDescriptions: string[] = [];
+  if (statusFilter) {
+    const option = STATUS_OPTIONS.find((entry) => entry.value === statusFilter);
+    filterDescriptions.push(option ? option.label : statusFilter);
+  }
   if (batchFilter) {
     // Always "in one batch": an order with no batch is not a state the database
     // allows (`Order.batchId` is required), so there is no other phrasing to pick.
@@ -54,6 +125,10 @@ export default function AdminOrdersPage() {
   }
   if (paymentFilter) filterDescriptions.push(paymentFilter === "UNPAID" ? "unpaid" : "paid");
   if (customerTypeFilter === "new") filterDescriptions.push("first-time customers");
+
+  // The search box counts too, or a search could not be cleared once the address
+  // bar had been emptied of everything else.
+  const hasFilters = filterDescriptions.length > 0 || Boolean(search);
 
   // The export must carry the same filters the table is showing, or the file
   // would silently disagree with the screen it was downloaded from.
@@ -109,6 +184,7 @@ export default function AdminOrdersPage() {
   const getStatusBadge = (status: string) => {
     const map: Record<string, string> = {
       PENDING: "badge-pending",
+      AWAITING_PAYMENT: "badge-pending",
       PAYMENT_REVIEW: "badge-coming",
       CONFIRMED: "badge-confirmed",
       PROCESSING: "badge-confirmed",
@@ -130,10 +206,12 @@ export default function AdminOrdersPage() {
         </a>
       </div>
 
-      {filterDescriptions.length > 0 && (
+      {hasFilters && (
         <p style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-600)", marginBottom: "var(--space-3)" }}>
-          Showing {filterDescriptions.join(" · ")}.{" "}
-          <Link href="/admin/orders" className="btn btn-ghost btn-sm">Clear filters</Link>
+          {filterDescriptions.length > 0
+            ? `Showing ${filterDescriptions.join(" \u00b7 ")}.`
+            : "Showing your search results."}{" "}
+          <button type="button" onClick={clearFilters} className="btn btn-ghost btn-sm">Clear filters</button>
         </p>
       )}
 
@@ -150,18 +228,13 @@ export default function AdminOrdersPage() {
           className="form-input"
           style={{ maxWidth: "200px" }}
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          onChange={(e) => setFilter("status", e.target.value)}
+          aria-label="Filter by order status"
         >
           <option value="">All Statuses</option>
-          <option value="PENDING">Pending</option>
-          <option value="PAYMENT_REVIEW">Payment Review</option>
-          <option value="CONFIRMED">Confirmed</option>
-          <option value="PROCESSING">Processing</option>
-          <option value="READY">Ready for Pickup</option>
-          <option value="SHIPPED">Shipped</option>
-          <option value="COMPLETED">Completed</option>
-          <option value="CANCELLED">Cancelled</option>
-          <option value="REJECTED">Rejected</option>
+          {STATUS_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
         </select>
       </div>
 
@@ -222,13 +295,11 @@ export default function AdminOrdersPage() {
                       </div>
                     </td>
                     <td>
-                      {order.batch ? (
-                        <span style={{ fontWeight: 500 }}>{order.batch.name}</span>
-                      ) : (
-                        <span style={{ color: "var(--color-warning)", fontSize: "var(--text-xs)", fontWeight: 600 }}>
-                          unassigned
-                        </span>
-                      )}
+                      {/* No "unassigned" branch: `Order.batchId` is required, so every
+                          order in this list belongs to a batch. The warning badge
+                          that used to live here described a state the database does
+                          not allow. */}
+                      <span style={{ fontWeight: 500 }}>{order.batch.name}</span>
                     </td>
                     <td>{itemCount} item{itemCount !== 1 ? 's' : ''}</td>
                     <td style={{ fontWeight: 600 }}>₱{Number(order.total).toLocaleString()}</td>

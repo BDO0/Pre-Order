@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import Link from "next/link";
+import { SITE_NAME } from "@/lib/site";
 import styles from "./page.module.css";
 import StorefrontClient, { StorefrontProduct } from "./StorefrontClient";
 
@@ -135,9 +136,16 @@ export default async function HomePage() {
       <nav className="navbar">
         <div className="container navbar-inner">
           <Link href="/" className="navbar-brand">
-            ANA Clothing
+            {SITE_NAME}
           </Link>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+            {/* The only public way back to an order for a customer who closed the
+                confirmation tab: `/order-status` takes the order number plus the
+                Instagram username it was placed with. Without this link the page
+                existed and nothing pointed at it. */}
+            <Link href="/order-status" className="btn btn-ghost btn-sm">
+              Track Order
+            </Link>
             <Link href="/cart" className="btn btn-secondary btn-sm" id="nav-cart-link">
               🛒 View Cart
             </Link>

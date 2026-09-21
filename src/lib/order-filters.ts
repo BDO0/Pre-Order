@@ -1,4 +1,36 @@
-import type { Prisma } from "@prisma/client";
+﻿import type { Prisma } from "@prisma/client";
+import type { OrderStatus, PaymentStatus } from "@prisma/client";
+
+/**
+ * The values a URL is allowed to filter by.
+ *
+ * Written out rather than imported at runtime, and typed against Prisma's enums
+ * so a status added to the schema fails `tsc` here instead of quietly becoming
+ * unfilterable. The comment on `buildOrderWhere` has always promised that an
+ * unrecognised value means "no filter". For these two it did not: the string went
+ * straight into an enum comparison, so `?status=typo` - one keystroke away from a
+ * link the dashboard generates - answered 500 instead of showing the full queue.
+ */
+const ORDER_STATUSES: readonly OrderStatus[] = [
+  "PENDING",
+  "AWAITING_PAYMENT",
+  "PAYMENT_REVIEW",
+  "CONFIRMED",
+  "PROCESSING",
+  "READY",
+  "SHIPPED",
+  "COMPLETED",
+  "CANCELLED",
+  "REJECTED",
+];
+
+const PAYMENT_STATUSES: readonly PaymentStatus[] = ["UNPAID", "PAID"];
+
+/** A query parameter, but only when it actually names one of `allowed`. */
+function oneOf<T extends string>(value: string | null, allowed: readonly T[]): T | undefined {
+  const listed: readonly string[] = allowed;
+  return value !== null && listed.includes(value) ? (value as T) : undefined;
+}
 
 /**
  * The one order filter, shared by the queue and the CSV export.
@@ -6,7 +38,7 @@ import type { Prisma } from "@prisma/client";
  * Why shared: the orders screen reads `paymentStatus`, `customerType` and
  * `search` from the URL and the export read only `status` and `batchId`. The
  * download therefore contained every payment status while the screen it was
- * downloaded from showed only the unpaid ones — a file the operator sends to a
+ * downloaded from showed only the unpaid ones â€” a file the operator sends to a
  * supplier disagreeing with the screen they checked it against. Two copies of a
  * filter is how that happens, so there is now one.
  *
@@ -24,14 +56,14 @@ import type { Prisma } from "@prisma/client";
  * screen, and a stale link should show the full queue rather than fail.
  */
 export function buildOrderWhere(searchParams: URLSearchParams): Prisma.OrderWhereInput {
-  const status = searchParams.get("status") ?? undefined;
-  const paymentStatus = searchParams.get("paymentStatus") ?? undefined;
+  const status = oneOf(searchParams.get("status"), ORDER_STATUSES);
+  const paymentStatus = oneOf(searchParams.get("paymentStatus"), PAYMENT_STATUSES);
   const batchId = searchParams.get("batchId") ?? undefined;
   const customerType = searchParams.get("customerType") ?? undefined;
   const search = (searchParams.get("search") ?? "").trim();
 
   // Customers are searched by name and by their Instagram handle, because the
-  // handle is the identity the operator actually knows — there is no phone
+  // handle is the identity the operator actually knows â€” there is no phone
   // number to search on any more.
   const searchFilter = search
     ? {
@@ -54,8 +86,8 @@ export function buildOrderWhere(searchParams: URLSearchParams): Prisma.OrderWher
     : {};
 
   return {
-    ...(status ? { status: status as never } : {}),
-    ...(paymentStatus ? { paymentStatus: paymentStatus as never } : {}),
+    ...(status ? { status } : {}),
+    ...(paymentStatus ? { paymentStatus } : {}),
     ...(batchId ? { batchId } : {}),
     // `customerType=new` is the "first-time customer" filter the dashboard links
     // to; anything else means "no filter".

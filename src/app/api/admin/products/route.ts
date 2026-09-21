@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/api-guard";
-import { productCreateSchema } from "@/lib/validation";
 import { ensureProductInOpenBatch } from "@/lib/batch-service";
+import { uniqueViolationTarget } from "@/lib/prisma-errors";
+import { productCreateSchema } from "@/lib/validation";
 
 export async function GET(request: NextRequest) {
   try {
@@ -105,6 +106,22 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: product }, { status: 201 });
   } catch (error) {
+    // `products.slug` is the only unique column this write can collide with, and
+    // a duplicate slug is an operator typo, not a server fault: it used to come
+    // back as "Something went wrong." on a form that had just been filled in.
+    if (uniqueViolationTarget(error)?.includes("slug")) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "SLUG_TAKEN",
+            message: "Another product already uses that URL slug. Pick a different one.",
+          },
+        },
+        { status: 409 }
+      );
+    }
+
     console.error("[POST /api/admin/products]", error);
     return NextResponse.json({ success: false, error: { code: "SERVER_ERROR", message: "Something went wrong." } }, { status: 500 });
   }

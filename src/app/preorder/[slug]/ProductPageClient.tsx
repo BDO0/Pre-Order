@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useCartStore } from "@/store/cart";
+import { SITE_NAME } from "@/lib/site";
 import styles from "./campaign.module.css";
 
 interface Variant {
@@ -99,7 +100,7 @@ export default function ProductPageClient({ product, batch }: { product: Product
       {/* Navbar */}
       <nav className="navbar">
         <div className={`container navbar-inner`}>
-          <Link href="/" className="navbar-brand">ANA Clothing</Link>
+          <Link href="/" className="navbar-brand">{SITE_NAME}</Link>
           <Link href="/cart" className={styles.cartButton} id="cart-link">
             <span>🛒</span>
             {itemCount > 0 && <span className={styles.cartBadge}>{itemCount}</span>}

@@ -3,6 +3,8 @@ import { generateAccessToken } from "@/lib/order-token";
 import { generateOrderReference } from "@/lib/order-number";
 import { detectDuplicate } from "@/lib/duplicate-detection";
 import { OrderError } from "@/lib/order-error";
+import { uniqueViolationTarget } from "@/lib/prisma-errors";
+import { buildSnapshotAnswers, toPublicField } from "@/lib/order-answers";
 import type { OrderSubmission } from "@/lib/validation";
 import type { Prisma } from "@prisma/client";
 
@@ -16,34 +18,6 @@ export { OrderError };
 // ─────────────────────────────────────────────────────────────
 // ERRORS
 // ─────────────────────────────────────────────────────────────
-
-/**
- * Returns the lower-cased target of a unique-constraint violation, or null if
- * the error is not a unique violation.
- *
- * Prisma maps Postgres' 23505 to P2002, but with a driver adapter the raw code
- * can surface instead, so both are accepted. Raw errors carry the constraint
- * name rather than a field list, hence the fallback.
- */
-function uniqueViolationTarget(error: unknown): string | null {
-  if (typeof error !== "object" || error === null) return null;
-
-  const candidate = error as { code?: unknown; meta?: { target?: unknown } };
-  if (candidate.code !== "P2002" && candidate.code !== "23505") return null;
-
-  const target = candidate.meta?.target;
-  if (Array.isArray(target)) return target.join(",").toLowerCase();
-  if (typeof target === "string") return target.toLowerCase();
-
-  const constraint = (error as { constraint?: unknown }).constraint;
-  if (typeof constraint === "string") return constraint.toLowerCase();
-
-  // Prisma 7 with a driver adapter can report the violation only through the
-  // message ("Unique constraint failed on the constraint: `x_key`"), which made
-  // this return "" and turned the reference retry below into dead code.
-  const message = (error as { message?: unknown }).message;
-  return typeof message === "string" ? message.toLowerCase() : "";
-}
 
 /** A collision on `orders.reference` — safe to retry with a new number. */
 function isReferenceCollision(error: unknown): boolean {
@@ -210,8 +184,43 @@ export async function createOrder(input: OrderSubmission) {
   // ── Step 4b: Order total (no delivery fee: shipping is settled in Instagram DM) ─────────────────────
   const total = subtotal;
 
-  // ── Step 5: Operator-defined answers removed ─────────────────
-  // We only require full name and instagram handle.
+  // ── Step 5: The answers the operator asked for ─────────────
+  // The two fixed questions (name, Instagram handle) are collected by the form
+  // itself; everything else is an operator-defined `OrderFormField`. Only the
+  // fields that are live are loaded: a soft-deleted question can no longer be
+  // answered, and only `active` ones are rendered on checkout.
+  //
+  // The answers are built here, before the transaction, for two reasons. It is
+  // the only way a rejected form is guaranteed to consume no stock — the claim
+  // below is destructive, and a missing required answer must not take the last
+  // unit with it. And `buildSnapshotAnswers` needs no write access, so it has no
+  // business inside the critical section.
+  //
+  // The label and type are stored alongside each value, so renaming a question
+  // tomorrow cannot rewrite what yesterday's order says was asked.
+  const answerFields = await prisma.orderFormField.findMany({
+    where: { active: true, deletedAt: null },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    select: {
+      key: true,
+      label: true,
+      type: true,
+      placeholder: true,
+      helpText: true,
+      required: true,
+      options: true,
+      sensitive: true,
+    },
+  });
+
+  const answers = buildSnapshotAnswers(
+    answerFields.map((field) => ({
+      ...toPublicField(field),
+      sensitive: field.sensitive,
+    })),
+    input.answers
+  );
+
   const customerFullName = input.customerInfo.fullName;
   const customerHandle = input.customerInfo.instagramHandle;
 
@@ -219,6 +228,7 @@ export async function createOrder(input: OrderSubmission) {
   const customerSnapshot: Prisma.InputJsonValue = {
     fullName: customerFullName,
     instagramHandle: customerHandle,
+    answers,
   };
 
   // ── Step 6: Duplicate detection ────────────────────────────

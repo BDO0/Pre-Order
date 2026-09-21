@@ -336,11 +336,11 @@ export default async function DashboardPage() {
                         </span>
                       </td>
                       <td>
-                        {order.batch ? (
-                          order.batch.name
-                        ) : (
-                          <span style={{ color: "var(--color-warning)", fontWeight: 600 }}>unbatched</span>
-                        )}
+                        {/* No "unbatched" branch: `Order.batchId` is required, so an
+                            order without a batch is not a state this data can be in.
+                            The warning badge that used to live here described a
+                            condition that could never appear. */}
+                        {order.batch.name}
                       </td>
                       <td style={{ fontWeight: 600 }}>₱{Number(order.total).toLocaleString()}</td>
                       <td>

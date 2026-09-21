@@ -3,6 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  buildVariantMatrix,
+  buildVariantPayload,
+  describeVariant,
+  parseCapacityInput,
+  parseVariantList,
+  variantKey,
+  type VariantFormRow,
+} from "@/lib/variant-plan";
 
 export default function NewProductPage() {
   const router = useRouter();
@@ -13,11 +22,49 @@ export default function NewProductPage() {
     name: "",
     category: "",
     price: "",
-    sizes: "S, M, L, XL", // Simple text input for sizes
+    sizes: "S, M, L, XL",
     colors: "Black",
+    // The cap for the whole product, on top of the per-option stock below.
+    preorderLimit: "",
   });
 
+  /**
+   * What is typed into each stock box, keyed by option.
+   *
+   * Kept apart from the grid, which is derived from the two text boxes on every
+   * render: typing "L" into the sizes box rebuilds the grid, and whatever was
+   * already typed beside "M" has to survive that. An option that leaves the grid
+   * keeps its entry, so a size deleted by accident brings its stock back with it.
+   */
+  const [stock, setStock] = useState<Record<string, string>>({});
+  const [fillValue, setFillValue] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
+
+  const rows: VariantFormRow[] = buildVariantMatrix(
+    parseVariantList(formData.sizes),
+    parseVariantList(formData.colors)
+  ).map((row) => ({ ...row, capacity: stock[variantKey(row.size, row.color)] ?? "" }));
+
+  const setStockFor = (row: VariantFormRow, value: string) => {
+    const key = variantKey(row.size, row.color);
+    setStock((previous) => ({ ...previous, [key]: value }));
+  };
+
+  /** One number for every option - the common case of "I can get 10 of each". */
+  const fillEveryBox = () => {
+    const parsed = parseCapacityInput(fillValue);
+    if (!parsed.ok) {
+      setError(parsed.message);
+      return;
+    }
+
+    setError("");
+    const next: Record<string, string> = {};
+    for (const row of rows) {
+      next[variantKey(row.size, row.color)] = fillValue.trim();
+    }
+    setStock((previous) => ({ ...previous, ...next }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +72,20 @@ export default function NewProductPage() {
     setError("");
 
     try {
+      // A product with no options is a product nobody can order: the storefront
+      // would have nothing to choose and the cart nothing to add.
+      if (rows.length === 0) {
+        throw new Error(
+          "Add at least one size or one colour. Without options there is nothing for a customer to choose."
+        );
+      }
+
+      const payload = buildVariantPayload(rows);
+      if (!payload.ok) throw new Error(payload.message);
+
+      const limit = parseCapacityInput(formData.preorderLimit);
+      if (!limit.ok) throw new Error(`Total for this product: ${limit.message}`);
+
       // 1. Upload image if exists
       let imageUrl = "";
       if (imageFile) {
@@ -55,12 +116,11 @@ export default function NewProductPage() {
           active: true,
           preorderEnabled: true,
           preorderStatus: "OPEN",
-          // Send custom variants field to be processed by our API
-          variants: formData.sizes.split(",").map(s => s.trim()).filter(Boolean).map(size => ({
-            size,
-            color: formData.colors,
-            active: true
-          }))
+          // Both halves of the limit: how many this option can take, and how many
+          // the product can take overall. Blank is null, which the order service
+          // reads as "no limit".
+          preorderLimit: limit.capacity,
+          variants: payload.variants,
         }),
       });
 
@@ -84,10 +144,10 @@ export default function NewProductPage() {
         <h1 className="admin-page-title" style={{ marginTop: "var(--space-2)" }}>Add New Product</h1>
       </div>
 
-      <div className="card" style={{ maxWidth: "600px" }}>
+      <div className="card" style={{ maxWidth: "640px" }}>
         <div className="card-body">
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-            
+
             <div className="form-group">
               <label className="form-label form-label-required">Product Name</label>
               <input required type="text" className="form-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. ANA Basic Tee" />
@@ -104,15 +164,84 @@ export default function NewProductPage() {
               </div>
             </div>
 
+            <div style={{ display: "flex", gap: "var(--space-4)" }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Sizes (comma separated)</label>
+                <input type="text" className="form-input" value={formData.sizes} onChange={e => setFormData({ ...formData, sizes: e.target.value })} placeholder="S, M, L, XL" />
+                <span className="form-hint">Customers pick one of these.</span>
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Colours (comma separated)</label>
+                <input type="text" className="form-input" value={formData.colors} onChange={e => setFormData({ ...formData, colors: e.target.value })} placeholder="Black, White" />
+                <span className="form-hint">Optional. Each colour is paired with every size.</span>
+              </div>
+            </div>
+
+            {/* One row per size x colour, each with its own stock box. This is the
+                half the form was missing entirely: without it every product an
+                operator created was unlimited, whatever the copy promised. */}
             <div className="form-group">
-              <label className="form-label form-label-required">Sizes (comma separated)</label>
-              <input required type="text" className="form-input" value={formData.sizes} onChange={e => setFormData({ ...formData, sizes: e.target.value })} placeholder="S, M, L, XL" />
-              <span className="form-hint">These will be generated as selectable options for the customer.</span>
+              <label className="form-label">How many you can take</label>
+              {rows.length === 0 ? (
+                <p style={{ fontSize: "var(--text-sm)", color: "var(--color-error)", margin: 0 }}>
+                  ⚠ Type at least one size or one colour above. A product with no options cannot be ordered.
+                </p>
+              ) : (
+                <>
+                  <span className="form-hint" style={{ display: "block", marginBottom: "var(--space-2)" }}>
+                    {rows.length} option{rows.length === 1 ? "" : "s"}. Leave a box empty for no limit on that one.
+                  </span>
+
+                  <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", marginBottom: "var(--space-3)" }}>
+                    <input
+                      type="number"
+                      min="1"
+                      className="form-input"
+                      style={{ maxWidth: "120px" }}
+                      value={fillValue}
+                      onChange={e => setFillValue(e.target.value)}
+                      placeholder="e.g. 10"
+                      aria-label="Stock to give every option"
+                    />
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={fillEveryBox}>
+                      Give every option this many
+                    </button>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+                    {rows.map((row) => (
+                      <div key={variantKey(row.size, row.color)} style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+                        <span style={{ flex: 1, fontSize: "var(--text-sm)", fontWeight: 500 }}>{describeVariant(row)}</span>
+                        <input
+                          type="number"
+                          min="1"
+                          className="form-input"
+                          style={{ maxWidth: "130px" }}
+                          value={row.capacity}
+                          onChange={e => setStockFor(row, e.target.value)}
+                          placeholder="no limit"
+                          aria-label={`How many ${describeVariant(row)} you can take`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="form-group">
-              <label className="form-label form-label-required">Color</label>
-              <input required type="text" className="form-input" value={formData.colors} onChange={e => setFormData({ ...formData, colors: e.target.value })} placeholder="Black" />
+              <label className="form-label">Total for this product</label>
+              <input
+                type="number"
+                min="1"
+                className="form-input"
+                value={formData.preorderLimit}
+                onChange={e => setFormData({ ...formData, preorderLimit: e.target.value })}
+                placeholder="no limit"
+              />
+              <span className="form-hint">
+                A cap across every option together. Leave it empty for no limit. The boxes above are the ones that stop one size from selling out quietly.
+              </span>
             </div>
 
             <div className="form-group">
