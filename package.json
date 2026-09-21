@@ -10,12 +10,17 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:db": "tsx scripts/test-db.ts",
+    "dev:local": "tsx scripts/test-db.ts --serve",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
-    "db:seed": "tsx prisma/seed.ts",
+    "db:seed": "tsx prisma/seed-admin.ts",
+    "db:seed:demo": "tsx prisma/seed.ts",
+    "admin:create": "tsx scripts/admin-create.ts",
     "db:studio": "prisma studio",
-    "db:check": "tsx scripts/db-check.ts"
+    "db:check": "tsx scripts/db-check.ts",
+    "demo:purge": "tsx scripts/purge-demo-data.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
@@ -34,7 +39,7 @@
     "zustand": "^5.0.15"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed-admin.ts"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -44,6 +49,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.1.0",
     "dotenv": "^17.4.2",
+    "embedded-postgres": "17.10.0-beta.17",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
     "tsx": "^4.23.12",

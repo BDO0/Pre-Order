@@ -1,10 +1,33 @@
+/**
+ * The **demo shop**, for a local database only.
+ *
+ *   npm run db:seed:demo
+ *
+ * Fake products, a live batch, and form-field-free defaults so the storefront and
+ * the admin screens have something to render on a fresh laptop. Creating the
+ * first *real* account is `npm run db:seed` (`prisma/seed-admin.ts`), which is
+ * also what `prisma db seed` runs — this file is no longer wired to that, because
+ * it used to be the only documented way to get an admin and the shortest path to
+ * demo products in a live shop.
+ *
+ * Two things that make it safer to have around:
+ *
+ *   • **It refuses to run against a remote database** unless
+ *     `ALLOW_DEMO_SEED_REMOTE=1` is set. The previous version happily re-opened
+ *     the `september-drop-2026` batch and re-dated its end date on whatever
+ *     database `DATABASE_URL` pointed at — on a live shop that silently reopens
+ *     ordering on a finished drop. A Supabase dev branch is the reason the escape
+ *     hatch exists.
+ *   • **It only creates.** Every write is an upsert with an empty `update`, so
+ *     re-running it never edits what an operator has since changed: no reopened
+ *     batch, no re-dated deadline, no resurrected product. Delete a demo product
+ *     and it comes back; activate it and it stays as you left it.
+ */
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import pg from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { createPoolConfig } from "../src/lib/pg-ssl";
-
-import bcrypt from "bcryptjs";
+import { createPoolConfig, isLocalDatabaseHost } from "../src/lib/pg-ssl";
 
 const { Pool } = pg;
 const connectionString = process.env.DATABASE_URL;
@@ -15,31 +38,40 @@ if (!connectionString) {
   );
 }
 
+// ── Guard: demo data belongs on a laptop ──────────────────────
+if (!isLocalDatabaseHost(connectionString) && process.env.ALLOW_DEMO_SEED_REMOTE !== "1") {
+  const host = (() => {
+    try {
+      return new URL(connectionString).hostname;
+    } catch {
+      return "(unparseable DATABASE_URL)";
+    }
+  })();
+
+  console.error("❌ Refusing to seed demo data into a remote database.\n");
+  console.error(`   DATABASE_URL points at: ${host}`);
+  console.error("   This script creates fake products and a live 'September Drop 2026'");
+  console.error("   batch. On a real shop that is not demo data, it is stock you have");
+  console.error("   to clean up by hand.");
+  console.error("\n   For the first admin account, use the one that is meant for this:");
+  console.error("     npm run db:seed");
+  console.error("\n   For a throwaway database (a Supabase dev branch, a CI Postgres):");
+  console.error("     ALLOW_DEMO_SEED_REMOTE=1 npm run db:seed:demo");
+  process.exit(1);
+}
+
 // Shared with the Next.js runtime so TLS and timeouts cannot drift apart.
 const pool = new Pool(createPoolConfig(connectionString));
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log("🌱 Seeding database...");
+  console.log("🌱 Seeding demo data...");
 
-  // ── Admin ─────────────────────────────────────────────────
-  const passwordHash = await bcrypt.hash("admin123", 12);
-
-  const admin = await prisma.admin.upsert({
-    where: { email: "admin@anaclothing.com" },
-    update: {},
-    create: {
-      email: "admin@anaclothing.com",
-      passwordHash,
-      name: "ANA Admin",
-      role: "SUPER_ADMIN",
-    },
-  });
-
-  console.log(`✅ Admin: ${admin.email}`);
-
-
+  // No admin here on purpose. This script used to create
+  // `admin@anaclothing.com` / `admin123` in plain text, which meant the
+  // documented path to a first login was also a documented password. Use
+  // `npm run db:seed` for an account (it generates one and prints it once).
 
   // ── Sample Products ───────────────────────────────────────
   const shirt = await prisma.product.upsert({
@@ -153,10 +185,10 @@ async function main() {
   const batchEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   const batch = await prisma.batch.upsert({
     where: { slug: "september-drop-2026" },
-    update: {
-      status: "OPEN",
-      endAt: batchEnd,
-    },
+    // Empty on purpose. This used to force `status: "OPEN"` and push `endAt` a
+    // month out on every run, which silently reopened a closed drop on any
+    // database it was pointed at — including a live one.
+    update: {},
     create: {
       name: "September Drop 2026",
       slug: "september-drop-2026",
@@ -177,11 +209,11 @@ async function main() {
   }
 
   console.log(`✅ Batch: ${batch.name}`);
-  console.log("\n🎉 Seed complete!");
-  console.log(`\nAdmin login:`);
-  console.log(`  Email:    admin@anaclothing.com`);
-  console.log(`  Password: admin123`);
-  console.log(`\n⚠️  Change the password after first login!`);
+  console.log("\n🎉 Demo data ready.");
+  console.log("\nNext, if you do not have an admin account yet:");
+  console.log("  npm run db:seed        (creates one and prints its password once)");
+  console.log("\nThese products and the 'September Drop 2026' batch are demo data. Remove");
+  console.log("them before the shop goes live — they are real, orderable stock otherwise.");
 }
 
 main()

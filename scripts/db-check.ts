@@ -18,6 +18,7 @@ import pg from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { createPoolConfig } from "../src/lib/pg-ssl";
 import { CAPACITY_RELEASING_STATUSES } from "../src/lib/order-state-machine";
+import { auditCapacity } from "../src/lib/capacity-audit";
 
 const { Pool } = pg;
 
@@ -55,11 +56,6 @@ function describeTarget(url: string): string {
   } catch {
     return "(unparseable DATABASE_URL)";
   }
-}
-
-function list(values: string[], limit = 5): string {
-  const shown = values.slice(0, limit).join(", ");
-  return values.length > limit ? `${shown}, +${values.length - limit} more` : shown;
 }
 
 /**
@@ -160,110 +156,40 @@ async function main(): Promise<void> {
     },
   });
 
-  const label = (v: { id: string; size: string | null; color: string | null }) =>
-    `${v.id} (${[v.color, v.size].filter(Boolean).join("/") || "no size"})`;
-
-  const negative = variantRows.filter(
-    (v) => v.remainingCapacity !== null && v.remainingCapacity < 0
-  );
-  check(
-    "no variant has a negative remainingCapacity",
-    negative.length === 0,
-    list(negative.map(label))
-  );
-
-  const overCapacity = variantRows.filter(
-    (v) => v.capacity !== null && v.remainingCapacity !== null && v.remainingCapacity > v.capacity
-  );
-  check(
-    "no variant holds more remaining than its capacity",
-    overCapacity.length === 0,
-    list(overCapacity.map((v) => `${label(v)}: ${v.remainingCapacity}/${v.capacity}`))
-  );
-
-  const halfNull = variantRows.filter(
-    (v) => (v.capacity === null) !== (v.remainingCapacity === null)
-  );
-  check(
-    "capacity and remainingCapacity are both set or both NULL",
-    halfNull.length === 0,
-    list(halfNull.map(label))
-  );
-
-  const negativeReserved = productRows.filter((p) => p.preorderReserved < 0);
-  check(
-    "no product has a negative preorderReserved",
-    negativeReserved.length === 0,
-    list(negativeReserved.map((p) => p.slug))
-  );
-
-  const overLimit = productRows.filter(
-    (p) => p.preorderLimit !== null && p.preorderReserved > p.preorderLimit
-  );
-  check(
-    "no product has reserved more than its preorderLimit",
-    overLimit.length === 0,
-    list(overLimit.map((p) => `${p.slug}: ${p.preorderReserved}/${p.preorderLimit}`))
-  );
-
-  const emptyOrders = await prisma.order.findMany({
-    where: { items: { none: {} } },
-    select: { reference: true, status: true },
-    take: 6,
-  });
-  check(
-    "every order has at least one item",
-    emptyOrders.length === 0,
-    list(emptyOrders.map((o) => `${o.reference} (${o.status})`))
-  );
-
-  // ── Stored capacity vs live order items ─────────────────────────────────
-  heading("Storage reconciliation");
-  console.log("  Capacity held by an order is live until that order is voided.");
-
+  // Order items that still hold stock, fetched once: the reconciliation rules
+  // compare what each row *remembers* holding with what the orders say is held.
+  // An order that was voided -- CANCELLED or REJECTED -- handed its stock back,
+  // so it is excluded here and nowhere else.
   const held = await prisma.orderItem.groupBy({
     by: ["variantId"],
     where: { order: { status: { notIn: CAPACITY_RELEASING_STATUSES } } },
     _sum: { quantity: true },
   });
-  const heldByVariant = new Map(held.map((row) => [row.variantId, row._sum.quantity ?? 0]));
+  const emptyOrders = await prisma.order.findMany({
+    where: { items: { none: {} } },
+    select: { reference: true, status: true },
+    take: 6,
+  });
 
-  const variantMismatch: string[] = [];
-  for (const v of variantRows) {
-    // Unlimited variants hold no per-variant capacity; only the product limit
-    // applies, which is reconciled below.
-    if (v.capacity === null || v.remainingCapacity === null) continue;
-    const stored = v.capacity - v.remainingCapacity;
-    const live = heldByVariant.get(v.id) ?? 0;
-    if (stored !== live) variantMismatch.push(`${label(v)}: stored ${stored} vs live ${live}`);
-  }
-  check(
-    "variant capacity consumed matches live order items",
-    variantMismatch.length === 0,
-    list(variantMismatch)
-  );
-
-  const productOfVariant = new Map(variantRows.map((v) => [v.id, v.productId]));
-  const liveByProduct = new Map<string, number>();
-  for (const [variantId, quantity] of heldByVariant) {
-    const productId = productOfVariant.get(variantId);
-    if (productId) liveByProduct.set(productId, (liveByProduct.get(productId) ?? 0) + quantity);
+  // The rules themselves are shared with `npm run demo:purge`
+  // (src/lib/capacity-audit.ts), because a purge has to hold the database to
+  // the same standard after deleting rows. One finding per rule, always, so
+  // eight lines below means eight rules ran rather than that the rest were
+  // quiet.
+  for (const finding of auditCapacity({
+    variants: variantRows,
+    products: productRows,
+    items: held.map((row) => ({ variantId: row.variantId, quantity: row._sum.quantity ?? 0 })),
+    emptyOrders,
+  })) {
+    check(finding.rule, finding.pass, finding.detail);
   }
 
-  const productMismatch: string[] = [];
-  for (const p of productRows) {
-    const live = liveByProduct.get(p.id) ?? 0;
-    if (p.preorderReserved !== live) {
-      productMismatch.push(`${p.slug}: stored ${p.preorderReserved} vs live ${live}`);
-    }
-  }
-  check(
-    "product preorderReserved matches live order items",
-    productMismatch.length === 0,
-    list(productMismatch)
-  );
+  // ── Stored capacity vs live order items ─────────────────────────────────
+  // Capacity held by an order is live until that order is voided, which is why
+  // the two reconciliation rules above count only the orders that still hold
+  // their stock.
 
-  // ── Catalogue ───────────────────────────────────────────────────────────
   // ── Order reference counter ─────────────────────────────────────────────
   // References are handed out by an atomic upsert on `order_counters`. If that
   // row ever falls behind the references already stored, the next checkout can
@@ -343,7 +269,10 @@ async function main(): Promise<void> {
   let notes = 0;
 
   if (products === 0) {
-    console.log("  - Catalogue is empty; run `npm run db:seed`.");
+    console.log(
+      "  - Catalogue is empty. Add the real products in Admin → Products, then put them" +
+        " in a drop in Admin → Batches: the storefront lists what an open batch holds."
+    );
     notes += 1;
   }
 
@@ -369,7 +298,8 @@ async function main(): Promise<void> {
 
   if (!process.env.TEST_DATABASE_URL) {
     console.log(
-      "  - TEST_DATABASE_URL is not set, so the integration tests in tests/ report as skipped."
+      "  - TEST_DATABASE_URL is not set, so the integration tests in tests/ report as skipped." +
+        " `npm run test:db` runs them against a throwaway Postgres instead."
     );
     notes += 1;
   }

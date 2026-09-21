@@ -18,9 +18,11 @@ Copy `.env.example` and fill it in. Required:
 | `AUTH_URL` | Canonical origin, e.g. `https://admin.example.com`. This is also the switch that makes Auth.js trust the Host header: without `AUTH_URL`, `AUTH_TRUST_HOST`, `VERCEL` or `CF_PAGES`, a **production** build answers every `/api/auth/*` request with `UntrustedHost` (HTTP 500). Because the proxy converts auth failures into a redirect to the login page, that misconfiguration presents as "every password is rejected" rather than as a config error. |
 | `APP_URL` | **Must equal the deployed origin.** See §5. |
 
-`NEXTAUTH_SECRET` / `NEXTAUTH_URL` are the Auth.js v4 names. The secret is still
-honoured, but the URL is **not** used for the host-trust decision — set
-`AUTH_URL`.
+`NEXTAUTH_SECRET` / `NEXTAUTH_URL` are the Auth.js v4 names. `next-auth` still
+reads both — the secret as a fallback for `AUTH_SECRET`, and the URL only as a
+fallback for building absolute URLs (`next-auth/lib/env.js`, `@auth/core`). The
+URL is **not** consulted for the host-trust decision, so setting it is not a
+substitute for `AUTH_URL`. `AUTH_SECRET` and `AUTH_URL` are the names to set.
 
 `TEST_DATABASE_URL` is only for the integration tests and must never point at
 production.
@@ -53,9 +55,15 @@ Deploy sequence:
 
 ```bash
 DATABASE_URL="$DIRECT_URL" npx prisma migrate deploy
-npm run db:seed          # optional; seeds are idempotent and never overwrite edits
+npm run db:seed          # creates the first admin if there is none; prints its password once
 npm run db:check         # read-only audit; exits non-zero when an invariant breaks
 ```
+
+`db:seed` creates **one admin account and nothing else**, and never touches an
+account that already exists — so it is safe to run on every deploy, and it cannot
+reset a password you have changed. The demo shop (fake products, a live drop) is
+`npm run db:seed:demo`, which refuses to run against anything but localhost:
+never point it at production, because those products are real, orderable stock.
 
 ---
 
@@ -172,21 +180,33 @@ link the operator pastes into an Instagram DM previews correctly.
 
 ## 6. Pre-launch checklist
 
-The seed ships **working defaults that are not secrets** — they must be changed
-before real customers arrive:
+The setup script creates **one working account and no secrets**: it generates a
+password, prints it once, and stores only a bcrypt hash. There is nothing to
+rotate — but there is a short list to work through before real customers arrive:
 
-- [ ] **Rotate the seeded admin password.** `admin@anaclothing.com` / `admin123`.
-- [ ] **Replace the placeholder contact details** on the checkout questions and in
-      the storefront copy: the seeded sample answer `09X…` and
-      `NEXT_PUBLIC_INSTAGRAM_HANDLE` both need a real value.
+- [ ] **Make sure you can sign in at `/admin/login`**, and that the account is
+      yours rather than one somebody else created. If the password is lost, any
+      environment with `DATABASE_URL` can set a new one:
+      `npm run admin:create -- --email you@example.com --reset-password`
+      (it prints the new password once, and never asks for the old one).
+- [ ] **Replace the placeholder contact details** in the storefront copy: the
+      app's `NEXT_PUBLIC_INSTAGRAM_HANDLE` must be the account customers actually
+      message (`@ana.clothing` is the placeholder).
 - [ ] **Review the checkout questions** in Admin → Settings → Pre-Order Form.
-      Delete or hide anything you do not want to ask, and mark anything personal
-      (phone, address) as *sensitive* so it stays hidden from staff roles that do
-      not hold `customers.read`.
+      Nothing is defined out of the box — the form asks only for name and
+      Instagram handle until you add something. Delete or hide anything you do
+      not want to ask, and mark anything personal (phone, address) as *sensitive*
+      so it stays hidden from staff roles that do not hold `customers.read`.
 - [ ] **Give each staff member their own admin account and the least role they
-      need.** The matrix is `src/lib/permissions.ts`: `VIEWER` cannot write,
-      `ORDER_MANAGER` cannot touch the catalogue, and `PRODUCT_MANAGER` never
-      receives customer contact details.
+      need**, one command each. The matrix is `src/lib/permissions.ts`: `VIEWER`
+      cannot write, `ORDER_MANAGER` cannot touch the catalogue, and
+      `PRODUCT_MANAGER` never receives customer contact details.
+      ```bash
+      npm run admin:create -- --email ana@example.com --name Ana --role ORDER_MANAGER
+      ```
+      A password passed on the command line lands in your shell history — use
+      `ADMIN_PASSWORD="…" npm run admin:create -- --email …` instead, or let it
+      generate one (`--reset-password` for an account that already exists).
 - [ ] **Set a strong `AUTH_SECRET`** and confirm the session cookie is `Secure`
       behind TLS.
 - [ ] **Confirm storage works from the deployed host**: upload one product image
@@ -200,7 +220,38 @@ before real customers arrive:
 
 ---
 
-## 7. Post-deploy smoke test
+## 7. Recording an order that arrived by DM
+
+There is no "create order" button in the admin panel, and that is deliberate: the
+order service is the only thing allowed to claim capacity, so an order created by
+hand would be an order no stock check ever saw. The supported procedure is to
+place the order **as the customer**, through the storefront:
+
+1. Open the product's page (`/preorder/<slug>`) and put the customer's pieces in
+   the cart.
+2. At checkout, use **their** name and **their** Instagram handle — exactly what
+   they gave you in the DM. The handle is the identity here: if they have ordered
+   before, the order shows up against the same customer record.
+3. Place the order. The confirmation screen shows the order number and the private
+   tracking link — copy that link and send it to them in the DM.
+4. In Admin → Orders, confirm the batch it landed in (the storefront puts it in the
+   open one; **Batches** can move it between runs), set the status, and flip
+   **Payment** to Paid once the money is actually in.
+
+Two things to expect:
+
+- Every order placed this way claims real capacity, so the stock numbers stay
+  honest. If it would oversell, the app refuses it — which is the answer you want
+  before promising the customer anything.
+- The customer account will look like a first-time customer (`NEW`), because the
+  handle is what decides that, and the app has no way to know you were acting for
+  someone. If a customer has given you a different handle than they ordered with
+  last time, the app will treat them as a new person — the same limitation as the
+  duplicate check, and the reason to ask for their handle before placing anything.
+
+---
+
+## 8. Post-deploy smoke test
 
 1. `GET /api/health` → `200`, `database: "up"`, and a `storage` block naming the
    driver you expect.
