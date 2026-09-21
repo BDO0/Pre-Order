@@ -4,6 +4,23 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+/**
+ * The product this form edits, as `GET /api/admin/products/[id]` returns it.
+ *
+ * `images` is deliberately `unknown`: the endpoint passes the column through as
+ * stored, and the form validates it with `Array.isArray` before using it, so a
+ * non-array value degrades to "no images" instead of crashing the screen.
+ */
+interface ProductDetail {
+  name: string;
+  category: string | null;
+  price: string | number;
+  preorderStatus: string;
+  active: boolean;
+  images: unknown;
+  variants?: { size: string; color: string | null }[];
+}
+
 export default function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -21,6 +38,8 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     sizes: "",
     color: "",
   });
+  const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -29,9 +48,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
         const json = await res.json();
         if (!res.ok) throw new Error(json.error?.message || "Failed to load product");
 
-        const p = json.data;
+        const p = json.data as ProductDetail;
         // Extract unique sizes and single color from variants (simplified)
-        const sizes = [...new Set((p.variants || []).map((v: any) => v.size).filter(Boolean))].join(", ");
+        const sizes = [...new Set((p.variants || []).map((v) => v.size).filter(Boolean))].join(", ");
         const firstColor = (p.variants || [])[0]?.color || "";
 
         setFormData({
@@ -43,8 +62,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           sizes,
           color: firstColor,
         });
-      } catch (err: any) {
-        setError(err.message);
+        setExistingImages(Array.isArray(p.images) ? (p.images as string[]) : []);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to load product");
       } finally {
         setFetching(false);
       }
@@ -59,6 +79,19 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     setSuccess("");
 
     try {
+      let finalImages = existingImages;
+
+      // If a new image file was selected, upload it first
+      if (imageFile) {
+        const uploadData = new FormData();
+        uploadData.append("file", imageFile);
+        uploadData.append("purpose", "PRODUCT_IMAGE");
+        const uploadRes = await fetch("/api/upload", { method: "POST", body: uploadData });
+        const uploadJson = await uploadRes.json();
+        if (!uploadRes.ok) throw new Error(uploadJson.error?.message || "Failed to upload image.");
+        finalImages = [uploadJson.data.url];
+      }
+
       const sizeList = formData.sizes.split(",").map(s => s.trim()).filter(Boolean);
       const variants = sizeList.map(size => ({ size, color: formData.color || undefined }));
 
@@ -71,17 +104,35 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           price: Number(formData.price),
           active: formData.active,
           preorderStatus: formData.preorderStatus,
-          variants: variants.length > 0 ? variants : undefined,
+          images: finalImages,
+          // Always sent, even when the list is empty. Leaving the key out used
+          // to mean "the variants are not what this screen is editing", so
+          // clearing the field and saving changed nothing at all - while the hint
+          // below promised the sizes would be replaced. An empty list now says
+          // what it means: this product has no sizes.
+          variants,
         }),
       });
 
       const json = await res.json();
       if (!res.ok) throw new Error(json.error?.message || "Failed to update product");
 
-      setSuccess("Product updated successfully!");
+      // Say what happened to the sizes. "Product updated" was true but useless
+      // when saving the form had just retired two of them.
+      const changes = json.meta?.variantChanges as
+        | { created: number; updated: number; retired: number }
+        | null
+        | undefined;
+      const retired = changes?.retired ?? 0;
+
+      setSuccess(
+        retired > 0
+          ? `Product updated. ${retired} size${retired === 1 ? "" : "s"} retired; their past orders are untouched.`
+          : "Product updated successfully!"
+      );
       setTimeout(() => router.push("/admin/products"), 1200);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to update product");
     } finally {
       setLoading(false);
     }
@@ -156,7 +207,8 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
               <input required type="text" className="form-input" value={formData.sizes}
                 onChange={e => setFormData({ ...formData, sizes: e.target.value })}
                 placeholder="S, M, L, XL" />
-              <span className="form-hint">⚠ Editing sizes will replace all existing variants.</span>
+              <span className="form-hint">⚠ Saving replaces the size list. A size you remove is retired, not deleted,
+so its past orders still count and you can add it back.</span>
             </div>
 
             <div className="form-group">
@@ -164,6 +216,36 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
               <input type="text" className="form-input" value={formData.color}
                 onChange={e => setFormData({ ...formData, color: e.target.value })}
                 placeholder="e.g. Black" />
+            </div>
+
+            {/* Product Image */}
+            <div className="form-group">
+              <label className="form-label">Product Image</label>
+              {existingImages[0] && (
+                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-2)" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={existingImages[0]}
+                    alt={formData.name}
+                    style={{ width: "64px", height: "64px", objectFit: "cover", borderRadius: "var(--radius-md)", border: "1px solid var(--color-neutral-200)" }}
+                  />
+                  <div>
+                    <p style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-600)", fontWeight: 500, margin: 0 }}>
+                      Current Image
+                    </p>
+                    <p style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-400)", margin: 0 }}>
+                      Select a file below to replace it.
+                    </p>
+                  </div>
+                </div>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                className="form-input"
+                onChange={e => setImageFile(e.target.files?.[0] || null)}
+              />
+              <span className="form-hint">Upload JPG, PNG or WebP to update product imagery.</span>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", padding: "var(--space-3) var(--space-4)", background: "var(--color-neutral-50)", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-neutral-200)" }}>
@@ -175,7 +257,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                 style={{ width: "18px", height: "18px", accentColor: "var(--color-brand-500)" }}
               />
               <label htmlFor="active-toggle" style={{ fontSize: "var(--text-sm)", fontWeight: 600, cursor: "pointer", color: "var(--color-neutral-700)" }}>
-                Product is Active (visible to admin, available for campaigns)
+                Product is Active (visible to admin, available for batches)
               </label>
             </div>
 

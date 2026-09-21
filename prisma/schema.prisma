@@ -21,7 +21,7 @@ enum AdminRole {
   VIEWER
 }
 
-enum CampaignStatus {
+enum BatchStatus {
   DRAFT
   SCHEDULED
   OPEN
@@ -50,16 +50,23 @@ enum OrderStatus {
   REJECTED
 }
 
+// Money is either received or it is not, and the operator is the only one who
+// knows. This is a manual toggle, not a review workflow: there is no proof to
+// approve and no customer-facing payment step, so PENDING_REVIEW/REFUNDED would
+// be states nothing could ever reach.
 enum PaymentStatus {
   UNPAID
-  PENDING_REVIEW
   PAID
-  REFUNDED
 }
 
-enum FulfillmentType {
-  DELIVERY
-  PICKUP
+// Input type for an operator-defined pre-order form field.
+enum FormFieldType {
+  TEXT
+  TEXTAREA
+  PHONE
+  EMAIL
+  NUMBER
+  SELECT
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -80,25 +87,25 @@ model Admin {
 }
 
 // ─────────────────────────────────────────────────────────────
-// CAMPAIGN
+// BATCH
 // ─────────────────────────────────────────────────────────────
 
-model Campaign {
+model Batch {
   id          String         @id @default(cuid())
   name        String
   slug        String         @unique
   description String?
   coverImage  String?
-  status      CampaignStatus @default(DRAFT)
+  status      BatchStatus    @default(DRAFT)
   startAt     DateTime?
   endAt       DateTime?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  products CampaignProduct[]
+  products BatchProduct[]
   orders   Order[]
 
-  @@map("campaigns")
+  @@map("batches")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -125,7 +132,7 @@ model Product {
   updatedAt       DateTime       @updatedAt
 
   variants  ProductVariant[]
-  campaigns CampaignProduct[]
+  batches   BatchProduct[]
 
   @@map("products")
 }
@@ -150,20 +157,20 @@ model ProductVariant {
 }
 
 // ─────────────────────────────────────────────────────────────
-// CAMPAIGN <-> PRODUCT JOIN
+// BATCH <-> PRODUCT JOIN
 // ─────────────────────────────────────────────────────────────
 
-model CampaignProduct {
-  campaignId String
-  productId  String
-  sortOrder  Int      @default(0)
-  createdAt  DateTime @default(now())
+model BatchProduct {
+  batchId   String
+  productId String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
 
-  campaign Campaign @relation(fields: [campaignId], references: [id])
-  product  Product  @relation(fields: [productId], references: [id])
+  batch   Batch   @relation(fields: [batchId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
 
-  @@id([campaignId, productId])
-  @@map("campaign_products")
+  @@id([batchId, productId])
+  @@map("batch_products")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -173,70 +180,64 @@ model CampaignProduct {
 model Customer {
   id              String   @id @default(cuid())
   fullName        String
-  mobileNumber    String
-  email           String?
-  instagramHandle String?
-  messengerName   String?
+  // The Instagram account is the identity: it is how every order, payment and
+  // shipping detail is settled, and it is what makes two "Juan dela Cruz" rows
+  // distinguishable. Stored normalised (lowercase, no leading "@") so that
+  // "@JuanDC" and "juandc" are one customer. "@" is not part of a handle.
+  instagramHandle String   @unique
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   orders Order[]
 
-  @@index([mobileNumber])
   @@map("customers")
 }
 
-// ─────────────────────────────────────────────────────────────
-// PAYMENT METHOD
-// ─────────────────────────────────────────────────────────────
 
-model PaymentMethod {
-  id            String   @id @default(cuid())
-  name          String
-  instructions  String?
-  accountName   String?
-  accountNumber String?
-  qrImage       String?
-  requiresProof Boolean  @default(true)
-  active        Boolean  @default(true)
-  sortOrder     Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  orders Order[]
-
-  @@map("payment_methods")
-}
 
 // ─────────────────────────────────────────────────────────────
 // ORDER
 // ─────────────────────────────────────────────────────────────
 
 model Order {
-  id              String          @id @default(cuid())
-  reference       String          @unique // PO-20260826-0001
-  campaignId      String
-  customerId      String?
-  paymentMethodId String
-  status          OrderStatus     @default(PENDING)
-  paymentStatus   PaymentStatus   @default(UNPAID)
-  fulfillmentType FulfillmentType @default(DELIVERY)
+  id         String        @id @default(cuid())
+  reference  String        @unique // PO-20260826-0001
+  batchId    String
+  customerId String?
+  status     OrderStatus   @default(PENDING)
+  paymentStatus PaymentStatus @default(UNPAID)
 
   // Idempotency
   idempotencyKey String? @unique
 
+  // The customer's private handle on their own order.
+  //
+  // A 192-bit random token, minted when the order is created and handed to the
+  // customer once, on the confirmation screen. It is the *convenience* route
+  // back to an order; the lookup form (reference + Instagram handle) is the
+  // fallback, so an order without a token is still trackable.
+  //
+  // Nullable on purpose: orders placed before the token existed have none, and
+  // making the column NOT NULL would mean inventing a value for them. NULL is
+  // the truthful answer, and the lookup form covers them.
+  accessToken String? @unique
+
   // Pricing — server-calculated, immutable after creation
   subtotal       Decimal @db.Decimal(10, 2)
-  shippingAmount Decimal @default(0) @db.Decimal(10, 2)
   total          Decimal @db.Decimal(10, 2)
 
-  // Snapshots — historical integrity, never rely on current product data
-  customerSnapshot Json // { fullName, mobileNumber, email, ... }
-  deliverySnapshot Json // { type, address, city, ... }
+  // Snapshot — historical integrity, never rely on current product data.
+  // { fullName, instagramHandle, answers: [{ key, label, value }] }
+  customerSnapshot Json
 
   // Duplicate detection
   isPossibleDuplicate Boolean @default(false)
   duplicateOfRef      String?
+
+  // Was this the customer's first ever order, as decided when it was placed?
+  // Recorded rather than derived: "new customer" is a fact about the moment the
+  // order arrived, and the dashboard needs it long after a second order exists.
+  isNewCustomer Boolean @default(true)
 
   // Admin
   notes String?
@@ -244,17 +245,16 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  campaign       Campaign             @relation(fields: [campaignId], references: [id])
-  customer       Customer?            @relation(fields: [customerId], references: [id])
-  paymentMethod  PaymentMethod        @relation(fields: [paymentMethodId], references: [id])
-  items          OrderItem[]
-  proofs         PaymentProof[]
-  statusHistory  OrderStatusHistory[]
-  auditLogs      AuditLog[]
+  batch         Batch                @relation(fields: [batchId], references: [id])
+  customer      Customer?            @relation(fields: [customerId], references: [id])
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+  auditLogs     AuditLog[]
 
   @@index([status])
   @@index([paymentStatus])
-  @@index([campaignId])
+  @@index([batchId])
+  @@index([customerId])
   @@index([createdAt])
   @@map("orders")
 }
@@ -274,22 +274,6 @@ model OrderItem {
   variant ProductVariant @relation(fields: [variantId], references: [id])
 
   @@map("order_items")
-}
-
-// ─────────────────────────────────────────────────────────────
-// PAYMENT PROOF
-// ─────────────────────────────────────────────────────────────
-
-model PaymentProof {
-  id         String   @id @default(cuid())
-  orderId    String
-  fileKey    String   // Storage key — NOT the raw URL
-  mimeType   String
-  uploadedAt DateTime @default(now())
-
-  order Order @relation(fields: [orderId], references: [id])
-
-  @@map("payment_proofs")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -349,23 +333,36 @@ model OrderCounter {
 }
 
 // ─────────────────────────────────────────────────────────────
-// SETTINGS (operator-editable configuration)
+// PRE-ORDER FORM FIELDS
 // ─────────────────────────────────────────────────────────────
 
-// Key/value store for values the shop owner can change without a deploy.
-//
-// JSONB rather than one column per setting: adding a knob is a seed/UI change
-// instead of a migration. The key registry and defaults live in
-// src/lib/pricing.ts (SETTING_KEYS / normaliseShippingFee), which is also what
-// keeps a hand-edited row from ever producing a NaN total.
-//
-// Currently holds `pricing.shipping_fee`, replacing the flat `150` that used to
-// be hardcoded in the order service, the cart and the checkout summary.
-model Setting {
-  key       String   @id
-  value     Json
-  updatedAt DateTime @default(now()) @updatedAt
+model OrderFormField {
+  id          String        @id @default(cuid())
+  key         String        @unique
+  label       String
+  type        FormFieldType @default(TEXT)
+  placeholder String?
+  helpText    String?
+  required    Boolean       @default(false)
+  sensitive   Boolean       @default(false)
+  // Declared as a default because the database already has one: this column was
+  // pushed from an earlier revision of the schema with `DEFAULT ARRAY[]::TEXT[]`,
+  // and a schema that omits it makes `prisma migrate diff` want to DROP DEFAULT
+  // on a live database — a change with no benefit and a real chance of upsetting
+  // an insert that omits the column. The model now says what the database does.
+  options     String[]      @default([])
+  sortOrder   Int           @default(0)
+  active      Boolean       @default(true)
+  deletedAt   DateTime?
+  createdAt   DateTime      @default(now())
+  // `@default(now())` for the same reason: the column carries
+  // `DEFAULT CURRENT_TIMESTAMP` in the database, and this is how the other
+  // models in this file (OrderCounter) already express both facts.
+  updatedAt   DateTime      @default(now()) @updatedAt
 
-  @@map("settings")
+  @@index([active, sortOrder])
+  @@map("order_form_fields")
 }
+
+
 

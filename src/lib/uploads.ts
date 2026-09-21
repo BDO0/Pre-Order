@@ -3,13 +3,10 @@ import { basename, join } from "node:path";
 /**
  * Where uploads live and how a stored key maps back to a file.
  *
- * Two very different things are uploaded here and they must not share a
- * directory:
- *
- *  - public/  product & campaign imagery that belongs in the storefront.
- *  - private/ payment proofs — screenshots of a customer's bank app, i.e. PII.
- *    They are never reachable by URL; the admin panel streams them through
- *    /api/admin/proofs/<key>, which checks the session first.
+ * Only public imagery is uploaded now: product and batch photographs that
+ * belong in the storefront. Payment proofs are gone from the product entirely —
+ * there is no customer-facing payment step, so nothing private is ever written
+ * to disk and there is no guarded-read route to maintain.
  *
  * Server-only (uses node:path / process.cwd).
  */
@@ -23,22 +20,20 @@ export type AllowedUploadFormat = (typeof ALLOWED_UPLOAD_FORMATS)[number];
 /**
  * Everything is re-encoded to WebP before it touches disk. Re-encoding is the
  * point: it destroys embedded scripts (a valid image can also be valid HTML,
- * which is stored XSS when served from our origin), strips EXIF — including the
- * GPS coordinates a customer's phone may have written into a payment screenshot
- * — and guarantees the bytes on disk match the declared content type.
+ * which is stored XSS when served from our origin), strips EXIF, and guarantees
+ * the bytes on disk match the declared content type.
  */
 export const STORED_EXTENSION = ".webp";
 export const STORED_MIME_TYPE = "image/webp";
 
-/** Longest edge kept after re-encode; proofs only need to be readable. */
+/** Longest edge kept after re-encode. */
 export const MAX_STORED_DIMENSION = 2400;
 
-export type UploadPurpose = "PAYMENT_PROOF" | "PRODUCT_IMAGE" | "CAMPAIGN_IMAGE";
+export type UploadPurpose = "PRODUCT_IMAGE" | "BATCH_IMAGE";
 
 export const UPLOAD_PURPOSES: readonly UploadPurpose[] = [
-  "PAYMENT_PROOF",
   "PRODUCT_IMAGE",
-  "CAMPAIGN_IMAGE",
+  "BATCH_IMAGE",
 ];
 
 export function isUploadPurpose(value: unknown): value is UploadPurpose {
@@ -48,23 +43,9 @@ export function isUploadPurpose(value: unknown): value is UploadPurpose {
   );
 }
 
-/** True for uploads that must never be world-readable. */
-export function isPrivatePurpose(purpose: UploadPurpose): boolean {
-  return purpose === "PAYMENT_PROOF";
-}
-
 /** Public tree served straight off the CDN/static handler. */
 export function publicUploadDir(): string {
   return join(process.cwd(), "public", "uploads");
-}
-
-/** Private tree, deliberately outside `public/`. */
-export function privateProofDir(): string {
-  const base =
-    process.env.PRIVATE_UPLOAD_DIR && process.env.PRIVATE_UPLOAD_DIR.trim() !== ""
-      ? process.env.PRIVATE_UPLOAD_DIR
-      : join(process.cwd(), "private", "uploads");
-  return join(base, "proofs");
 }
 
 /**
@@ -97,27 +78,7 @@ export function mimeTypeForKey(key: string): string {
   return MIME_BY_EXTENSION[extension] ?? "application/octet-stream";
 }
 
-/**
- * Filesystem candidates for a proof key, in priority order.
- *
- * New keys look like `proofs/<id>.webp` and live in the private tree. Rows
- * written before this split hold `/uploads/<id>.jpg` and their files are still
- * in `public/uploads`, so both layouts are supported and nothing has to be
- * migrated in a hurry.
- */
-export function proofCandidatesForKey(key: string): string[] {
-  if (!isSafeStorageKey(key)) return [];
-  const name = basename(key);
-  if (!name || name === "/" || name === ".") return [];
-  const candidates = [join(privateProofDir(), name)];
-  if (key.startsWith("proofs/") || key.startsWith("/proofs/")) {
-    return candidates;
-  }
-  candidates.push(join(publicUploadDir(), name));
-  return candidates;
-}
-
-/** The public URL for a stored public upload (product/campaign imagery). */
+/** The public URL for a stored upload (product/campaign imagery). */
 export function publicUrlForFile(filename: string): string {
   return `/uploads/${filename}`;
 }

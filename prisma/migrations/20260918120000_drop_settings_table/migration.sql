@@ -1,0 +1,11 @@
+-- DropTable
+--
+-- The `settings` table held store-wide configuration, and the only row it ever
+-- carried was the flat delivery fee. No fee is charged any more: shipping is
+-- arranged, and settled, with the customer in Instagram DM, so the fee panel,
+-- the `/api/settings/public` route that published it and the
+-- `/api/admin/settings` route that wrote it are all gone.
+--
+-- The checkout questions that used to share that admin page are unaffected:
+-- they live in `order_form_fields` and are served by `/api/admin/form-fields`.
+DROP TABLE "settings";

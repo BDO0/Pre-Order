@@ -3,76 +3,68 @@
 import type { PaymentStatus } from "@prisma/client";
 
 /**
- * Payment verification actions an admin can take.
+ * The payment rules, reduced to what the business actually does.
  *
- * Kept separate from the ORDER state machine because money and fulfilment move
- * independently: an order can sit in PAYMENT_REVIEW while the payment is
- * verified, and a verified payment is not proof that anything shipped.
+ * Money is collected in Instagram DM, outside the app. The only thing the app
+ * can honestly know is whether the operator has confirmed receipt, so there is
+ * exactly one transition in each direction and no review workflow to get stuck
+ * in. Kept as its own module (rather than an inline `!paid`) because the admin UI
+ * and the API must agree on what a toggle may do, and a type-only Prisma import
+ * keeps it usable from client components.
  */
-export type PaymentAction = "VERIFY" | "REJECT" | "REFUND";
 
-interface PaymentActionRule {
-  /** Payment statuses this action may be applied to. */
-  from: readonly PaymentStatus[];
-  /** The status it moves the order into. */
+/** What a toggle request asks for, and what it moves the order to. */
+export interface PaymentToggle {
+  /** The action's verb, used in the audit log (`payment.paid`). */
+  action: "MARK_PAID" | "MARK_UNPAID";
   to: PaymentStatus;
-  /** Button label for the admin UI. */
   label: string;
-  /** Short explanation shown next to the button. */
   hint: string;
 }
 
-export const PAYMENT_ACTIONS: Record<PaymentAction, PaymentActionRule> = {
-  VERIFY: {
-    from: ["UNPAID", "PENDING_REVIEW"],
+export const PAYMENT_TOGGLES: Record<PaymentToggle["action"], PaymentToggle> = {
+  MARK_PAID: {
+    action: "MARK_PAID",
     to: "PAID",
-    label: "Verify payment",
-    hint: "Money received — mark this order as paid.",
+    label: "Mark as paid",
+    hint: "The money is in — record it so the reports stop asking.",
   },
-  REJECT: {
-    // Only a payment still under review can be rejected. Rejecting an already
-    // PAID payment would silently un-receive money that was really sent.
-    from: ["PENDING_REVIEW"],
+  MARK_UNPAID: {
+    action: "MARK_UNPAID",
     to: "UNPAID",
-    label: "Reject proof",
-    hint: "The proof is unreadable or does not match — send it back to unpaid.",
-  },
-  REFUND: {
-    from: ["PAID"],
-    to: "REFUNDED",
-    label: "Mark refunded",
-    hint: "Money has been returned to the customer.",
+    label: "Mark as unpaid",
+    hint: "Correct a mistake, or a payment that has been returned.",
   },
 };
 
-/** True when `action` is legal from `current`. */
-export function isValidPaymentAction(
-  current: PaymentStatus,
-  action: PaymentAction
-): boolean {
-  return PAYMENT_ACTIONS[action]?.from.includes(current) ?? false;
-}
-
-/** The actions an admin may take on a payment currently in `current`. */
-export function allowedPaymentActions(current: PaymentStatus): PaymentAction[] {
-  return (Object.keys(PAYMENT_ACTIONS) as PaymentAction[]).filter((action) =>
-    isValidPaymentAction(current, action)
-  );
+/** The status a `paid` boolean means. */
+export function statusForPaid(paid: boolean): PaymentStatus {
+  return paid ? "PAID" : "UNPAID";
 }
 
 /**
- * Returns the status `action` moves to, or throws when the action is illegal.
+ * The toggle a `paid` boolean asks for.
  *
- * The API catches the prefix to answer 422, mirroring assertValidTransition.
+ * Derived from the target, not from the current status: asking for the state the
+ * order is already in is not an error, so the same request always maps to the
+ * same audit entry.
  */
-export function applyPaymentAction(
-  current: PaymentStatus,
-  action: PaymentAction
-): PaymentStatus {
-  if (!isValidPaymentAction(current, action)) {
-    throw new Error(
-      `PAYMENT_INVALID_ACTION: Cannot ${action} a payment in ${current}`
-    );
-  }
-  return PAYMENT_ACTIONS[action].to;
+export function toggleFor(paid: boolean): PaymentToggle {
+  return statusForPaid(paid) === "PAID"
+    ? PAYMENT_TOGGLES.MARK_PAID
+    : PAYMENT_TOGGLES.MARK_UNPAID;
 }
+
+/** True when `paid` would change anything (the API treats a no-op as success). */
+export function isPaymentChange(
+  current: PaymentStatus,
+  paid: boolean
+): boolean {
+  return statusForPaid(paid) !== current;
+}
+
+/** True for the one status that means money is in the bank. */
+export function isPaid(status: PaymentStatus): boolean {
+  return status === "PAID";
+}
+

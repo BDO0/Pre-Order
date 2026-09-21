@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { describeStorage } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Liveness probe that also touches the database.
  *
- * Two jobs:
+ * Three jobs:
  *
  *  1. A deploy/uptime check that fails when the app is up but the database is
  *     not, which is the failure mode a plain 200 on `/` would hide.
- *  2. Keeping a Supabase free-tier project from being paused for inactivity.
+ *  2. Reporting which storage driver is active. This is the check that catches a
+ *     serverless deployment trying to write imagery to a read-only filesystem —
+ *     a failure that otherwise only surfaces when the operator publishes a drop.
+ *  3. Keeping a Supabase free-tier project from being paused for inactivity.
  *     Point a scheduled ping (Vercel Cron, UptimeRobot, GitHub Actions) at this
  *     route every few days and the instance stays warm. Idle pausing is a free
  *     tier behaviour, so this is the cheap mitigation — a paid plan or the
@@ -22,6 +26,7 @@ export async function GET(request: NextRequest) {
   if (limited) return limited;
 
   const startedAt = Date.now();
+  const storage = describeStorage();
 
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -32,6 +37,7 @@ export async function GET(request: NextRequest) {
         data: {
           status: "ok",
           database: "up",
+          storage,
           latencyMs: Date.now() - startedAt,
           checkedAt: new Date().toISOString(),
         },
@@ -49,7 +55,12 @@ export async function GET(request: NextRequest) {
           code: "DATABASE_UNAVAILABLE",
           message: "The database is not reachable.",
         },
-        data: { status: "degraded", database: "down", latencyMs: Date.now() - startedAt },
+        data: {
+          status: "degraded",
+          database: "down",
+          storage,
+          latencyMs: Date.now() - startedAt,
+        },
       },
       { status: 503, headers: { "Cache-Control": "no-store" } }
     );

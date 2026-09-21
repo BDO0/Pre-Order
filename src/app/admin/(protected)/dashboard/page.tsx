@@ -1,6 +1,30 @@
 import { prisma } from "@/lib/db";
+import Link from "next/link";
 import styles from "./dashboard.module.css";
 import { format } from "date-fns";
+import { describeEta } from "@/lib/batches";
+
+/**
+ * The dashboard's job is to answer "what needs doing today?".
+ *
+ * It used to be a grid of counts. A count is not an instruction: "Payment Review
+ * 7" tells the operator a number, not what to do about it. So the top of the page
+ * is now an action list — one row per piece of outstanding work, each a link
+ * into the exact filtered queue that resolves it — and the counters moved below
+ * it, where they belong (they describe, they do not direct).
+ *
+ * There are no notifications in this system by design: there is no email, no
+ * SMS, no push. This list is what replaces them, which is why it leads.
+ */
+
+/** One outstanding thing, with the link that resolves it. */
+interface ActionItem {
+  label: string;
+  detail: string;
+  count: number;
+  href: string;
+  tone: "warn" | "info" | "success";
+}
 
 async function getStats() {
   const now = new Date();
@@ -9,8 +33,9 @@ async function getStats() {
 
   const [
     totalOrders, todayOrders, pendingOrders, paymentReview,
-    confirmedOrders, completedOrders, activeCampaigns,
+    confirmedOrders, completedOrders, activeBatches,
     confirmedRevenue, grossValue, recentOrders,
+    unpaidOrders, unpaidNewCustomers, dueBatches,
   ] = await Promise.all([
     prisma.order.count(),
     prisma.order.count({ where: { createdAt: { gte: todayStart } } }),
@@ -18,7 +43,7 @@ async function getStats() {
     prisma.order.count({ where: { status: "PAYMENT_REVIEW" } }),
     prisma.order.count({ where: { status: "CONFIRMED" } }),
     prisma.order.count({ where: { status: "COMPLETED" } }),
-    prisma.campaign.count({ where: { status: "OPEN" } }),
+    prisma.batch.count({ where: { status: "OPEN" } }),
     prisma.order.aggregate({
       _sum: { total: true },
       where: { status: { in: ["CONFIRMED", "PROCESSING", "READY", "SHIPPED", "COMPLETED"] } },
@@ -30,16 +55,53 @@ async function getStats() {
     prisma.order.findMany({
       take: 10,
       orderBy: { createdAt: "desc" },
-      include: { campaign: { select: { name: true } } },
+      include: {
+        batch: { select: { name: true } },
+      },
+    }),
+    // Every action count excludes cancelled/rejected orders: those are resolved
+    // decisions, and leaving them in would put a permanent, unfixable number at
+    // the top of the page until the operator deleted history.
+    prisma.order.count({
+      where: { paymentStatus: "UNPAID", status: { notIn: ["CANCELLED", "REJECTED"] } },
+    }),
+    prisma.order.count({
+      where: {
+        paymentStatus: "UNPAID",
+        isNewCustomer: true,
+        status: { notIn: ["CANCELLED", "REJECTED"] },
+      },
+    }),
+    // Orders in no batch are not a state this data can be in: `Order.batchId` is
+    // required, because an order that belongs to no supplier run is an order
+    // nobody will ever make.
+    // Batches that are ending soon: worth telling waiting customers about.
+    //
+    // Bounded on both sides on purpose. It used to be `endAt <= now + 7 days`,
+    // which matches every batch that has ever finished, so after a few months
+    // this panel was a permanent list of shipments that had already arrived and
+    // the operator had learned to scroll past it.
+    prisma.batch.findMany({
+      where: {
+        endAt: {
+          not: null,
+          gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+          lte: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        },
+        status: { not: "ARCHIVED" },
+      },
+      orderBy: { endAt: "asc" },
+      select: { id: true, name: true, endAt: true, _count: { select: { orders: true } } },
     }),
   ]);
 
   return {
     totalOrders, todayOrders, pendingOrders, paymentReview,
-    confirmedOrders, completedOrders, activeCampaigns,
+    confirmedOrders, completedOrders, activeBatches,
     confirmedRevenue: confirmedRevenue._sum.total ?? 0,
     grossValue: grossValue._sum.total ?? 0,
     recentOrders,
+    unpaidOrders, unpaidNewCustomers, dueBatches,
   };
 }
 
@@ -59,9 +121,130 @@ const STATUS_BADGE: Record<string, string> = {
 export default async function DashboardPage() {
   const stats = await getStats();
 
+  /**
+   * The action list.
+   *
+   * Items with nothing outstanding are dropped entirely rather than shown as
+   * zero: a page of zeros trains the operator to stop reading it. When every
+   * item is gone, that is the signal — and it is stated explicitly below.
+   */
+  const allActions: ActionItem[] = [
+    {
+      label: "Orders awaiting your approval",
+      detail: "New orders that nobody has looked at yet.",
+      count: stats.pendingOrders,
+      href: "/admin/orders?status=PENDING",
+      tone: "warn",
+    },
+    {
+      label: "First-time customers who have not paid",
+      detail: "These usually need a DM before they go quiet.",
+      count: stats.unpaidNewCustomers,
+      href: "/admin/orders?paymentStatus=UNPAID&customerType=new",
+      tone: "warn",
+    },
+    {
+      label: "Unpaid orders",
+      detail: "Everything still waiting for money, new customer or not.",
+      count: stats.unpaidOrders,
+      href: "/admin/orders?paymentStatus=UNPAID",
+      tone: "info",
+    },
+  ];
+
+  // Zero-count items are dropped: a page of zeros trains the operator to stop
+  // reading it.
+  const actions = allActions.filter((action) => action.count > 0);
+
   return (
     <div>
       <h1 className="admin-page-title">Dashboard</h1>
+
+      {/* Action list — what replaces notifications in this system. */}
+      <div className={styles.section} style={{ marginTop: 0 }}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionTitle}>Needs your attention</h2>
+        </div>
+
+        {actions.length === 0 ? (
+          <div className="card">
+            <div className="card-body" style={{ textAlign: "center", padding: "var(--space-8)" }}>
+              <p style={{ fontSize: "var(--text-3xl)", marginBottom: "var(--space-2)" }}>✓</p>
+              <p style={{ fontWeight: 700, color: "var(--color-success)" }}>Nothing is waiting on you.</p>
+              <p style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-500)", marginTop: "var(--space-1)" }}>
+                Every order is approved, paid for and grouped into a batch.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+            {actions.map((action) => (
+              <Link
+                key={action.href}
+                href={action.href}
+                className="card"
+                style={{
+                  textDecoration: "none",
+                  borderLeft: `4px solid ${
+                    action.tone === "warn" ? "var(--color-warning)" : "var(--color-brand-400)"
+                  }`,
+                }}
+              >
+                <div
+                  className="card-body"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-4)" }}
+                >
+                  <div>
+                    <p style={{ fontWeight: 700, color: "var(--color-neutral-900)" }}>{action.label}</p>
+                    <p style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-500)", marginTop: "2px" }}>
+                      {action.detail}
+                    </p>
+                  </div>
+                  <span
+                    className={`badge ${action.tone === "warn" ? "badge-pending" : "badge-coming"}`}
+                    style={{ fontSize: "var(--text-base)", padding: "var(--space-1) var(--space-3)", flexShrink: 0 }}
+                  >
+                    {action.count}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Batches arriving soon: the answer to "when will mine arrive?" */}
+      {stats.dueBatches.length > 0 && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>Batches due</h2>
+            <Link href="/admin/batches" className="btn btn-secondary btn-sm">Manage batches</Link>
+          </div>
+          <div className="card">
+            <div className="card-body">
+              {stats.dueBatches.map((batch) => (
+                <div
+                  key={batch.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    paddingBlock: "var(--space-2)",
+                    borderBottom: "1px solid var(--color-neutral-100)",
+                    fontSize: "var(--text-sm)",
+                  }}
+                >
+                  <span style={{ fontWeight: 600 }}>{batch.name}</span>
+                  <span style={{ color: "var(--color-neutral-500)" }}>
+                    {batch._count.orders} order{batch._count.orders === 1 ? "" : "s"} ·{" "}
+                    {describeEta(batch.endAt)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="stats-grid">
@@ -86,8 +269,8 @@ export default async function DashboardPage() {
           <p className="stat-value" style={{ color: "var(--color-success)" }}>{stats.completedOrders}</p>
         </div>
         <div className="stat-card">
-          <p className="stat-label">Active Campaigns</p>
-          <p className="stat-value">{stats.activeCampaigns}</p>
+          <p className="stat-label">Active Batches</p>
+          <p className="stat-value">{stats.activeBatches}</p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Confirmed Revenue</p>
@@ -107,7 +290,7 @@ export default async function DashboardPage() {
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <h2 className={styles.sectionTitle}>Recent Orders</h2>
-          <a href="/admin/orders" className="btn btn-secondary btn-sm">View All</a>
+          <Link href="/admin/orders" className="btn btn-secondary btn-sm">View All</Link>
         </div>
 
         <div className="table-wrapper">
@@ -117,8 +300,9 @@ export default async function DashboardPage() {
                 <tr>
                   <th>Order #</th>
                   <th>Customer</th>
-                  <th>Campaign</th>
+                  <th>Batch</th>
                   <th>Total</th>
+                  <th>Payment</th>
                   <th>Status</th>
                   <th>Date</th>
                   <th></th>
@@ -127,7 +311,7 @@ export default async function DashboardPage() {
               <tbody>
                 {stats.recentOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: "center", color: "var(--color-neutral-400)", padding: "var(--space-8)" }}>
+                    <td colSpan={9} style={{ textAlign: "center", color: "var(--color-neutral-400)", padding: "var(--space-8)" }}>
                       No orders yet
                     </td>
                   </tr>
@@ -141,9 +325,29 @@ export default async function DashboardPage() {
                           <span title="Possible duplicate" style={{ marginLeft: "var(--space-1)", color: "var(--color-warning)" }}>⚠</span>
                         )}
                       </td>
-                      <td>{snapshot.fullName ?? "—"}</td>
-                      <td>{order.campaign.name}</td>
+                      <td>
+                        {snapshot.fullName ?? "—"}
+                        <span
+                          className={`badge ${order.isNewCustomer ? "badge-coming" : "badge-confirmed"}`}
+                          style={{ marginLeft: "var(--space-2)" }}
+                          title={order.isNewCustomer ? "First order from this account" : "Has ordered before"}
+                        >
+                          {order.isNewCustomer ? "NEW" : "OG"}
+                        </span>
+                      </td>
+                      <td>
+                        {order.batch ? (
+                          order.batch.name
+                        ) : (
+                          <span style={{ color: "var(--color-warning)", fontWeight: 600 }}>unbatched</span>
+                        )}
+                      </td>
                       <td style={{ fontWeight: 600 }}>₱{Number(order.total).toLocaleString()}</td>
+                      <td>
+                        <span className={`badge ${order.paymentStatus === "PAID" ? "badge-confirmed" : "badge-pending"}`}>
+                          {order.paymentStatus === "PAID" ? "PAID" : "UNPAID"}
+                        </span>
+                      </td>
                       <td>
                         <span className={`badge ${STATUS_BADGE[order.status] ?? "badge-closed"}`}>
                           {order.status.replace(/_/g, " ")}
@@ -153,7 +357,7 @@ export default async function DashboardPage() {
                         {format(new Date(order.createdAt), "MMM d, h:mm a")}
                       </td>
                       <td>
-                        <a href={`/admin/orders/${order.id}`} className="btn btn-ghost btn-sm">View</a>
+                        <Link href={`/admin/orders/${order.id}`} className="btn btn-ghost btn-sm">View</Link>
                       </td>
                     </tr>
                   );

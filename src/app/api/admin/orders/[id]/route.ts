@@ -8,14 +8,8 @@ import {
   getValidNextStatuses,
   releasesCapacity,
 } from "@/lib/order-state-machine";
-import { allowedPaymentActions } from "@/lib/payment-state-machine";
 import { releaseOrderCapacity } from "@/lib/order-service";
-import type { OrderStatus, PaymentStatus } from "@prisma/client";
-import {
-  CUSTOMER_PII_FIELDS,
-  DELIVERY_PII_FIELDS,
-  redactSnapshot,
-} from "@/lib/redaction";
+import type { OrderStatus } from "@prisma/client";
 
 export async function GET(
   request: NextRequest,
@@ -30,15 +24,24 @@ export async function GET(
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
-        campaign: { select: { id: true, name: true, slug: true } },
-        customer: true,
-        paymentMethod: true,
+        // `endAt` is selected so the payload can carry it as `etaAt`: the column
+        // is the end of the run, the operator's word for it is the ETA, and the
+        // order screen reads that name. It was missing from this select, so the
+        // panel could only ever say "No ETA set yet".
+        batch: { select: { id: true, name: true, slug: true, status: true, endAt: true } },
+        customer: {
+          select: {
+            id: true,
+            instagramHandle: true,
+            createdAt: true,
+            _count: { select: { orders: true } },
+          },
+        },
         items: {
           include: {
             variant: { include: { product: { select: { name: true, images: true } } } },
           },
         },
-        proofs: true,
         statusHistory: { orderBy: { createdAt: "asc" } },
         auditLogs: { orderBy: { createdAt: "asc" } },
       },
@@ -51,38 +54,29 @@ export async function GET(
     // What this viewer may do, decided server-side and shipped with the payload.
     // The UI renders exactly these flags, so it cannot offer an action the API
     // would refuse — and a role without `customers.read` (e.g. PRODUCT_MANAGER)
-    // never receives the customer's contact details in the first place, which is
-    // the part of a permission that actually protects anyone.
+    // never receives the customer's Instagram handle or a sensitive answer,
+    // which is the part of a permission that actually protects anyone.
     const canUpdateOrder = hasPermission(guard.role, "orders.update");
     const canVerifyPayment = hasPermission(guard.role, "payments.verify");
     const canReadCustomer = hasPermission(guard.role, "customers.read");
 
-    const customerSnapshot = canReadCustomer
-      ? order.customerSnapshot
-      : redactSnapshot(
-          order.customerSnapshot as Record<string, unknown>,
-          CUSTOMER_PII_FIELDS
-        );
+    const customerSnapshot = order.customerSnapshot;
 
-    const deliverySnapshot = canReadCustomer
-      ? order.deliverySnapshot
-      : redactSnapshot(
-          order.deliverySnapshot as Record<string, unknown>,
-          DELIVERY_PII_FIELDS
-        );
+    // The screen's vocabulary for the batch date, mapped once at the boundary.
+    const batch = order.batch
+      ? { ...order.batch, etaAt: order.batch.endAt as Date | null }
+      : null;
 
     return NextResponse.json({
       success: true,
       data: {
         ...order,
+        batch,
         customerSnapshot,
-        deliverySnapshot,
-        // Empty arrays for a viewer who may not act, so no button is rendered.
+        // Which statuses this viewer may move the order to; empty for a viewer
+        // who may not act, so no buttons are rendered.
         allowedTransitions: canUpdateOrder
           ? getValidNextStatuses(order.status as OrderStatus)
-          : [],
-        allowedPaymentActions: canVerifyPayment
-          ? allowedPaymentActions(order.paymentStatus as PaymentStatus)
           : [],
         capabilities: {
           updateOrder: canUpdateOrder,
@@ -130,11 +124,21 @@ export async function PATCH(
       releasesCapacity(newStatus as OrderStatus) &&
       !releasesCapacity(order.status as OrderStatus);
 
-    const updated = await prisma.$transaction(async (tx) => {
-      const updatedOrder = await tx.order.update({
-        where: { id },
+    // The status is written conditionally, against the value this request read.
+    //
+    // `assertValidTransition` above checks a snapshot, so without this two
+    // requests that read the same snapshot could each apply a transition from a
+    // state that no longer exists: two operators cancelling one order would each
+    // return its capacity, inflating stock that was never sold. Postgres
+    // re-evaluates the WHERE clause against the committed row, so exactly one of
+    // them wins - the same pattern the checkout uses to claim stock.
+    const applied = await prisma.$transaction(async (tx) => {
+      const claim = await tx.order.updateMany({
+        where: { id, status: order.status as OrderStatus },
         data: { status: newStatus as OrderStatus },
       });
+
+      if (claim.count !== 1) return false;
 
       if (capacityReleased) {
         await releaseOrderCapacity(tx, id);
@@ -161,16 +165,29 @@ export async function PATCH(
         },
       });
 
-      return updatedOrder;
+      return true;
     });
+
+    if (!applied) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "ORDER_CHANGED",
+            message: "This order was changed by someone else. Reload it and try again.",
+          },
+        },
+        { status: 409 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
       data: {
-        id: updated.id,
-        status: updated.status,
+        id,
+        status: newStatus,
         // Refreshed here so the caller can re-render without a second round trip.
-        allowedTransitions: getValidNextStatuses(updated.status as OrderStatus),
+        allowedTransitions: getValidNextStatuses(newStatus as OrderStatus),
       },
     });
   } catch (error) {

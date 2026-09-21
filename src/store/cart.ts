@@ -27,16 +27,18 @@ export interface CartItem {
 }
 
 interface CartState {
-  campaignId: string | null;
-  campaignSlug: string | null;
+  batchId: string | null;
+  batchSlug: string | null;
   items: CartItem[];
 
   // Actions
-  setCampaign: (id: string, slug: string) => void;
+  setBatch: (id: string, slug: string) => void;
   addItem: (
     product: CartProduct,
     variant: CartVariant,
-    quantity: number
+    quantity: number,
+    batchId: string,
+    batchSlug: string
   ) => void;
   updateQuantity: (cartItemId: string, quantity: number) => void;
   removeItem: (cartItemId: string) => void;
@@ -50,15 +52,22 @@ interface CartState {
 export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
-      campaignId: null,
-      campaignSlug: null,
+      batchId: null,
+      batchSlug: null,
       items: [],
 
-      setCampaign: (id, slug) =>
-        set({ campaignId: id, campaignSlug: slug }),
+      setBatch: (id, slug) =>
+        set({ batchId: id, batchSlug: slug }),
 
-      addItem: (product, variant, quantity) => {
-        const { items } = get();
+      addItem: (product, variant, quantity, batchId, batchSlug) => {
+        const state = get();
+        
+        // If adding a product from a different batch, clear the cart first!
+        const items = state.batchId === batchId ? state.items : [];
+        if (state.batchId !== batchId) {
+          set({ batchId, batchSlug, items: [] });
+        }
+
         // Check if same variant already in cart
         const existing = items.find((i) => i.variantId === variant.id);
 
@@ -73,6 +82,8 @@ export const useCartStore = create<CartState>()(
         } else {
           const unitPrice = variant.priceOverride ?? product.price;
           set({
+            batchId, 
+            batchSlug,
             items: [
               ...items,
               {
@@ -104,7 +115,7 @@ export const useCartStore = create<CartState>()(
         set({ items: get().items.filter((i) => i.id !== cartItemId) });
       },
 
-      clearCart: () => set({ items: [], campaignId: null, campaignSlug: null }),
+      clearCart: () => set({ items: [], batchId: null, batchSlug: null }),
 
       getSubtotal: () =>
         get().items.reduce(
@@ -118,8 +129,8 @@ export const useCartStore = create<CartState>()(
     {
       name: "ana-preorder-cart", // localStorage key
       partialize: (state) => ({
-        campaignId: state.campaignId,
-        campaignSlug: state.campaignSlug,
+        batchId: state.batchId,
+        batchSlug: state.batchSlug,
         items: state.items,
       }),
     }

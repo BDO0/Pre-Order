@@ -96,48 +96,77 @@ committed here on purpose — the host decides which mechanism is available.
 
 ## 4. File storage
 
-Two very different things are uploaded:
+Only **storefront imagery** is uploaded: product and batch photographs. Nothing
+private is ever written — payment proofs no longer exist, because payment happens
+in Instagram DM and the app only records a Paid/Unpaid switch.
 
-| Purpose | Location | Reachable by |
+Where those images go is a driver, chosen by an environment variable:
+
+| `STORAGE_PROVIDER` | Driver | Result |
 | --- | --- | --- |
-| `PRODUCT_IMAGE`, `CAMPAIGN_IMAGE` | `public/uploads/` | anyone (storefront imagery) |
-| `PAYMENT_PROOF` | `PRIVATE_UPLOAD_DIR` (default `private/uploads/proofs/`) | signed-in admins holding `orders.read`, via `/api/admin/proofs/<key>` |
+| unset, and Supabase unset | `local` | `public/uploads/<random>.webp`, served statically |
+| unset, and Supabase set | `supabase` | Uploaded to Supabase Storage; URL returned |
+| `local` | `local` | Forces local disk even if Supabase is configured |
+| `supabase` | `supabase` | Forces object storage; fails loudly if half-configured |
 
-Payment proofs are screenshots of a customer's banking app, so they are
-deliberately **not** world-readable.
-
-**On Vercel (or any read-only filesystem) local disk writes fail.** The upload
-route detects `EROFS`/`EACCES`/`EPERM` and answers:
+Local disk is the default because a VPS, a container with a volume, or a
+developer's laptop all work perfectly and need no account anywhere. **On Vercel
+(or any read-only filesystem) local writes fail**, and the upload route detects
+`EROFS`/`EACCES`/`EPERM` and answers:
 
 ```json
 { "success": false, "error": { "code": "STORAGE_UNAVAILABLE",
-  "message": "This deployment cannot store files on local disk. Configure object storage (see docs/DEPLOYMENT.md)." } }
+  "message": "This deployment cannot store files on local disk. Set STORAGE_PROVIDER=supabase with SUPABASE_URL and SUPABASE_SERVICE_KEY (see docs/DEPLOYMENT.md)." } }
 ```
 
-That is a deliberate, explicit 503 rather than a vague failure. Until an object
-storage provider is wired up, a serverless deployment cannot accept payment
-proofs or product imagery — deploy to a host with a persistent volume (a
-container, a VPS, Railway/Fly with a disk) or add the Supabase Storage provider
-whose variables `.env.example` already reserves.
+That is a deliberate, explicit 503 rather than a vague failure — the operator is
+told exactly what to do about it.
 
-`PRIVATE_UPLOAD_DIR` must sit outside the web root and must not be a directory
-the static file handler serves.
+### Using Supabase Storage on Vercel
+
+1. In the Supabase dashboard, create **two public buckets**: `products` and
+   `batches` (or set `STORAGE_BUCKET_PRODUCTS` / `STORAGE_BUCKET_BATCHES` to
+   the names you prefer).
+2. Set `SUPABASE_URL` to the project URL and `SUPABASE_SERVICE_KEY` to the
+   **service-role** key. The key is server-only; never give it a `NEXT_PUBLIC_`
+   prefix and never expose it in a client component.
+3. Set `STORAGE_PROVIDER=supabase` to state the intent explicitly. It is picked
+   automatically once the credentials exist, but being explicit means a missing
+   variable fails loudly instead of quietly falling back to a read-only disk.
+4. `GET /api/health` now reports which driver is live:
+
+   ```json
+   { "status": "ok", "database": "up",
+     "storage": { "driver": "supabase", "configured": true,
+                  "detail": "Supabase Storage at https://… (buckets: products, batches)" } }
+   ```
+
+Buckets must be **public**: storefront imagery is served by plain URL, and a
+private bucket would need a signed URL per read. Nothing sensitive is uploaded,
+so public is the correct choice here.
+
+Uploads are always re-encoded to WebP with `sharp` before storage, whatever the
+driver: that destroys embedded markup (a valid image can also be valid HTML, which
+would be stored XSS served from your own origin) and strips EXIF.
+
 
 ---
 
 ## 5. The `APP_URL` trap
 
-`/preorder/[slug]` renders by fetching **its own API over HTTP**:
+`/preorder/[slug]` reads the batch (or product) **straight from the database** —
+it is a server component, so there is no self-request to get wrong. `APP_URL` is
+there for the absolute URLs that leave the app: the Open Graph card of a shared
+pre-order link, `robots.txt`, and the sitemap.
 
-```ts
-fetch(`${process.env.APP_URL}/api/campaigns/${slug}`)
+```env
+APP_URL="https://your-real-domain"
 ```
 
-If `APP_URL` does not match the origin the app is actually served from, every
-campaign page returns 404 while the API works perfectly in a browser. This was
-reproduced during development by running the app on port 3100 with `APP_URL`
-still pointing at 3000. Set it to the real origin, including any custom domain
-and the `https://` scheme.
+If it is wrong, nothing 404s — but every shared link unfurls with a broken image
+or the wrong host, because an Open Graph image must be an absolute URL. On Vercel
+the deployment hostname is used when `APP_URL` is unset; set it explicitly so a
+link the operator pastes into an Instagram DM previews correctly.
 
 ---
 
@@ -147,16 +176,24 @@ The seed ships **working defaults that are not secrets** — they must be change
 before real customers arrive:
 
 - [ ] **Rotate the seeded admin password.** `admin@anaclothing.com` / `admin123`.
-- [ ] **Replace the placeholder payment details.** GCash/Maya still carry
-      `09XXXXXXXXX`. `npm run db:check` lists any that remain.
-- [ ] **Set the delivery fee** in Admin → Settings (default ₱150) and confirm the
-      cart total matches the amount charged at checkout.
+- [ ] **Replace the placeholder contact details** on the checkout questions and in
+      the storefront copy: the seeded sample answer `09X…` and
+      `NEXT_PUBLIC_INSTAGRAM_HANDLE` both need a real value.
+- [ ] **Review the checkout questions** in Admin → Settings → Pre-Order Form.
+      Delete or hide anything you do not want to ask, and mark anything personal
+      (phone, address) as *sensitive* so it stays hidden from staff roles that do
+      not hold `customers.read`.
 - [ ] **Give each staff member their own admin account and the least role they
       need.** The matrix is `src/lib/permissions.ts`: `VIEWER` cannot write,
       `ORDER_MANAGER` cannot touch the catalogue, and `PRODUCT_MANAGER` never
       receives customer contact details.
 - [ ] **Set a strong `AUTH_SECRET`** and confirm the session cookie is `Secure`
       behind TLS.
+- [ ] **Confirm storage works from the deployed host**: upload one product image
+      and check that the returned URL loads. On Vercel this means
+      `STORAGE_PROVIDER=supabase` (§4).
+- [ ] **Set `APP_URL` to the real domain** and confirm a pre-order link unfurls
+      with its Open Graph card (paste it into any chat that renders previews).
 - [ ] **Confirm the security headers are live**:
       `curl -sI https://<origin>/ | findstr /I "content-security-policy x-frame-options"`.
 - [ ] Run `npm run db:check` and confirm *All invariants hold*.
@@ -165,12 +202,22 @@ before real customers arrive:
 
 ## 7. Post-deploy smoke test
 
-1. `GET /api/health` → `200`, `database: "up"`.
-2. `GET /api/settings/public` → the delivery fee you configured.
-3. Sign in at `/admin/login`; the sidebar shows only what the role allows, and
+1. `GET /api/health` → `200`, `database: "up"`, and a `storage` block naming the
+   driver you expect.
+2. `GET /api/batches` returns the batches that are open right now: a batch
+   whose `endAt` has passed must not appear.
+3. `GET /robots.txt` → the admin panel and `/order-status` are disallowed, and the
+   sitemap line points at your domain.
+4. Sign in at `/admin/login`; the sidebar shows only what the role allows, and
    the role badge under your name matches.
-4. Open a **closed** campaign in the storefront → it renders as closed, and its
+5. Open a **closed** batch in the storefront → it renders as closed, and its
    stored status in the admin panel is unchanged (reads never write).
-5. Place one real order end to end, then in the admin panel: open the order, view
-   the proof, verify the payment, and add an internal note. The Activity Log
-   should show `payment verified` and `order notes updated`, each with your email.
+6. Place one real order end to end. On the confirmation screen, open the private
+   link → the order status page loads with no typing. Then in the admin panel:
+   open the order, flip **Payment** to Paid, assign it to a **Batch**, and add an
+   internal note. The Activity Log should show `order batched`, `payment paid`
+   (*not* "verified") and `order notes updated`, each with your email.
+7. Export the batch's CSV from Admin → Batches → Export and open it in a
+   spreadsheet: the Instagram handles must carry a leading apostrophe (so a
+   spreadsheet does not execute them as formulas) and the rows must stay aligned.
+

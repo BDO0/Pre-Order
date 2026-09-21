@@ -147,8 +147,13 @@ export const RATE_LIMITS = {
   checkout: { bucket: "checkout", limit: 10, windowMs: 5 * 60_000 },
   /** Proof uploads are one per checkout attempt; allow a few retries. */
   upload: { bucket: "upload", limit: 20, windowMs: 5 * 60_000 },
-  /** Order lookup takes reference + mobile, so make brute force expensive. */
+  /** Order lookup takes reference + Instagram handle, so make brute force costly. */
   orderLookup: { bucket: "order-lookup", limit: 30, windowMs: 5 * 60_000 },
+  /**
+   * Changing a password re-checks the current one, so this is a guess budget:
+   * a stolen session cookie must not become an offline-speed password oracle.
+   */
+  passwordChange: { bucket: "password-change", limit: 10, windowMs: 15 * 60_000 },
   /** Credential stuffing defence for the admin login. */
   login: { bucket: "login", limit: 10, windowMs: 5 * 60_000 },
   /** Cheap read endpoints: generous, but not unlimited. */

@@ -18,7 +18,6 @@ import pg from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { createPoolConfig } from "../src/lib/pg-ssl";
 import { CAPACITY_RELEASING_STATUSES } from "../src/lib/order-state-machine";
-import { DEFAULT_SHIPPING_FEE, SETTING_KEYS } from "../src/lib/pricing";
 
 const { Pool } = pg;
 
@@ -84,49 +83,40 @@ async function main(): Promise<void> {
   // ── Rows ────────────────────────────────────────────────────────────────
   const [
     admins,
-    campaigns,
     products,
     variants,
-    campaignProducts,
+    batchProducts,
     customers,
-    paymentMethods,
+    batches,
     orders,
     orderItems,
-    paymentProofs,
     statusHistory,
     auditLogs,
-    settings,
   ] = await Promise.all([
     prisma.admin.count(),
-    prisma.campaign.count(),
     prisma.product.count(),
     prisma.productVariant.count(),
-    prisma.campaignProduct.count(),
+    prisma.batchProduct.count(),
     prisma.customer.count(),
-    prisma.paymentMethod.count(),
+    prisma.batch.count(),
     prisma.order.count(),
     prisma.orderItem.count(),
-    prisma.paymentProof.count(),
     prisma.orderStatusHistory.count(),
     prisma.auditLog.count(),
-    prisma.setting.count(),
   ]);
 
   heading("Rows");
   const counts: Record<string, number> = {
     admins,
-    campaigns,
     products,
     product_variants: variants,
-    campaign_products: campaignProducts,
+    batch_products: batchProducts,
     customers,
-    payment_methods: paymentMethods,
+    batches,
     orders,
     order_items: orderItems,
-    payment_proofs: paymentProofs,
     order_status_history: statusHistory,
     audit_logs: auditLogs,
-    settings,
   };
   for (const [name, count] of Object.entries(counts)) {
     console.log(`  ${name.padEnd(22)} ${String(count).padStart(6)}`);
@@ -312,20 +302,20 @@ async function main(): Promise<void> {
   }
 
   heading("Catalogue");
-  const campaignRows = await prisma.campaign.findMany({
+  const batchRows = await prisma.batch.findMany({
     select: { id: true, slug: true, status: true, startAt: true, endAt: true },
     orderBy: { createdAt: "asc" },
   });
-  const links = await prisma.campaignProduct.findMany({
-    select: { campaignId: true, productId: true },
+  const links = await prisma.batchProduct.findMany({
+    select: { batchId: true, productId: true },
   });
 
-  if (campaignRows.length === 0) console.log("  (no campaigns)");
-  for (const c of campaignRows) {
-    const linked = links.filter((l) => l.campaignId === c.id).length;
-    const from = c.startAt ? c.startAt.toISOString().slice(0, 10) : "open";
-    const to = c.endAt ? c.endAt.toISOString().slice(0, 10) : "no end";
-    console.log(`  ${c.slug} [${c.status}] ${linked} product(s), ${from} -> ${to}`);
+  if (batchRows.length === 0) console.log("  (no batches)");
+  for (const b of batchRows) {
+    const linked = links.filter((l) => l.batchId === b.id).length;
+    const from = b.startAt ? b.startAt.toISOString().slice(0, 10) : "open";
+    const to = b.endAt ? b.endAt.toISOString().slice(0, 10) : "no end";
+    console.log(`  ${b.slug} [${b.status}] ${linked} product(s), ${from} -> ${to}`);
   }
 
   if (productRows.length === 0) console.log("  (no products)");
@@ -348,77 +338,34 @@ async function main(): Promise<void> {
     );
   }
 
-  // ── Configuration ───────────────────────────────────────────────────────
-  heading("Configuration");
-  const settingRows = await prisma.setting.findMany({
-    select: { key: true, value: true, updatedAt: true },
-    orderBy: { key: "asc" },
-  });
-
-  if (settingRows.length === 0) {
-    console.log("  (no settings rows — the application falls back to its defaults)");
-  }
-
-  let shippingFeeValue: unknown;
-  for (const row of settingRows) {
-    if (row.key === SETTING_KEYS.shippingFee) shippingFeeValue = row.value;
-    console.log(
-      `  ${row.key} = ${JSON.stringify(row.value)}` +
-        ` (updated ${row.updatedAt.toISOString().slice(0, 10)})`
-    );
-  }
-
-  const feeIsUsable =
-    typeof shippingFeeValue === "number"
-      ? Number.isFinite(shippingFeeValue) && shippingFeeValue >= 0
-      : typeof shippingFeeValue === "string" && shippingFeeValue.trim() !== ""
-        ? Number.isFinite(Number(shippingFeeValue)) && Number(shippingFeeValue) >= 0
-        : false;
-  check(
-    `delivery fee is a usable number (${JSON.stringify(shippingFeeValue ?? null)})`,
-    feeIsUsable,
-    "checkout would silently fall back to the built-in default"
-  );
-
   // ── Notes ───────────────────────────────────────────────────────────────
   heading("Notes");
   let notes = 0;
-
-  if (settingRows.length === 0 || shippingFeeValue === undefined) {
-    console.log(
-      `  - No ${SETTING_KEYS.shippingFee} row; checkout uses the built-in default of ${DEFAULT_SHIPPING_FEE}.`
-    );
-    notes += 1;
-  }
-
-  // Proofs uploaded before proofs were moved out of `public/` are still readable
-  // by anyone who has (or guesses) the URL. New proofs are not.
-  const legacyProofs = await prisma.paymentProof.count({
-    where: { fileKey: { startsWith: "/uploads/" } },
-  });
-  if (legacyProofs > 0) {
-    console.log(
-      `  - ${legacyProofs} payment proof(s) still live at a public /uploads path and remain readable without a session.`
-    );
-    notes += 1;
-  }
 
   if (products === 0) {
     console.log("  - Catalogue is empty; run `npm run db:seed`.");
     notes += 1;
   }
 
-  const placeholders = await prisma.paymentMethod.findMany({
-    where: { active: true, accountNumber: { startsWith: "09X" } },
-    select: { name: true },
-  });
-  if (placeholders.length > 0) {
+  // Orders placed before the Instagram handle became the identity may have no
+  // handle in their snapshot. They are still readable, but the public fallback
+  // lookup (reference + handle) cannot find them — only their own token can.
+  // Raw SQL: Prisma's JSON filter type has no way to express "this key is absent".
+  const missingHandleRows = await prisma.$queryRaw<Array<{ count: number }>>`
+    SELECT COUNT(*)::int AS count
+    FROM "orders"
+    WHERE "customerSnapshot" ->> 'instagramHandle' IS NULL
+  `;
+  const ordersWithoutHandle = missingHandleRows[0]?.count ?? 0;
+  if (ordersWithoutHandle > 0) {
     console.log(
-      `  - Placeholder account numbers still seeded: ${list(placeholders.map((p) => p.name))}.` +
-        " Customers cannot pay until these are replaced."
+      `  - ${ordersWithoutHandle} order(s) carry no Instagram handle in their snapshot;` +
+        " the reference + handle lookup cannot find them (their token link still works)."
     );
     notes += 1;
   }
+
+
 
   if (!process.env.TEST_DATABASE_URL) {
     console.log(

@@ -4,14 +4,25 @@ const DUPLICATE_WINDOW_MINUTES = 10;
 
 /**
  * Detects if a new order might be a duplicate.
- * Flags (but does NOT block) if same phone + same campaign
- * was submitted within the duplicate window.
+ *
+ * Flags (but does NOT block) if the same Instagram account ordered from the same
+ * campaign inside the duplicate window.
+ *
+ * The key is the normalised Instagram handle, not the name: two people really
+ * called "Juan dela Cruz" exist, and the previous implementation keyed on a phone
+ * number that is no longer collected. The handle is also the customer's identity
+ * everywhere else in the app, so "possible duplicate" means the same thing here
+ * as it does in the order queue.
+ *
+ * Reads the snapshot rather than the customer row on purpose: the snapshot is
+ * what the customer actually submitted, it is immutable, and it keeps this check
+ * independent of when the customer row was created.
  *
  * Returns the reference of the potential duplicate order, or null.
  */
 export async function detectDuplicate(
-  mobileNumber: string,
-  campaignId: string
+  instagramHandle: string,
+  batchId: string
 ): Promise<string | null> {
   const windowStart = new Date(
     Date.now() - DUPLICATE_WINDOW_MINUTES * 60 * 1000
@@ -19,11 +30,11 @@ export async function detectDuplicate(
 
   const recentOrder = await prisma.order.findFirst({
     where: {
-      campaignId,
+      batchId,
       createdAt: { gte: windowStart },
       customerSnapshot: {
-        path: ["mobileNumber"],
-        equals: mobileNumber,
+        path: ["instagramHandle"],
+        equals: instagramHandle,
       },
       status: {
         notIn: ["CANCELLED", "REJECTED"],
@@ -35,3 +46,4 @@ export async function detectDuplicate(
 
   return recentOrder?.reference ?? null;
 }
+

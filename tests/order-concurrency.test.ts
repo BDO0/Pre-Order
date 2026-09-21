@@ -26,8 +26,7 @@ describe.skipIf(!TEST_DATABASE_URL)("createOrder capacity guarantees", () => {
   let prisma!: PrismaClient;
   let createOrder!: CreateOrder;
   let releaseOrderCapacity!: ReleaseCapacity;
-  let campaignId!: string;
-  let paymentMethodId!: string;
+  let batchId!: string;
   const productIds: string[] = [];
 
   beforeAll(async () => {
@@ -38,15 +37,10 @@ describe.skipIf(!TEST_DATABASE_URL)("createOrder capacity guarantees", () => {
     ({ prisma } = await import("@/lib/db"));
     ({ createOrder, releaseOrderCapacity } = await import("@/lib/order-service"));
 
-    const campaign = await prisma.campaign.create({
+    const batch = await prisma.batch.create({
       data: { name: "Concurrency suite", slug: `suite-${uniqueSuffix()}`, status: "OPEN" },
     });
-    campaignId = campaign.id;
-
-    const paymentMethod = await prisma.paymentMethod.create({
-      data: { name: "Test payment", requiresProof: false, active: true },
-    });
-    paymentMethodId = paymentMethod.id;
+    batchId = batch.id;
   });
 
   afterAll(async () => {
@@ -57,7 +51,7 @@ describe.skipIf(!TEST_DATABASE_URL)("createOrder capacity guarantees", () => {
     // `orders: { none: {} }` instead would delete every order-less customer in
     // the database, including real ones that simply have not ordered yet.
     const suiteOrders = await prisma.order.findMany({
-      where: { campaignId },
+      where: { batchId },
       select: { customerId: true },
     });
     const customerIds = [
@@ -71,16 +65,15 @@ describe.skipIf(!TEST_DATABASE_URL)("createOrder capacity guarantees", () => {
     await prisma.orderItem.deleteMany({
       where: { variant: { productId: { in: productIds } } },
     });
-    await prisma.orderStatusHistory.deleteMany({ where: { order: { campaignId } } });
-    await prisma.auditLog.deleteMany({ where: { order: { campaignId } } });
-    await prisma.order.deleteMany({ where: { campaignId } });
+    await prisma.orderStatusHistory.deleteMany({ where: { order: { batchId } } });
+    await prisma.auditLog.deleteMany({ where: { order: { batchId } } });
+    await prisma.order.deleteMany({ where: { batchId } });
     // Scoped to the suite's own customers; anything else is left untouched.
     await prisma.customer.deleteMany({ where: { id: { in: customerIds } } });
     await prisma.productVariant.deleteMany({ where: { productId: { in: productIds } } });
-    await prisma.campaignProduct.deleteMany({ where: { productId: { in: productIds } } });
+    await prisma.batchProduct.deleteMany({ where: { productId: { in: productIds } } });
     await prisma.product.deleteMany({ where: { id: { in: productIds } } });
-    await prisma.campaign.delete({ where: { id: campaignId } });
-    await prisma.paymentMethod.delete({ where: { id: paymentMethodId } });
+    await prisma.batch.delete({ where: { id: batchId } });
     await prisma.$disconnect();
   });
 
@@ -115,25 +108,25 @@ describe.skipIf(!TEST_DATABASE_URL)("createOrder capacity guarantees", () => {
       },
     });
 
-    await prisma.campaignProduct.create({
-      data: { campaignId, productId: product.id },
+    await prisma.batchProduct.create({
+      data: { batchId, productId: product.id },
     });
 
     return { product, variant };
   }
 
-  /** A valid OrderSubmission; a fresh idempotency key every call. */
+  /** A valid OrderSubmission; a fresh idempotency key and Instagram handle per call. */
   function submission(variantId: string, quantity: number): OrderSubmission {
     return {
       idempotencyKey: crypto.randomUUID(),
-      campaignId,
-      paymentMethodId,
+      batchId,
       items: [{ variantId, quantity }],
       customerInfo: {
         fullName: "Test Customer",
-        mobileNumber: `0999${String(Math.floor(1_000_000 + Math.random() * 8_999_999))}`,
+        // Every case is a fresh account: the checkout form no longer collects a
+        // phone number, and the handle has to be unique per customer row.
+        instagramHandle: `tester${Math.random().toString(36).slice(2, 10)}`,
       },
-      deliveryInfo: { type: "PICKUP" },
     };
   }
 

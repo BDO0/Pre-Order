@@ -1,23 +1,18 @@
 "use client";
 
 import { useCartStore } from "@/store/cart";
-import { computeShippingFee } from "@/lib/pricing";
-import { useStoreSettings } from "@/hooks/use-store-settings";
 import Link from "next/link";
 import styles from "./cart.module.css";
 
 export default function CartPage() {
-  const { items, updateQuantity, removeItem, clearCart, getSubtotal, campaignSlug } = useCartStore();
+  const { items, updateQuantity, removeItem, clearCart, getSubtotal, batchSlug } = useCartStore();
 
-  // The delivery fee is configuration, not a constant. Pickup is free, so the
-  // cart labels this as the delivery estimate rather than the final charge.
-  const { shippingFee } = useStoreSettings();
-
+  // No delivery fee is added here, because none is charged: the order service
+  // computes `total = subtotal` and shipping is arranged — and settled — in
+  // Instagram DM. The heading above the total is what tells the customer that,
+  // so the number shown is the number they are asked to pay.
   const subtotal = getSubtotal();
-  const shipping = items.length > 0
-    ? computeShippingFee({ deliveryType: "DELIVERY", settings: { shippingFee } })
-    : 0;
-  const total = subtotal + shipping;
+  const total = subtotal;
 
   if (items.length === 0) {
     return (
@@ -31,9 +26,9 @@ export default function CartPage() {
           <div className="empty-state">
             <div className="empty-state-icon">🛒</div>
             <p className="empty-state-title">Your cart is empty</p>
-            <p className="empty-state-text">Add products from a campaign to get started.</p>
-            {campaignSlug && (
-              <Link href={`/preorder/${campaignSlug}`} className="btn btn-primary" style={{ marginTop: "var(--space-4)" }}>
+            <p className="empty-state-text">Add products from a drop to get started.</p>
+            {batchSlug && (
+              <Link href={`/`} className="btn btn-primary" style={{ marginTop: "var(--space-4)" }}>
                 Continue Shopping
               </Link>
             )}
@@ -48,8 +43,8 @@ export default function CartPage() {
       <nav className="navbar">
         <div className="container navbar-inner">
           <Link href="/" className="navbar-brand">ANA Clothing</Link>
-          {campaignSlug && (
-            <Link href={`/preorder/${campaignSlug}`} className="btn btn-ghost btn-sm">
+          {batchSlug && (
+            <Link href={`/`} className="btn btn-ghost btn-sm">
               ← Continue Shopping
             </Link>
           )}
@@ -119,8 +114,8 @@ export default function CartPage() {
                 <span>₱{subtotal.toLocaleString()}</span>
               </div>
               <div className={styles.summaryRow}>
-                <span>Shipping (delivery)</span>
-                <span>{shipping > 0 ? `₱${shipping.toLocaleString()}` : "Free"}</span>
+                <span>Shipping</span>
+                <span style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-600)" }}>Settled via Instagram DM</span>
               </div>
               <div className={`${styles.summaryRow} ${styles.summaryTotal}`}>
                 <span>Total</span>
@@ -133,7 +128,7 @@ export default function CartPage() {
                 ✓ Final price will be verified at checkout
               </p>
               <p className={styles.summaryNote}>
-                Store pickup is free — choose it at checkout.
+                We&apos;ll confirm shipping and payment with you on Instagram.
               </p>
             </div>
           </div>

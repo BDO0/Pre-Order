@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import pg from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { createPoolConfig } from "../src/lib/pg-ssl";
-import { DEFAULT_SHIPPING_FEE, SETTING_KEYS } from "../src/lib/pricing";
+
 import bcrypt from "bcryptjs";
 
 const { Pool } = pg;
@@ -39,65 +39,7 @@ async function main() {
 
   console.log(`✅ Admin: ${admin.email}`);
 
-  // ── Payment Methods ───────────────────────────────────────
-  const gcash = await prisma.paymentMethod.upsert({
-    where: { id: "pm-gcash" },
-    update: {},
-    create: {
-      id: "pm-gcash",
-      name: "GCash",
-      instructions: "Send payment to the GCash number below. Screenshot your proof of payment and upload it.",
-      accountName: "ANA Clothing",
-      accountNumber: "09XXXXXXXXX",
-      requiresProof: true,
-      active: true,
-      sortOrder: 1,
-    },
-  });
 
-  const maya = await prisma.paymentMethod.upsert({
-    where: { id: "pm-maya" },
-    update: {},
-    create: {
-      id: "pm-maya",
-      name: "Maya",
-      instructions: "Send payment to the Maya number below.",
-      accountName: "ANA Clothing",
-      accountNumber: "09XXXXXXXXX",
-      requiresProof: true,
-      active: true,
-      sortOrder: 2,
-    },
-  });
-
-  const cod = await prisma.paymentMethod.upsert({
-    where: { id: "pm-cod" },
-    update: {},
-    create: {
-      id: "pm-cod",
-      name: "Cash on Delivery",
-      instructions: "Pay when your order arrives.",
-      requiresProof: false,
-      active: true,
-      sortOrder: 3,
-    },
-  });
-
-  console.log(`✅ Payment methods: ${gcash.name}, ${maya.name}, ${cod.name}`);
-
-  // ── Store Settings ────────────────────────────────────────
-  // Seeded so a fresh database carries an explicit delivery fee rather than
-  // relying on the application fallback. `update: {}` leaves an operator's edit
-  // alone — re-seeding must never silently reset a live price.
-  const shippingFeeSetting = await prisma.setting.upsert({
-    where: { key: SETTING_KEYS.shippingFee },
-    update: {},
-    create: { key: SETTING_KEYS.shippingFee, value: DEFAULT_SHIPPING_FEE },
-  });
-
-  console.log(
-    `✅ Settings: ${shippingFeeSetting.key} = ${JSON.stringify(shippingFeeSetting.value)}`
-  );
 
   // ── Sample Products ───────────────────────────────────────
   const shirt = await prisma.product.upsert({
@@ -207,30 +149,34 @@ async function main() {
 
   console.log(`✅ Products: ${shirt.name}, ${pants.name}, ${tee.name}`);
 
-  // ── Sample Campaign ───────────────────────────────────────
-  const campaign = await prisma.campaign.upsert({
+  // ── Sample Batch ───────────────────────────────────────
+  const batchEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const batch = await prisma.batch.upsert({
     where: { slug: "september-drop-2026" },
-    update: {},
+    update: {
+      status: "OPEN",
+      endAt: batchEnd,
+    },
     create: {
       name: "September Drop 2026",
       slug: "september-drop-2026",
       description: "Our biggest drop yet! Limited quantities available.",
       status: "OPEN",
       startAt: new Date("2026-09-01T00:00:00Z"),
-      endAt: new Date("2026-09-07T23:59:59Z"),
+      endAt: batchEnd,
     },
   });
 
-  // Assign products to campaign
+  // Assign products to batch
   for (const productId of [shirt.id, pants.id, tee.id]) {
-    await prisma.campaignProduct.upsert({
-      where: { campaignId_productId: { campaignId: campaign.id, productId } },
+    await prisma.batchProduct.upsert({
+      where: { batchId_productId: { batchId: batch.id, productId } },
       update: {},
-      create: { campaignId: campaign.id, productId },
+      create: { batchId: batch.id, productId },
     });
   }
 
-  console.log(`✅ Campaign: ${campaign.name}`);
+  console.log(`✅ Batch: ${batch.name}`);
   console.log("\n🎉 Seed complete!");
   console.log(`\nAdmin login:`);
   console.log(`  Email:    admin@anaclothing.com`);

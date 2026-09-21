@@ -1,29 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/api-guard";
-import { paymentActionSchema } from "@/lib/validation";
-import {
-  allowedPaymentActions,
-  applyPaymentAction,
-  PAYMENT_ACTIONS,
-} from "@/lib/payment-state-machine";
+import { paymentToggleSchema } from "@/lib/validation";
+import { isPaymentChange, statusForPaid, toggleFor } from "@/lib/payment-state-machine";
 import type { PaymentStatus } from "@prisma/client";
 
 /**
- * Payment verification.
+ * The Paid / Unpaid toggle.
  *
- * Deliberately separate from the order status machine: an admin verifying that
- * money arrived is a different decision from moving the parcel along, and the
- * brief's audit example lists them as two events. So this endpoint changes
- * `paymentStatus` only, plus the audit trail — it never silently promotes the
- * order to CONFIRMED.
+ * This is the entire payment model. Customers pay over Instagram DM, outside the
+ * app, so there is nothing to verify and nothing to upload — the only fact the
+ * system can hold is whether the operator has confirmed the money arrived. The
+ * old endpoint took an action (`VERIFY`/`REJECT`/`REFUND`) against a proof; a
+ * boolean is what the business actually decides, and it makes the request
+ * idempotent: re-sending `paid: true` is a no-op, not an error, because two clicks
+ * on a laggy connection must not produce two audit entries claiming a change.
  *
- * The proof itself is not required to be present: some payment methods do not
- * ask for one (`requiresProof: false`), and a bank transfer can be confirmed
- * from a statement instead. Whether a proof exists is shown to the reviewer,
- * not enforced here.
+ * Requires `payments.verify` rather than `orders.update`: recording money is a
+ * different job from packing parcels, and the permission matrix separates them.
  */
-export async function POST(
+export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -43,14 +39,14 @@ export async function POST(
       );
     }
 
-    const parsed = paymentActionSchema.safeParse(body);
+    const parsed = paymentToggleSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
         {
           success: false,
           error: {
             code: "VALIDATION_ERROR",
-            message: "Invalid payment action.",
+            message: "Invalid payment update.",
             fields: parsed.error.flatten().fieldErrors,
           },
         },
@@ -58,17 +54,11 @@ export async function POST(
       );
     }
 
-    const { action, note } = parsed.data;
+    const { paid, note } = parsed.data;
 
     const order = await prisma.order.findUnique({
       where: { id },
-      select: {
-        id: true,
-        reference: true,
-        paymentStatus: true,
-        total: true,
-        _count: { select: { proofs: true } },
-      },
+      select: { id: true, reference: true, paymentStatus: true, total: true },
     });
 
     if (!order) {
@@ -79,29 +69,19 @@ export async function POST(
     }
 
     const currentStatus = order.paymentStatus as PaymentStatus;
+    const nextStatus = statusForPaid(paid);
 
-    // Throws PAYMENT_INVALID_ACTION (mapped to 422 below) rather than letting an
-    // illegal move through — e.g. refunding an order that was never paid.
-    let nextStatus: PaymentStatus;
-    try {
-      nextStatus = applyPaymentAction(currentStatus, action);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("PAYMENT_INVALID_ACTION")) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: {
-              code: "PAYMENT_INVALID_ACTION",
-              message: `A payment in ${currentStatus} cannot be ${
-                PAYMENT_ACTIONS[action].label.toLowerCase()
-              }d.`,
-            },
-          },
-          { status: 422 }
-        );
-      }
-      throw error;
+    // Asking for the state the order is already in succeeds without touching the
+    // audit trail — otherwise a double-tap fills the history with a change that
+    // never happened.
+    if (!isPaymentChange(currentStatus, paid)) {
+      return NextResponse.json({
+        success: true,
+        data: { id: order.id, paymentStatus: currentStatus, changed: false },
+      });
     }
+
+    const toggle = toggleFor(paid);
 
     const updated = await prisma.$transaction(async (tx) => {
       const updatedOrder = await tx.order.update({
@@ -111,20 +91,20 @@ export async function POST(
       });
 
       // The audit trail is what makes a money decision reviewable later, so the
-      // action, the actor, the role, both statuses and the note all go in.
+      // actor, the role, both statuses, the amount and the note all go in.
       await tx.auditLog.create({
         data: {
           orderId: id,
           actor: guard.actor,
-          action: `payment.${action.toLowerCase()}`,
+          action: `payment.${nextStatus.toLowerCase()}`,
           oldValue: { paymentStatus: currentStatus },
           newValue: { paymentStatus: nextStatus },
           metadata: {
+            toggle: toggle.action,
             note: note ?? null,
             role: guard.role,
             orderReference: order.reference,
             amount: order.total,
-            proofCount: order._count.proofs,
           },
         },
       });
@@ -137,13 +117,11 @@ export async function POST(
       data: {
         id: updated.id,
         paymentStatus: updated.paymentStatus,
-        allowedPaymentActions: allowedPaymentActions(
-          updated.paymentStatus as PaymentStatus
-        ),
+        changed: true,
       },
     });
   } catch (error) {
-    console.error("[POST /api/admin/orders/[id]/payment]", error);
+    console.error("[PATCH /api/admin/orders/[id]/payment]", error);
     return NextResponse.json(
       { success: false, error: { code: "SERVER_ERROR", message: "Something went wrong." } },
       { status: 500 }

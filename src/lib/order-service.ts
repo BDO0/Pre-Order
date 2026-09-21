@@ -1,26 +1,21 @@
 import { prisma } from "@/lib/db";
+import { generateAccessToken } from "@/lib/order-token";
 import { generateOrderReference } from "@/lib/order-number";
 import { detectDuplicate } from "@/lib/duplicate-detection";
-import { notificationService } from "@/lib/notification-service";
-import { getStoreSettings } from "@/lib/settings";
-import { computeShippingFee } from "@/lib/pricing";
-import { mimeTypeForKey } from "@/lib/uploads";
+import { OrderError } from "@/lib/order-error";
 import type { OrderSubmission } from "@/lib/validation";
 import type { Prisma } from "@prisma/client";
+
+// Re-exported so every existing `import { OrderError } from "@/lib/order-service"`
+// keeps working; the class itself lives in its own module so `order-form.ts` can
+// throw it without creating an import cycle.
+export { OrderError };
+
+
 
 // ─────────────────────────────────────────────────────────────
 // ERRORS
 // ─────────────────────────────────────────────────────────────
-
-export class OrderError extends Error {
-  constructor(
-    public code: string,
-    message: string
-  ) {
-    super(message);
-    this.name = "OrderError";
-  }
-}
 
 /**
  * Returns the lower-cased target of a unique-constraint violation, or null if
@@ -60,72 +55,73 @@ function isIdempotencyCollision(error: unknown): boolean {
   return uniqueViolationTarget(error)?.includes("idempotency") ?? false;
 }
 
+/**
+ * A collision on `customers.instagramHandle` — two first orders from the same
+ * account. Retryable: the second attempt finds the row the first one created.
+ */
+function isCustomerCollision(error: unknown): boolean {
+  return uniqueViolationTarget(error)?.includes("instagramhandle") ?? false;
+}
+
 // ─────────────────────────────────────────────────────────────
 // ORDER SERVICE
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Creates a pre-order.
+ *
+ * What the customer sends is now deliberately tiny — who they are (name +
+ * Instagram handle), what they want (items) and any answers the operator asked
+ * for. Payment, delivery addresses and sizing are settled in DM, so none of them
+ * are part of this payload and none of them can become a validation failure at
+ * 2am.
+ */
 export async function createOrder(input: OrderSubmission) {
   // ── Step 1: Idempotency check ──────────────────────────────
   if (input.idempotencyKey) {
     const existing = await prisma.order.findUnique({
       where: { idempotencyKey: input.idempotencyKey },
-      select: { reference: true, total: true, status: true },
+      // `accessToken` is part of the answer: a resubmitted form must hand the
+      // customer the same tracking link it handed the first one, not a page
+      // with the token missing.
+      select: { reference: true, total: true, status: true, accessToken: true },
     });
     if (existing) {
       return { idempotent: true, order: existing };
     }
   }
 
-  // ── Step 2: Validate campaign ──────────────────────────────
-  const campaign = await prisma.campaign.findUnique({
-    where: { id: input.campaignId },
+  // ── Step 2: Validate batch ──────────────────────────────
+  const batch = await prisma.batch.findUnique({
+    where: { id: input.batchId },
   });
 
-  if (!campaign) {
-    throw new OrderError("CAMPAIGN_NOT_FOUND", "Campaign not found.");
+  if (!batch) {
+    throw new OrderError("BATCH_NOT_FOUND", "Batch not found.");
   }
 
-  if (campaign.status !== "OPEN") {
+  if (batch.status !== "OPEN") {
     throw new OrderError(
-      "CAMPAIGN_NOT_OPEN",
-      "This pre-order campaign is not currently accepting orders."
+      "BATCH_NOT_OPEN",
+      "This pre-order batch is not currently accepting orders."
     );
   }
 
   const now = new Date();
-  if (campaign.startAt && now < campaign.startAt) {
+  if (batch.startAt && now < batch.startAt) {
     throw new OrderError(
-      "CAMPAIGN_NOT_STARTED",
-      "This pre-order campaign has not started yet."
+      "BATCH_NOT_STARTED",
+      "This pre-order batch has not started yet."
     );
   }
-  if (campaign.endAt && now > campaign.endAt) {
+  if (batch.endAt && now > batch.endAt) {
     throw new OrderError(
-      "CAMPAIGN_EXPIRED",
-      "This pre-order campaign has ended."
-    );
-  }
-
-  // ── Step 3: Validate payment method ───────────────────────
-  const paymentMethod = await prisma.paymentMethod.findUnique({
-    where: { id: input.paymentMethodId, active: true },
-  });
-
-  if (!paymentMethod) {
-    throw new OrderError(
-      "INVALID_PAYMENT_METHOD",
-      "The selected payment method is not available."
+      "BATCH_EXPIRED",
+      "This pre-order batch has ended."
     );
   }
 
-  if (paymentMethod.requiresProof && !input.paymentProofKey) {
-    throw new OrderError(
-      "PROOF_REQUIRED",
-      "Payment proof is required for the selected payment method."
-    );
-  }
-
-  // ── Step 4: Validate each item & calculate pricing ────────
+  // ── Step 3: Validate each item & calculate pricing ─────────
   const resolvedItems: {
     variantId: string;
     productId: string;
@@ -171,20 +167,20 @@ export async function createOrder(input: OrderSubmission) {
       );
     }
 
-    // Verify variant belongs to a campaign product
-    const campaignProduct = await prisma.campaignProduct.findUnique({
+    // Verify variant belongs to a batch product
+    const batchProduct = await prisma.batchProduct.findUnique({
       where: {
-        campaignId_productId: {
-          campaignId: input.campaignId,
+        batchId_productId: {
+          batchId: input.batchId,
           productId: product.id,
         },
       },
     });
 
-    if (!campaignProduct) {
+    if (!batchProduct) {
       throw new OrderError(
-        "PRODUCT_NOT_IN_CAMPAIGN",
-        `"${product.name}" is not part of this campaign.`
+        "PRODUCT_NOT_IN_BATCH",
+        `"${product.name}" is not part of this batch.`
       );
     }
 
@@ -205,35 +201,35 @@ export async function createOrder(input: OrderSubmission) {
     });
   }
 
-  // ── Step 5: Server-side price calculation ──────────────────
+  // ── Step 4: Server-side price calculation ──────────────────
   const subtotal = resolvedItems.reduce(
     (sum, item) => sum + item.unitPrice * item.quantity,
     0
   );
 
-  // ── Step 5b: Delivery fee ──────────────────────────────────
-  // Read from the settings table rather than a literal, through the same helper
-  // that publishes /api/settings/public to the storefront — so the fee shown in
-  // the cart and the fee charged here can never drift apart. Pickup is free.
-  const storeSettings = await getStoreSettings();
-  const shippingAmount = computeShippingFee({
-    deliveryType: input.deliveryInfo.type,
-    settings: storeSettings,
-  });
+  // ── Step 4b: Order total (no delivery fee: shipping is settled in Instagram DM) ─────────────────────
+  const total = subtotal;
 
-  const total = subtotal + shippingAmount;
+  // ── Step 5: Operator-defined answers removed ─────────────────
+  // We only require full name and instagram handle.
+  const customerFullName = input.customerInfo.fullName;
+  const customerHandle = input.customerInfo.instagramHandle;
+
+  // Typed as the JSON input Prisma expects
+  const customerSnapshot: Prisma.InputJsonValue = {
+    fullName: customerFullName,
+    instagramHandle: customerHandle,
+  };
 
   // ── Step 6: Duplicate detection ────────────────────────────
+  // Keyed on the Instagram account: it is the identity, and it is already
+  // normalised by the time it reaches here.
   const duplicateRef = await detectDuplicate(
-    input.customerInfo.mobileNumber,
-    input.campaignId
+    input.customerInfo.instagramHandle,
+    input.batchId
   );
 
-  // ── Step 7: Generate order reference ──────────────────────
-  // The reference is NOT generated here: it can collide with a simultaneous
-  // checkout, so it is (re)allocated inside the retry loop below.
-
-  // ── Step 8: ATOMIC TRANSACTION ────────────────────────────
+  // ── Step 8: ATOMIC TRANSACTION ─────────────────────────────
   // This is the critical section.
   // Capacity (and the product-level pre-order limit) is claimed by conditional
   // UPDATEs, never by read-then-write logic. Under Postgres READ COMMITTED a
@@ -248,7 +244,7 @@ export async function createOrder(input: OrderSubmission) {
   // order that could have been accepted.
   const TRANSACTION_OPTIONS = { maxWait: 15_000, timeout: 20_000 } as const;
 
-  const writeOrder = (reference: string) => prisma.$transaction(async (tx) => {
+  const writeOrder = (reference: string, accessToken: string) => prisma.$transaction(async (tx) => {
     for (const item of resolvedItems) {
       // Claim the variant capacity. `decrement` on a NULL column stays NULL,
       // so `remainingCapacity = null` means "unlimited" and is left alone.
@@ -303,51 +299,47 @@ export async function createOrder(input: OrderSubmission) {
       }
     }
 
-    // Upsert customer — safe pattern (avoid fake "new-customer" id collision)
-    const existingCustomer = await tx.customer.findFirst({
-      where: { mobileNumber: input.customerInfo.mobileNumber },
+    // Customer identity.
+    //
+    // Read-then-write rather than a blind upsert, for one reason: the read is how
+    // "is this a new customer?" is answered, and that answer is recorded on the
+    // order. Both branches target the unique `instagramHandle`, so two
+    // simultaneous first orders from the same account converge on one row — the
+    // loser of that race gets a P2002 and simply re-runs the transaction.
+    //
+    // The customer lives inside this transaction so a failed checkout (sold out,
+    // say) cannot leave an orphan customer behind and inflate the regulars list
+    // with someone who never actually ordered.
+    const existingCustomer = await tx.customer.findUnique({
+      where: { instagramHandle: customerHandle },
       select: { id: true },
     });
 
-    let customer;
-    if (existingCustomer) {
-      customer = await tx.customer.update({
-        where: { id: existingCustomer.id },
-        data: {
-          fullName: input.customerInfo.fullName,
-          email: input.customerInfo.email || null,
-        },
-      });
-    } else {
-      customer = await tx.customer.create({
-        data: {
-          fullName: input.customerInfo.fullName,
-          mobileNumber: input.customerInfo.mobileNumber,
-          email: input.customerInfo.email || null,
-          instagramHandle: input.customerInfo.instagramHandle || null,
-          messengerName: input.customerInfo.messengerName || null,
-        },
-      });
-    }
+    const customer = existingCustomer
+      ? await tx.customer.update({
+          where: { id: existingCustomer.id },
+          data: { fullName: customerFullName },
+        })
+      : await tx.customer.create({
+          data: {
+            fullName: customerFullName,
+            instagramHandle: customerHandle,
+          },
+        });
 
-
-    // Create order
     const newOrder = await tx.order.create({
       data: {
         reference,
-        campaignId: input.campaignId,
+        accessToken,
+        batchId: input.batchId,
         customerId: customer.id,
-        paymentMethodId: input.paymentMethodId,
         status: "PENDING",
         paymentStatus: "UNPAID",
-        fulfillmentType:
-          input.deliveryInfo.type === "DELIVERY" ? "DELIVERY" : "PICKUP",
         idempotencyKey: input.idempotencyKey,
         subtotal,
-        shippingAmount,
         total,
-        customerSnapshot: input.customerInfo,
-        deliverySnapshot: input.deliveryInfo,
+        customerSnapshot,
+        isNewCustomer: !existingCustomer,
         isPossibleDuplicate: !!duplicateRef,
         duplicateOfRef: duplicateRef ?? null,
         items: {
@@ -370,19 +362,6 @@ export async function createOrder(input: OrderSubmission) {
       },
     });
 
-    // Record payment proof if provided
-    if (input.paymentProofKey) {
-      await tx.paymentProof.create({
-        data: {
-          orderId: newOrder.id,
-          fileKey: input.paymentProofKey,
-          // Derived from the stored key's extension. Uploads are re-encoded to
-          // WebP, so hardcoding image/jpeg would mislabel every new proof.
-          mimeType: mimeTypeForKey(input.paymentProofKey),
-        },
-      });
-    }
-
     // Audit log
     await tx.auditLog.create({
       data: {
@@ -390,6 +369,10 @@ export async function createOrder(input: OrderSubmission) {
         actor: "customer",
         action: "order.created",
         newValue: { reference, total: total.toString() },
+        metadata: {
+          instagramHandle: customerHandle,
+          isNewCustomer: !existingCustomer,
+        },
       },
     });
 
@@ -408,9 +391,18 @@ export async function createOrder(input: OrderSubmission) {
     const reference = await generateOrderReference();
 
     try {
-      order = await writeOrder(reference);
+      // A fresh token per attempt: `orders.accessToken` is UNIQUE, so reusing one
+      // across retries would turn a reference collision into a token collision.
+      order = await writeOrder(reference, generateAccessToken());
       break;
     } catch (error) {
+      // Two first-time orders from the same Instagram account at the same
+      // instant: one of them loses the unique-index race on `customers`, and
+      // re-running now finds the row the winner created.
+      if (isCustomerCollision(error) && attempt < MAX_REFERENCE_ATTEMPTS) {
+        continue;
+      }
+
       if (isReferenceCollision(error) && attempt < MAX_REFERENCE_ATTEMPTS) {
         continue;
       }
@@ -421,7 +413,7 @@ export async function createOrder(input: OrderSubmission) {
       if (isIdempotencyCollision(error) && input.idempotencyKey) {
         const existing = await prisma.order.findUnique({
           where: { idempotencyKey: input.idempotencyKey },
-          select: { reference: true, total: true, status: true },
+          select: { reference: true, total: true, status: true, accessToken: true },
         });
         if (existing) return { idempotent: true, order: existing };
       }
@@ -437,28 +429,24 @@ export async function createOrder(input: OrderSubmission) {
     );
   }
 
-  // ── Step 9: Send notifications (outside transaction) ───────
-  await notificationService.send({
-    type: "ORDER_CREATED",
-    orderId: order.id,
-    reference: order.reference,
-    customerName: input.customerInfo.fullName,
-    customerPhone: input.customerInfo.mobileNumber,
-    customerEmail: input.customerInfo.email || undefined,
-    total: total,
-  });
+  // No notifications are sent, by design. The operator works a single queue in
+  // the admin panel, and the dashboard's action list is what surfaces an order
+  // needing attention — a console no-op pretending to notify anyone was worse
+  // than nothing at all.
 
   return {
     idempotent: false,
     order: {
       reference: order.reference,
+      // The customer's own capability URL. Returned exactly once, here, and
+      // never recoverable from the reference alone.
+      accessToken: order.accessToken,
       total: total,
       status: order.status,
       isPossibleDuplicate: order.isPossibleDuplicate,
     },
   };
 }
-
 /**
  * Returns an order's reserved capacity to the pool.
  *
@@ -499,3 +487,4 @@ export async function releaseOrderCapacity(
     `;
   }
 }
+

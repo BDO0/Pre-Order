@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/api-guard";
-import { productSchema } from "@/lib/validation";
+import { productCreateSchema } from "@/lib/validation";
+import { ensureProductInOpenBatch } from "@/lib/batch-service";
 
 export async function GET(request: NextRequest) {
   try {
@@ -41,37 +42,65 @@ export async function POST(request: NextRequest) {
     if (!guard.ok) return guard.response;
 
     const body = await request.json();
-    const parsed = productSchema.safeParse(body);
+    const parsed = productCreateSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json({ success: false, error: { code: "VALIDATION_ERROR", message: "Invalid product data.", fields: parsed.error.flatten().fieldErrors } }, { status: 400 });
+      const issue = parsed.error.issues[0];
+      return NextResponse.json({ success: false, error: { code: "VALIDATION_ERROR", message: issue ? issue.message : "Invalid product data.", fields: parsed.error.flatten().fieldErrors } }, { status: 400 });
     }
 
-    const product = await prisma.product.create({
-      data: {
-        name: parsed.data.name,
-        slug: parsed.data.slug,
-        description: parsed.data.description,
-        category: parsed.data.category,
-        price: parsed.data.price,
-        preorderEnabled: parsed.data.preorderEnabled,
-        preorderStatus: parsed.data.preorderStatus,
-        preorderStartAt: parsed.data.preorderStartAt ? new Date(parsed.data.preorderStartAt) : null,
-        preorderEndAt: parsed.data.preorderEndAt ? new Date(parsed.data.preorderEndAt) : null,
-        preorderLimit: parsed.data.preorderLimit,
-        images: body.images || [],
-        variants: {
-          create: Array.isArray(body.variants) ? body.variants : [],
-        }
-      },
-    });
+    const { variants, images, ...columns } = parsed.data;
 
-    await prisma.auditLog.create({
-      data: {
-        actor: guard.actor,
-        action: "product.created",
-        newValue: { productId: product.id, name: product.name },
-      },
+    // The variant rows are built here rather than handed to Prisma as they
+    // arrived. A raw `body.variants` used to be pushed straight into a nested
+    // create: a capacity sent as a string, or any key the table does not have,
+    // came back as an unhandled Prisma error - a 500 for what is really a bad
+    // request.
+    const variantRows = (variants ?? []).map((variant) => ({
+      size: variant.size ?? null,
+      color: variant.color ?? null,
+      // A variant that has just been created has consumed nothing, so its
+      // remaining capacity is its capacity - the same rule the edit path applies.
+      capacity: variant.capacity ?? null,
+      remainingCapacity: variant.capacity ?? null,
+    }));
+
+    // The product, its variants, its batch link and its audit entry land together
+    // or not at all. The batch link used to be a separate best-effort write whose
+    // failure was swallowed, and a product with no batch link is one a customer
+    // can see but cannot order.
+    const product = await prisma.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: {
+          name: columns.name,
+          slug: columns.slug,
+          description: columns.description,
+          category: columns.category,
+          price: columns.price,
+          currency: columns.currency,
+          preorderEnabled: columns.preorderEnabled,
+          preorderStatus: columns.preorderStatus,
+          preorderStartAt: columns.preorderStartAt ? new Date(columns.preorderStartAt) : null,
+          preorderEndAt: columns.preorderEndAt ? new Date(columns.preorderEndAt) : null,
+          preorderLimit: columns.preorderLimit,
+          images: images ?? [],
+          variants: { create: variantRows },
+        },
+      });
+
+      // Automatically link to the open batch so the product is live on the
+      // storefront - and orderable, because the order service requires the join.
+      await ensureProductInOpenBatch(tx, created.id);
+
+      await tx.auditLog.create({
+        data: {
+          actor: guard.actor,
+          action: "product.created",
+          newValue: { productId: created.id, name: created.name },
+        },
+      });
+
+      return created;
     });
 
     return NextResponse.json({ success: true, data: product }, { status: 201 });

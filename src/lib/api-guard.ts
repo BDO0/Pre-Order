@@ -61,6 +61,12 @@ export type GuardResult =
       actor: string;
       /** Verified role, for logging and audit metadata. */
       role: string;
+      /**
+       * The session's user id, when the provider supplied one. Non-null for
+       * every session this app mints — the JWT callback copies it in — and
+       * needed by routes that act on the caller's *own* account.
+       */
+      userId: string | null;
     }
   | { ok: false; response: NextResponse<ApiErrorBody> };
 
@@ -88,7 +94,9 @@ export async function requirePermission(
 ): Promise<GuardResult> {
   // Typed structurally rather than via ReturnType<typeof auth>, whose overloads
   // include the middleware form (which has no `user`).
-  let session: { user?: { email?: string | null; name?: string | null } } | null;
+  let session: {
+    user?: { id?: string | null; email?: string | null; name?: string | null };
+  } | null;
   try {
     session = await auth();
   } catch (error) {
@@ -123,5 +131,54 @@ export async function requirePermission(
     ok: true,
     actor: session.user.email ?? session.user.name ?? "admin",
     role: typeof role === "string" ? role : "ADMIN",
+    userId: session.user.id ?? null,
+  };
+}
+
+/**
+ * Verifies the caller is signed in, without asking for a permission.
+ *
+ * Every other guarded route names the permission it needs, because it acts on a
+ * resource the matrix classifies. A password change acts on the caller's *own*
+ * account, which every role owns — so demanding `settings.write` here would
+ * mean an ORDER_MANAGER could not rotate their own password, and a VIEWER could
+ * not rotate theirs at all.
+ *
+ * The identity comes from the session and never from the request body, so
+ * "change my password" can only ever mean the signed-in admin.
+ */
+export async function requireSession(request: Request): Promise<GuardResult> {
+  let session: {
+    user?: { id?: string | null; email?: string | null; name?: string | null };
+  } | null;
+  try {
+    session = await auth();
+  } catch (error) {
+    console.error("[requireSession] auth() failed", error);
+    return { ok: false, response: apiError(401, UNAUTHORIZED.code, UNAUTHORIZED.message) };
+  }
+
+  if (!session?.user) {
+    return { ok: false, response: apiError(401, UNAUTHORIZED.code, UNAUTHORIZED.message) };
+  }
+
+  if (UNSAFE_METHODS.has(request.method) && !isSameOrigin(request)) {
+    return {
+      ok: false,
+      response: apiError(
+        403,
+        "CROSS_ORIGIN_BLOCKED",
+        "This request did not come from this site."
+      ),
+    };
+  }
+
+  const role = (session.user as { role?: unknown }).role;
+
+  return {
+    ok: true,
+    actor: session.user.email ?? session.user.name ?? "admin",
+    role: typeof role === "string" ? role : "ADMIN",
+    userId: session.user.id ?? null,
   };
 }

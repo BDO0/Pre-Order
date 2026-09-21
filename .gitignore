@@ -49,6 +49,11 @@ next-env.d.ts
 # NEVER commit these: they are user data, not source.
 /public/uploads
 
+# The repo-root uploads/ directory is what a custom LOCAL_UPLOAD_DIR produces.
+# It is double trouble: those files are not served (/uploads/<file> is served
+# from public/uploads), and the directory is not source.
+/uploads
+
 # Payment proofs live OUTSIDE public/ on purpose: they are screenshots of a
 # customer's banking app (names, account numbers, sometimes GPS metadata). They
 # are only readable through /api/admin/proofs, which checks the session first.

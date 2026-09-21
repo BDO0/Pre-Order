@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/api-guard";
+import { buildOrderWhere } from "@/lib/order-filters";
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,47 +11,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") ?? "1");
     const limit = parseInt(searchParams.get("limit") ?? "20");
-    const status = searchParams.get("status") ?? undefined;
-    const paymentStatus = searchParams.get("paymentStatus") ?? undefined;
-    const campaignId = searchParams.get("campaignId") ?? undefined;
-    const search = searchParams.get("search") ?? undefined;
-
     const skip = (page - 1) * limit;
 
-    // Build search filter
-    const searchFilter = search
-      ? {
-          OR: [
-            { reference: { contains: search, mode: "insensitive" as const } },
-            {
-              customerSnapshot: {
-                path: ["fullName"],
-                string_contains: search,
-              },
-            },
-            {
-              customerSnapshot: {
-                path: ["mobileNumber"],
-                string_contains: search,
-              },
-            },
-          ],
-        }
-      : {};
-
-    const where = {
-      ...(status && { status: status as never }),
-      ...(paymentStatus && { paymentStatus: paymentStatus as never }),
-      ...(campaignId && { campaignId }),
-      ...searchFilter,
-    };
+    // The filter lives in one place now, shared with the CSV export: the file a
+    // download produces can no longer disagree with the screen it came from.
+    const where = buildOrderWhere(searchParams);
 
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
         where,
         include: {
-          campaign: { select: { name: true, slug: true } },
-          paymentMethod: { select: { name: true } },
+          batch: { select: { id: true, name: true, slug: true, status: true } },
+          customer: { select: { id: true, instagramHandle: true } },
           items: {
             select: {
               quantity: true,

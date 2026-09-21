@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import sharp from "sharp";
 import { requirePermission, isSameOrigin } from "@/lib/api-guard";
@@ -11,13 +9,9 @@ import {
   MAX_UPLOAD_BYTES,
   STORED_EXTENSION,
   STORED_MIME_TYPE,
-  isPrivatePurpose,
   isUploadPurpose,
-  privateProofDir,
-  publicUploadDir,
-  publicUrlForFile,
-  type UploadPurpose,
 } from "@/lib/uploads";
+import { getStorageDriver, isReadOnlyFilesystemError } from "@/lib/storage";
 
 // Never cached, never prerendered.
 export const dynamic = "force-dynamic";
@@ -25,10 +19,10 @@ export const dynamic = "force-dynamic";
 /** Guard against decompression bombs: 50MP is far beyond any phone camera. */
 const MAX_INPUT_PIXELS = 50_000_000;
 
-/** Which permission each non-public upload purpose requires. */
+/** Which permission each upload purpose requires. Every purpose is covered. */
 const PURPOSE_PERMISSION = {
   PRODUCT_IMAGE: "products.write",
-  CAMPAIGN_IMAGE: "campaigns.write",
+  BATCH_IMAGE: "batches.write",
 } as const;
 
 function failure(status: number, code: string, message: string) {
@@ -40,22 +34,21 @@ function failure(status: number, code: string, message: string) {
  *
  * Hardening applied here, all of it in response to concrete attacks:
  *
- *  1. `purpose` decides where a file lands and who may send it. Product and
- *     campaign imagery is public and requires `products.write` / `campaigns.write`;
- *     a payment proof comes from an anonymous shopper mid-checkout, so it is the
- *     only purpose an unauthenticated caller may use.
+ *  1. `purpose` decides who may send a file, and every purpose requires the
+ *     permission that owns that content. There is no anonymous purpose any more:
+ *     the only file a signed-out visitor used to be able to send was a payment
+ *     proof, and payment proofs no longer exist. An unknown purpose is refused
+ *     rather than defaulted, so a new purpose cannot be exploited before it is
+ *     wired up.
  *  2. The bytes are decoded with sharp and re-encoded to WebP. `file.type` is a
  *     client-controlled string and the old code trusted it — a valid PNG can also
  *     be valid HTML, so serving it from our own origin was stored XSS.
- *     Re-encoding destroys any embedded markup, strips EXIF (a payment
- *     screenshot can carry the device's GPS coordinates) and guarantees the
+ *     Re-encoding destroys any embedded markup, strips EXIF, and guarantees the
  *     extension matches the content.
  *  3. Filenames are generated server-side, so a crafted `name` cannot escape the
  *     upload directory or overwrite anything.
- *  4. Proofs go to a private directory that is not served statically; the admin
- *     panel streams them through /api/admin/proofs behind `orders.read`.
- *  5. Rate limited, because an unauthenticated write endpoint is otherwise free
- *     disk space for anyone.
+ *  4. Rate limited, because a write endpoint is otherwise free disk space for
+ *     anyone who can reach it.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -78,16 +71,15 @@ export async function POST(request: NextRequest) {
       return failure(400, "NO_FILE", "No file provided.");
     }
 
-    // Default to the strictest private purpose when the field is missing.
     const rawPurpose = formData.get("purpose");
-    const purpose: UploadPurpose = isUploadPurpose(rawPurpose)
-      ? rawPurpose
-      : "PAYMENT_PROOF";
-
-    if (purpose !== "PAYMENT_PROOF") {
-      const guard = await requirePermission(PURPOSE_PERMISSION[purpose], request);
-      if (!guard.ok) return guard.response;
+    if (!isUploadPurpose(rawPurpose)) {
+      return failure(400, "INVALID_PURPOSE", "Unknown upload purpose.");
     }
+    const purpose = rawPurpose;
+
+    const guard = await requirePermission(PURPOSE_PERMISSION[purpose], request);
+    if (!guard.ok) return guard.response;
+
 
     // Size is checked on the declared length before the buffer is materialised.
     if (file.size > MAX_UPLOAD_BYTES) {
@@ -146,43 +138,55 @@ export async function POST(request: NextRequest) {
       .toBuffer({ resolveWithObject: true });
 
     const filename = `${randomBytes(16).toString("hex")}${STORED_EXTENSION}`;
-    const isPrivate = isPrivatePurpose(purpose);
-    const directory = isPrivate ? privateProofDir() : publicUploadDir();
-    const filepath = join(directory, filename);
+
+    // Where the file lands is configuration, not a `writeFile` call: `public/` is
+    // read-only on a serverless host, so the destination is chosen by a driver.
+    const driver = getStorageDriver();
 
     try {
-      await mkdir(directory, { recursive: true });
-      await writeFile(filepath, normalised.data);
+      const stored = await driver.save({
+        filename,
+        bytes: normalised.data,
+        contentType: STORED_MIME_TYPE,
+        purpose,
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          key: stored.key,
+          url: stored.url,
+          mimeType: STORED_MIME_TYPE,
+          width: normalised.info.width,
+          height: normalised.info.height,
+          purpose,
+          storage: stored.driver,
+        },
+      });
     } catch (error) {
-      const code = (error as { code?: string }).code;
-      if (code === "EROFS" || code === "EACCES" || code === "EPERM") {
-        // Serverless filesystems are read-only. Say so plainly: an operator can
-        // act on this message, whereas "Failed to upload file" hides the cause.
+      if (isReadOnlyFilesystemError(error)) {
+        // Serverless filesystems are read-only. Say so plainly, and say what to
+        // do about it: an operator can act on this message, whereas "Failed to
+        // upload file" hides the cause.
         console.error("[POST /api/upload] read-only filesystem", error);
         return failure(
           503,
           "STORAGE_UNAVAILABLE",
-          "This deployment cannot store files on local disk. Configure object storage (see docs/DEPLOYMENT.md)."
+          "This deployment cannot store files on local disk. Set STORAGE_PROVIDER=supabase with SUPABASE_URL and SUPABASE_SERVICE_KEY (see docs/DEPLOYMENT.md)."
         );
       }
+
+      if (driver.name === "supabase") {
+        console.error("[POST /api/upload] object storage failed", error);
+        return failure(
+          502,
+          "STORAGE_UNAVAILABLE",
+          "Object storage rejected the upload. Check that the bucket exists and is public, and that the service key is valid."
+        );
+      }
+
       throw error;
     }
-
-    // The storage key is what finds the file again. Proofs return no public URL
-    // on purpose — the only way to read one back is the guarded admin route.
-    const key = isPrivate ? `proofs/${filename}` : `/uploads/${filename}`;
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        key,
-        url: isPrivate ? null : publicUrlForFile(filename),
-        mimeType: STORED_MIME_TYPE,
-        width: normalised.info.width,
-        height: normalised.info.height,
-        purpose,
-      },
-    });
   } catch (error) {
     console.error("[POST /api/upload]", error);
     return failure(500, "SERVER_ERROR", "Failed to upload file.");

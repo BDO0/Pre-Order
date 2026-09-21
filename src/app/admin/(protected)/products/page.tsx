@@ -2,10 +2,29 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { format } from "date-fns";
+
+/**
+ * A row of the catalogue table, as `/api/admin/products` returns it.
+ *
+ * Only the columns this table renders are named: the endpoint also sends every
+ * other product column, and inventing fields here that nothing reads would make
+ * the type drift away from what is actually used.
+ */
+interface AdminProductRow {
+  id: string;
+  name: string;
+  slug: string;
+  category: string | null;
+  /** Prisma `Decimal` arrives as a string over JSON; rendered through `Number()`. */
+  price: string | number;
+  images: string[];
+  variants?: { id: string }[];
+  active: boolean;
+  preorderStatus: string;
+}
 
 export default function AdminProductsPage() {
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<AdminProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {
@@ -83,7 +102,25 @@ export default function AdminProductsPage() {
                     </span>
                   </td>
                   <td>
-                    <Link href={`/admin/products/${product.id}/edit`} className="btn btn-ghost btn-sm">Edit</Link>
+                    <div style={{ display: "flex", gap: "var(--space-1)", alignItems: "center" }}>
+                      <Link href={`/preorder/${product.slug}`} target="_blank" className="btn btn-ghost btn-sm" title="View from customer POV">
+                        Preview ↗
+                      </Link>
+                      <Link href={`/admin/products/${product.id}/edit`} className="btn btn-ghost btn-sm">
+                        Edit
+                      </Link>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        title="Copy customer link"
+                        onClick={() => {
+                          const url = `${window.location.origin}/preorder/${product.slug}`;
+                          navigator.clipboard.writeText(url).then(() => alert(`Customer link copied:\n${url}`));
+                        }}
+                      >
+                        📋
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

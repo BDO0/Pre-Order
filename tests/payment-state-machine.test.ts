@@ -1,89 +1,64 @@
 import { describe, expect, it } from "vitest";
 import {
-  PAYMENT_ACTIONS,
-  allowedPaymentActions,
-  applyPaymentAction,
-  isValidPaymentAction,
-  type PaymentAction,
+  PAYMENT_TOGGLES,
+  isPaid,
+  isPaymentChange,
+  statusForPaid,
+  toggleFor,
 } from "@/lib/payment-state-machine";
 import type { PaymentStatus } from "@prisma/client";
 
-const ALL_ACTIONS: PaymentAction[] = ["VERIFY", "REJECT", "REFUND"];
+const ALL_STATUSES: PaymentStatus[] = ["UNPAID", "PAID"];
 
-describe("payment state machine", () => {
-  it("describes every action it exposes", () => {
-    for (const action of ALL_ACTIONS) {
-      const rule = PAYMENT_ACTIONS[action];
-      expect(rule.from.length).toBeGreaterThan(0);
-      expect(rule.label.length).toBeGreaterThan(0);
-      expect(rule.hint.length).toBeGreaterThan(0);
+// The payment model is one boolean owned by the operator. These tests pin the
+// two properties that matter: the mapping is total (a `paid` value always lands
+// on a real status), and asking for the state an order is already in is never a
+// state change — so a double-tap cannot write a fake audit entry.
+describe("payment toggle", () => {
+  it("maps a boolean onto the only two statuses that exist", () => {
+    expect(statusForPaid(true)).toBe("PAID");
+    expect(statusForPaid(false)).toBe("UNPAID");
+  });
+
+  it("describes every toggle it exposes", () => {
+    for (const toggle of Object.values(PAYMENT_TOGGLES)) {
+      expect(toggle.label.length).toBeGreaterThan(0);
+      expect(toggle.hint.length).toBeGreaterThan(0);
+      expect(toggle.action).toMatch(/^MARK_(PAID|UNPAID)$/);
     }
   });
 
-  it("offers only verification for an unpaid order", () => {
-    expect(allowedPaymentActions("UNPAID")).toEqual(["VERIFY"]);
+  it("asks for the toggle that matches the target, not the current status", () => {
+    expect(toggleFor(true).to).toBe("PAID");
+    expect(toggleFor(false).to).toBe("UNPAID");
   });
 
-  it("allows verifying or rejecting a proof under review", () => {
-    expect(allowedPaymentActions("PENDING_REVIEW").sort()).toEqual([
-      "REJECT",
-      "VERIFY",
-    ]);
+  it("is idempotent: asking for the current state is not a change", () => {
+    expect(isPaymentChange("UNPAID", false)).toBe(false);
+    expect(isPaymentChange("PAID", true)).toBe(false);
   });
 
-  it("allows refunding a paid order and nothing else", () => {
-    expect(allowedPaymentActions("PAID")).toEqual(["REFUND"]);
+  it("reports a change only when the status actually moves", () => {
+    expect(isPaymentChange("UNPAID", true)).toBe(true);
+    expect(isPaymentChange("PAID", false)).toBe(true);
   });
 
-  it("offers no actions once the money is refunded", () => {
-    expect(allowedPaymentActions("REFUNDED")).toEqual([]);
+  it("treats an un-verifying toggle as a legal correction", () => {
+    // Marking a paid order unpaid again is how a mistake or a returned payment
+    // is recorded. The old action model required an explicit REFUND for this.
+    expect(statusForPaid(false)).toBe("UNPAID");
+    expect(isPaid("PAID")).toBe(true);
+    expect(isPaid("UNPAID")).toBe(false);
   });
 
-  it("moves a payment to the status the action implies", () => {
-    expect(applyPaymentAction("UNPAID", "VERIFY")).toBe("PAID");
-    expect(applyPaymentAction("PENDING_REVIEW", "VERIFY")).toBe("PAID");
-    expect(applyPaymentAction("PENDING_REVIEW", "REJECT")).toBe("UNPAID");
-    expect(applyPaymentAction("PAID", "REFUND")).toBe("REFUNDED");
-  });
-
-  it("refuses to un-receive money that was already recorded as paid", () => {
-    // REJECT exists to bounce a proof, not to undo a completed verification:
-    // only an explicit REFUND may move a PAID payment.
-    expect(isValidPaymentAction("PAID", "REJECT")).toBe(false);
-    expect(() => applyPaymentAction("PAID", "REJECT")).toThrow(
-      /PAYMENT_INVALID_ACTION/
-    );
-  });
-
-  it("refuses to refund an order that was never paid", () => {
-    expect(() => applyPaymentAction("UNPAID", "REFUND")).toThrow(
-      /PAYMENT_INVALID_ACTION/
-    );
-    expect(() => applyPaymentAction("PENDING_REVIEW", "REFUND")).toThrow(
-      /PAYMENT_INVALID_ACTION/
-    );
-  });
-
-  it("refuses every action from a terminal refunded status", () => {
-    for (const action of ALL_ACTIONS) {
-      expect(() => applyPaymentAction("REFUNDED", action)).toThrow(
-        /PAYMENT_INVALID_ACTION/
-      );
-    }
-  });
-
-  it("agrees with itself: anything offered can actually be applied", () => {
-    const statuses: PaymentStatus[] = [
-      "UNPAID",
-      "PENDING_REVIEW",
-      "PAID",
-      "REFUNDED",
-    ];
-
-    for (const status of statuses) {
-      for (const action of allowedPaymentActions(status)) {
-        expect(() => applyPaymentAction(status, action)).not.toThrow();
-      }
+  it("agrees with itself for every status", () => {
+    for (const status of ALL_STATUSES) {
+      const targetIsPaid = isPaid(status);
+      // Requesting exactly what the order already is must never count as change.
+      expect(isPaymentChange(status, targetIsPaid)).toBe(false);
+      // Requesting the opposite must always count as change.
+      expect(isPaymentChange(status, !targetIsPaid)).toBe(true);
     }
   });
 });
+

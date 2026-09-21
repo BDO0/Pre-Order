@@ -6,6 +6,11 @@
  * pulling a Prisma-bearing route handler into the client bundle.
  */
 
+import {
+  readSnapshotAnswers,
+  type SnapshotAnswer,
+} from "@/lib/order-answers";
+
 /** Marker substituted for withheld PII, so the UI can say "hidden" not "empty". */
 export const REDACTED_FIELD = "[hidden for your role]";
 
@@ -36,18 +41,40 @@ export function isRedacted(value: unknown): boolean {
   return value === REDACTED_FIELD;
 }
 
-/** Customer contact fields a role without `customers.read` must not receive. */
-export const CUSTOMER_PII_FIELDS = [
-  "mobileNumber",
-  "email",
-  "instagramHandle",
-  "messengerName",
-] as const;
+/**
+ * Customer fields a role without `customers.read` must not receive.
+ *
+ * The Instagram handle is contact information — it is how the operator reaches
+ * the customer — so it is withheld from roles that have no business contacting
+ * anyone. The name is kept: without it the order queue is unreadable, and a name
+ * alone does not let anyone reach the customer.
+ */
+export const CUSTOMER_PII_FIELDS = ["instagramHandle"] as const;
 
-/** Delivery fields that reveal where a customer lives. */
-export const DELIVERY_PII_FIELDS = [
-  "address",
-  "phoneNumber",
-  "postalCode",
-  "additionalInstructions",
-] as const;
+/**
+ * Redacts a `customerSnapshot`, including the operator-defined answers.
+ *
+ * An answer is withheld when the field was marked sensitive when the answer was
+ * written, or when it is marked sensitive now — so flagging a field is
+ * immediately effective on history without retroactively exposing anything when
+ * the flag is removed.
+ *
+ * The label is kept while the value is replaced: a reviewer must be able to see
+ * that an address was supplied and is withheld, rather than wondering whether the
+ * customer answered at all.
+ */
+export function redactCustomerSnapshot(
+  snapshot: Record<string, unknown> | null | undefined,
+  sensitiveKeys: ReadonlySet<string>
+): Record<string, unknown> {
+  const redacted = redactSnapshot(snapshot, CUSTOMER_PII_FIELDS);
+
+  const answers = readSnapshotAnswers(snapshot).map((answer: SnapshotAnswer) =>
+    answer.sensitive || sensitiveKeys.has(answer.key)
+      ? { ...answer, value: REDACTED_FIELD }
+      : answer
+  );
+
+  return { ...redacted, answers };
+}
+

@@ -24,7 +24,7 @@ const WRITE_PERMISSIONS: Permission[] = [
   "orders.update",
   "payments.verify",
   "products.write",
-  "campaigns.write",
+  "batches.write",
   "settings.write",
 ];
 
@@ -73,13 +73,13 @@ describe("permission matrix", () => {
     expect(hasPermission("ORDER_MANAGER", "orders.update")).toBe(true);
     expect(hasPermission("ORDER_MANAGER", "payments.verify")).toBe(true);
     expect(hasPermission("ORDER_MANAGER", "products.write")).toBe(false);
-    expect(hasPermission("ORDER_MANAGER", "campaigns.write")).toBe(false);
+    expect(hasPermission("ORDER_MANAGER", "batches.write")).toBe(false);
     expect(hasPermission("ORDER_MANAGER", "settings.write")).toBe(false);
   });
 
   it("does not let PRODUCT_MANAGER read customer PII", () => {
     expect(hasPermission("PRODUCT_MANAGER", "products.write")).toBe(true);
-    expect(hasPermission("PRODUCT_MANAGER", "campaigns.write")).toBe(true);
+    expect(hasPermission("PRODUCT_MANAGER", "batches.write")).toBe(true);
     expect(hasPermission("PRODUCT_MANAGER", "customers.read")).toBe(false);
     // Not being able to read PII must not imply not being able to see the queue.
     expect(hasPermission("PRODUCT_MANAGER", "orders.read")).toBe(true);

@@ -6,7 +6,7 @@ import type { AdminRole } from "@prisma/client";
  * Permission categories, mirroring the catalogue in the project brief:
  *
  *   orders.read      orders.update   products.read   products.write
- *   campaigns.read   campaigns.write customers.read  reports.read
+ *   batches.read     batches.write   customers.read  reports.read
  *   settings.write   payments.read   payments.verify
  *
  * `payments.*` is split out of `orders.*` on purpose: reviewing a transfer
@@ -20,8 +20,8 @@ export type Permission =
   | "payments.verify"
   | "products.read"
   | "products.write"
-  | "campaigns.read"
-  | "campaigns.write"
+  | "batches.read"
+  | "batches.write"
   | "customers.read"
   | "reports.read"
   | "settings.write";
@@ -33,8 +33,8 @@ export const ALL_PERMISSIONS: readonly Permission[] = [
   "payments.verify",
   "products.read",
   "products.write",
-  "campaigns.read",
-  "campaigns.write",
+  "batches.read",
+  "batches.write",
   "customers.read",
   "reports.read",
   "settings.write",
@@ -57,15 +57,15 @@ const ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> = {
     "payments.verify",
     "products.read",
     "products.write",
-    "campaigns.read",
-    "campaigns.write",
+    "batches.read",
+    "batches.write",
     "customers.read",
     "reports.read",
     "settings.write",
   ],
 
   // Runs the order queue: sees customers and payment proofs, cannot touch the
-  // catalogue, the storefront settings, or create/delete campaigns.
+  // catalogue, the storefront settings, or create/delete batches.
   ORDER_MANAGER: [
     "orders.read",
     "orders.update",
@@ -74,15 +74,15 @@ const ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> = {
     "customers.read",
     "reports.read",
     "products.read",
-    "campaigns.read",
+    "batches.read",
   ],
 
   // Owns the catalogue and the drops, has no business reading customer PII.
   PRODUCT_MANAGER: [
     "products.read",
     "products.write",
-    "campaigns.read",
-    "campaigns.write",
+    "batches.read",
+    "batches.write",
     "reports.read",
     "orders.read",
   ],
@@ -91,7 +91,7 @@ const ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> = {
     "orders.read",
     "payments.read",
     "products.read",
-    "campaigns.read",
+    "batches.read",
     "customers.read",
     "reports.read",
   ],
