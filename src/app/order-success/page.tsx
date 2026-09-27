@@ -1,5 +1,4 @@
 "use client";
-
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -7,24 +6,17 @@ import { SITE_NAME } from "@/lib/site";
 import { CustomCheckSealIcon } from "@/components/CustomerIcons";
 import { BrandLogo } from "@/components/BrandLogo";
 import glass from "../glass.module.css";
-
-/**
- * The confirmation screen.
- */
 function SuccessContent() {
   const searchParams = useSearchParams();
   const reference = searchParams.get("ref");
   const token = searchParams.get("token");
-
   const [copied, setCopied] = useState(false);
-
   const trackUrl =
     token && typeof window !== "undefined"
       ? `${window.location.origin}/order-status?token=${encodeURIComponent(token)}`
       : reference
         ? `/order-status?ref=${encodeURIComponent(reference)}`
         : "/order-status";
-
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(trackUrl);
@@ -34,7 +26,6 @@ function SuccessContent() {
       setCopied(false);
     }
   };
-
   return (
     <div
       style={{
@@ -61,7 +52,6 @@ function SuccessContent() {
           ← Back to Shop
         </Link>
       </div>
-
       <div
         style={{
           width: "76px",
@@ -78,7 +68,6 @@ function SuccessContent() {
       >
         <CustomCheckSealIcon size={46} style={{ color: "#ffffff" }} />
       </div>
-
       <h1
         style={{
           fontFamily: "var(--font-serif)",
@@ -94,12 +83,10 @@ function SuccessContent() {
       >
         Order Received!
       </h1>
-
       <p style={{ fontSize: "var(--text-base)", color: "rgba(255, 255, 255, 0.75)", maxWidth: "440px", lineHeight: 1.6, margin: 0 }}>
         Thank you for your pre-order. We&apos;ll message you on Instagram to confirm
         sizing, shipping and payment.
       </p>
-
       {reference && (
         <div
           style={{
@@ -140,12 +127,10 @@ function SuccessContent() {
           </p>
         </div>
       )}
-
       <p style={{ fontSize: "var(--text-sm)", color: "rgba(255, 255, 255, 0.85)", maxWidth: "440px", margin: 0, lineHeight: 1.6 }}>
         Save the link below — it is the quickest way to check on your order. It is
         private to you, so please do not share it.
       </p>
-
       <div
         style={{
           display: "flex",
@@ -173,7 +158,6 @@ function SuccessContent() {
           {copied ? "Copied ✓" : "Copy Link"}
         </button>
       </div>
-
       <div
         style={{
           display: "flex",
@@ -190,14 +174,12 @@ function SuccessContent() {
           Track Your Order →
         </Link>
       </div>
-
       <p style={{ fontSize: "var(--text-xs)", color: "rgba(255, 255, 255, 0.78)", marginTop: "var(--space-1)" }}>
         Lost the link? Look your order up anytime with your order number and Instagram username.
       </p>
     </div>
   );
 }
-
 export default function OrderSuccessPage() {
   return (
     <div className={glass.glassPage}>
@@ -205,7 +187,6 @@ export default function OrderSuccessPage() {
       <div className={glass.orb1} aria-hidden="true" />
       <div className={glass.orb2} aria-hidden="true" />
       <div className={glass.orb3} aria-hidden="true" />
-
       <div className={glass.content}>
         <nav className={glass.nav}>
           <div className={glass.navInner}>
@@ -219,7 +200,6 @@ export default function OrderSuccessPage() {
             </div>
           </div>
         </nav>
-
         <main
           style={{
             flex: 1,

@@ -5,21 +5,17 @@ import { ensureProductInOpenBatch } from "@/lib/batch-service";
 import { uniqueViolationTarget } from "@/lib/prisma-errors";
 import { expandVariantPayload } from "@/lib/variant-plan";
 import { productCreateSchema } from "@/lib/validation";
-
 export async function GET(request: NextRequest) {
   try {
     const guard = await requirePermission("products.read", request);
     if (!guard.ok) return guard.response;
-
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") ?? "1");
     const limit = parseInt(searchParams.get("limit") ?? "20");
     const search = searchParams.get("search") ?? undefined;
-
     const where = search
       ? { OR: [{ name: { contains: search, mode: "insensitive" as const } }, { category: { contains: search, mode: "insensitive" as const } }] }
       : {};
-
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
@@ -30,36 +26,29 @@ export async function GET(request: NextRequest) {
       }),
       prisma.product.count({ where }),
     ]);
-
     return NextResponse.json({ success: true, data: { products, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
   } catch (error) {
     console.error("[GET /api/admin/products]", error);
     return NextResponse.json({ success: false, error: { code: "SERVER_ERROR", message: "Something went wrong." } }, { status: 500 });
   }
 }
-
 export async function POST(request: NextRequest) {
   try {
     const guard = await requirePermission("products.write", request);
     if (!guard.ok) return guard.response;
-
     const body = await request.json().catch(() => null);
     const parsed = productCreateSchema.safeParse(body);
-
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
       return NextResponse.json({ success: false, error: { code: "VALIDATION_ERROR", message: issue ? issue.message : "Invalid product data.", fields: parsed.error.flatten().fieldErrors } }, { status: 400 });
     }
-
     const { variants, images, ...columns } = parsed.data;
-
     const variantRows = expandVariantPayload(variants ?? []).map((variant) => ({
       size: variant.size ?? null,
       color: variant.color ?? null,
       capacity: variant.capacity ?? null,
       remainingCapacity: variant.capacity ?? null,
     }));
-
     const product = await prisma.$transaction(async (tx) => {
       const created = await tx.product.create({
         data: {
@@ -78,9 +67,7 @@ export async function POST(request: NextRequest) {
           variants: { create: variantRows },
         },
       });
-
       await ensureProductInOpenBatch(tx, created.id);
-
       await tx.auditLog.create({
         data: {
           actor: guard.actor,
@@ -88,10 +75,8 @@ export async function POST(request: NextRequest) {
           newValue: { productId: created.id, name: created.name },
         },
       });
-
       return created;
     });
-
     return NextResponse.json({ success: true, data: product }, { status: 201 });
   } catch (error) {
     if (uniqueViolationTarget(error)?.includes("slug")) {
@@ -106,7 +91,6 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
-
     console.error("[POST /api/admin/products]", error);
     return NextResponse.json({ success: false, error: { code: "SERVER_ERROR", message: "Something went wrong." } }, { status: 500 });
   }

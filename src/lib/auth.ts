@@ -3,15 +3,12 @@ import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-
   providers: [
     Credentials({
       name: "Admin Login",
@@ -22,18 +19,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         const parsed = loginSchema.safeParse(credentials);
         if (!parsed.success) return null;
-
         const { email, password } = parsed.data;
-
         const admin = await prisma.admin.findUnique({
           where: { email, active: true },
         });
-
         if (!admin) return null;
-
         const valid = await bcrypt.compare(password, admin.passwordHash);
         if (!valid) return null;
-
         return {
           id: admin.id,
           email: admin.email,
@@ -65,6 +57,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   session: {
     strategy: "jwt",
-    maxAge: 8 * 60 * 60, // 8 hours
+    maxAge: 8 * 60 * 60, 
   },
 });

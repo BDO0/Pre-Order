@@ -1,5 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+
 
 generator client {
   provider = "prisma-client-js"
@@ -9,9 +9,9 @@ datasource db {
   provider = "postgresql"
 }
 
-// ─────────────────────────────────────────────────────────────
-// ENUMS
-// ─────────────────────────────────────────────────────────────
+
+
+
 
 enum AdminRole {
   SUPER_ADMIN
@@ -50,16 +50,16 @@ enum OrderStatus {
   REJECTED
 }
 
-// Money is either received or it is not, and the operator is the only one who
-// knows. This is a manual toggle, not a review workflow: there is no proof to
-// approve and no customer-facing payment step, so PENDING_REVIEW/REFUNDED would
-// be states nothing could ever reach.
+
+
+
+
 enum PaymentStatus {
   UNPAID
   PAID
 }
 
-// Input type for an operator-defined pre-order form field.
+
 enum FormFieldType {
   TEXT
   TEXTAREA
@@ -69,9 +69,9 @@ enum FormFieldType {
   SELECT
 }
 
-// ─────────────────────────────────────────────────────────────
-// ADMIN
-// ─────────────────────────────────────────────────────────────
+
+
+
 
 model Admin {
   id           String    @id @default(cuid())
@@ -86,9 +86,9 @@ model Admin {
   @@map("admins")
 }
 
-// ─────────────────────────────────────────────────────────────
-// BATCH
-// ─────────────────────────────────────────────────────────────
+
+
+
 
 model Batch {
   id          String         @id @default(cuid())
@@ -108,9 +108,9 @@ model Batch {
   @@map("batches")
 }
 
-// ─────────────────────────────────────────────────────────────
-// PRODUCT
-// ─────────────────────────────────────────────────────────────
+
+
+
 
 model Product {
   id              String         @id @default(cuid())
@@ -156,9 +156,9 @@ model ProductVariant {
   @@map("product_variants")
 }
 
-// ─────────────────────────────────────────────────────────────
-// BATCH <-> PRODUCT JOIN
-// ─────────────────────────────────────────────────────────────
+
+
+
 
 model BatchProduct {
   batchId   String
@@ -173,17 +173,17 @@ model BatchProduct {
   @@map("batch_products")
 }
 
-// ─────────────────────────────────────────────────────────────
-// CUSTOMER (guest — no account required)
-// ─────────────────────────────────────────────────────────────
+
+
+
 
 model Customer {
   id              String   @id @default(cuid())
   fullName        String
-  // The Instagram account is the identity: it is how every order, payment and
-  // shipping detail is settled, and it is what makes two "Juan dela Cruz" rows
-  // distinguishable. Stored normalised (lowercase, no leading "@") so that
-  // "@JuanDC" and "juandc" are one customer. "@" is not part of a handle.
+  
+  
+  
+  
   instagramHandle String   @unique
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -195,51 +195,51 @@ model Customer {
 
 
 
-// ─────────────────────────────────────────────────────────────
-// ORDER
-// ─────────────────────────────────────────────────────────────
+
+
+
 
 model Order {
   id         String        @id @default(cuid())
-  reference  String        @unique // PO-20260826-0001
+  reference  String        @unique 
   batchId    String
   customerId String?
   status     OrderStatus   @default(PENDING)
   paymentStatus PaymentStatus @default(UNPAID)
 
-  // Idempotency
+  
   idempotencyKey String? @unique
 
-  // The customer's private handle on their own order.
-  //
-  // A 192-bit random token, minted when the order is created and handed to the
-  // customer once, on the confirmation screen. It is the *convenience* route
-  // back to an order; the lookup form (reference + Instagram handle) is the
-  // fallback, so an order without a token is still trackable.
-  //
-  // Nullable on purpose: orders placed before the token existed have none, and
-  // making the column NOT NULL would mean inventing a value for them. NULL is
-  // the truthful answer, and the lookup form covers them.
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   accessToken String? @unique
 
-  // Pricing — server-calculated, immutable after creation
+  
   subtotal       Decimal @db.Decimal(10, 2)
   total          Decimal @db.Decimal(10, 2)
 
-  // Snapshot — historical integrity, never rely on current product data.
-  // { fullName, instagramHandle, answers: [{ key, label, value }] }
+  
+  
   customerSnapshot Json
 
-  // Duplicate detection
+  
   isPossibleDuplicate Boolean @default(false)
   duplicateOfRef      String?
 
-  // Was this the customer's first ever order, as decided when it was placed?
-  // Recorded rather than derived: "new customer" is a fact about the moment the
-  // order arrived, and the dashboard needs it long after a second order exists.
+  
+  
+  
   isNewCustomer Boolean @default(true)
 
-  // Admin
+  
   notes String?
 
   createdAt DateTime @default(now())
@@ -265,10 +265,10 @@ model OrderItem {
   variantId String
   quantity  Int
 
-  // Snapshots — price/name never affected by future product edits
+  
   unitPriceAtPurchase Decimal @db.Decimal(10, 2)
   productNameSnapshot String
-  variantSnapshot     Json    // { size, color, sku }
+  variantSnapshot     Json    
 
   order   Order          @relation(fields: [orderId], references: [id])
   variant ProductVariant @relation(fields: [variantId], references: [id])
@@ -276,16 +276,16 @@ model OrderItem {
   @@map("order_items")
 }
 
-// ─────────────────────────────────────────────────────────────
-// ORDER STATUS HISTORY (state machine audit trail)
-// ─────────────────────────────────────────────────────────────
+
+
+
 
 model OrderStatusHistory {
   id         String      @id @default(cuid())
   orderId    String
   fromStatus OrderStatus?
   toStatus   OrderStatus
-  changedBy  String?     // admin email or "system"
+  changedBy  String?     
   note       String?
   createdAt  DateTime    @default(now())
 
@@ -294,15 +294,15 @@ model OrderStatusHistory {
   @@map("order_status_history")
 }
 
-// ─────────────────────────────────────────────────────────────
-// AUDIT LOG
-// ─────────────────────────────────────────────────────────────
+
+
+
 
 model AuditLog {
   id        String   @id @default(cuid())
   orderId   String?
-  actor     String   // admin email or "customer" or "system"
-  action    String   // e.g. "order.created", "payment.verified"
+  actor     String   
+  action    String   
   oldValue  Json?
   newValue  Json?
   metadata  Json?
@@ -315,15 +315,15 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// ─────────────────────────────────────────────────────────────
-// ORDER REFERENCE COUNTER
-// ─────────────────────────────────────────────────────────────
 
-// Per-day counter behind generateOrderReference(). One row per day, advanced by
-// a single atomic upsert so concurrent checkouts cannot receive the same order
-// reference. Declared here to keep the schema in step with the database; the
-// allocation itself uses raw SQL because Prisma's upsert is not atomic against
-// a concurrent insert.
+
+
+
+
+
+
+
+
 model OrderCounter {
   day       DateTime @id @db.Date
   lastValue Int      @default(0) @map("last_value")
@@ -332,9 +332,9 @@ model OrderCounter {
   @@map("order_counters")
 }
 
-// ─────────────────────────────────────────────────────────────
-// PRE-ORDER FORM FIELDS
-// ─────────────────────────────────────────────────────────────
+
+
+
 
 model OrderFormField {
   id          String        @id @default(cuid())
@@ -345,19 +345,19 @@ model OrderFormField {
   helpText    String?
   required    Boolean       @default(false)
   sensitive   Boolean       @default(false)
-  // Declared as a default because the database already has one: this column was
-  // pushed from an earlier revision of the schema with `DEFAULT ARRAY[]::TEXT[]`,
-  // and a schema that omits it makes `prisma migrate diff` want to DROP DEFAULT
-  // on a live database — a change with no benefit and a real chance of upsetting
-  // an insert that omits the column. The model now says what the database does.
+  
+  
+  
+  
+  
   options     String[]      @default([])
   sortOrder   Int           @default(0)
   active      Boolean       @default(true)
   deletedAt   DateTime?
   createdAt   DateTime      @default(now())
-  // `@default(now())` for the same reason: the column carries
-  // `DEFAULT CURRENT_TIMESTAMP` in the database, and this is how the other
-  // models in this file (OrderCounter) already express both facts.
+  
+  
+  
   updatedAt   DateTime      @default(now()) @updatedAt
 
   @@index([active, sortOrder])

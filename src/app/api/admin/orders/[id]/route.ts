@@ -10,7 +10,6 @@ import {
 } from "@/lib/order-state-machine";
 import { releaseOrderCapacity } from "@/lib/order-service";
 import type { OrderStatus } from "@prisma/client";
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -18,9 +17,7 @@ export async function GET(
   try {
     const guard = await requirePermission("orders.read", request);
     if (!guard.ok) return guard.response;
-
     const { id } = await params;
-
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
@@ -42,21 +39,16 @@ export async function GET(
         auditLogs: { orderBy: { createdAt: "asc" } },
       },
     });
-
     if (!order) {
       return NextResponse.json({ success: false, error: { code: "ORDER_NOT_FOUND", message: "Order not found." } }, { status: 404 });
     }
-
     const canUpdateOrder = hasPermission(guard.role, "orders.update");
     const canVerifyPayment = hasPermission(guard.role, "payments.verify");
     const canReadCustomer = hasPermission(guard.role, "customers.read");
-
     const customerSnapshot = order.customerSnapshot;
-
     const batch = order.batch
       ? { ...order.batch, etaAt: order.batch.endAt as Date | null }
       : null;
-
     return NextResponse.json({
       success: true,
       data: {
@@ -79,7 +71,6 @@ export async function GET(
     return NextResponse.json({ success: false, error: { code: "SERVER_ERROR", message: "Something went wrong." } }, { status: 500 });
   }
 }
-
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -87,38 +78,28 @@ export async function PATCH(
   try {
     const guard = await requirePermission("orders.update", request);
     if (!guard.ok) return guard.response;
-
     const { id } = await params;
     const body = await request.json().catch(() => null);
     const parsed = orderStatusUpdateSchema.safeParse(body);
-
     if (!parsed.success) {
       return NextResponse.json({ success: false, error: { code: "VALIDATION_ERROR", message: "Invalid status update." } }, { status: 400 });
     }
-
     const { status: newStatus, note } = parsed.data;
-
     const order = await prisma.order.findUnique({ where: { id }, select: { id: true, status: true } });
     if (!order) return NextResponse.json({ success: false, error: { code: "ORDER_NOT_FOUND", message: "Order not found." } }, { status: 404 });
-
     assertValidTransition(order.status as OrderStatus, newStatus as OrderStatus);
-
     const capacityReleased =
       releasesCapacity(newStatus as OrderStatus) &&
       !releasesCapacity(order.status as OrderStatus);
-
     const applied = await prisma.$transaction(async (tx) => {
       const claim = await tx.order.updateMany({
         where: { id, status: order.status as OrderStatus },
         data: { status: newStatus as OrderStatus },
       });
-
       if (claim.count !== 1) return false;
-
       if (capacityReleased) {
         await releaseOrderCapacity(tx, id);
       }
-
       await tx.orderStatusHistory.create({
         data: {
           orderId: id,
@@ -128,7 +109,6 @@ export async function PATCH(
           note: note ?? null,
         },
       });
-
       await tx.auditLog.create({
         data: {
           orderId: id,
@@ -139,10 +119,8 @@ export async function PATCH(
           metadata: { note, capacityReleased, role: guard.role },
         },
       });
-
       return true;
     });
-
     if (!applied) {
       return NextResponse.json(
         {
@@ -155,7 +133,6 @@ export async function PATCH(
         { status: 409 }
       );
     }
-
     return NextResponse.json({
       success: true,
       data: {

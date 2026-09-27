@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
-
 export async function GET(request: NextRequest) {
   try {
     const limited = enforceRateLimit(request, RATE_LIMITS.publicRead);
     if (limited) return limited;
-
     const now = new Date();
-
     const batches = await prisma.batch.findMany({
       where: {
         status: { in: ["OPEN", "SCHEDULED"] },
@@ -25,13 +22,11 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { createdAt: "desc" },
     });
-
     const openBatches = batches.filter((b) => {
       if (b.endAt && now > b.endAt) return false;
       if (b.startAt && now < b.startAt) return false;
       return true;
     });
-
     return NextResponse.json({ success: true, data: openBatches });
   } catch (error) {
     console.error("[GET /api/batches]", error);

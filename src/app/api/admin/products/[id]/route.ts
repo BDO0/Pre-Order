@@ -5,7 +5,6 @@ import { productUpdateSchema } from "@/lib/validation";
 import { ensureProductInOpenBatch } from "@/lib/batch-service";
 import { uniqueViolationTarget } from "@/lib/prisma-errors";
 import { syncProductVariants, VariantSyncError } from "@/lib/product-variants";
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -13,22 +12,18 @@ export async function GET(
   try {
     const guard = await requirePermission("products.read", request);
     if (!guard.ok) return guard.response;
-
     const { id } = await params;
     const product = await prisma.product.findUnique({
       where: { id },
       include: { variants: { orderBy: [{ color: "asc" }, { size: "asc" }] } },
     });
-
     if (!product) return NextResponse.json({ success: false, error: { code: "NOT_FOUND", message: "Product not found." } }, { status: 404 });
-
     return NextResponse.json({ success: true, data: product });
   } catch (error) {
     console.error("[GET /api/admin/products/[id]]", error);
     return NextResponse.json({ success: false, error: { code: "SERVER_ERROR" } }, { status: 500 });
   }
 }
-
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -36,11 +31,9 @@ export async function PATCH(
   try {
     const guard = await requirePermission("products.write", request);
     if (!guard.ok) return guard.response;
-
     const { id } = await params;
     const body = await request.json().catch(() => null);
     const parsed = productUpdateSchema.safeParse(body);
-
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
       return NextResponse.json(
@@ -55,9 +48,7 @@ export async function PATCH(
         { status: 400 }
       );
     }
-
     const { variants, images, ...columns } = parsed.data;
-
     const result = await prisma.$transaction(async (tx) => {
       const product = await tx.product.update({
         where: { id },
@@ -69,12 +60,9 @@ export async function PATCH(
           ...(images ? { images } : {}),
         },
       });
-
       const variantChanges =
         variants === undefined ? null : await syncProductVariants(tx, id, variants);
-
       const batchId = await ensureProductInOpenBatch(tx, id);
-
       await tx.auditLog.create({
         data: {
           actor: guard.actor,
@@ -86,10 +74,8 @@ export async function PATCH(
           },
         },
       });
-
       return { product, variantChanges, batchId };
     });
-
     return NextResponse.json({
       success: true,
       data: result.product,
@@ -118,7 +104,6 @@ export async function PATCH(
     return NextResponse.json({ success: false, error: { code: "SERVER_ERROR", message: "Something went wrong." } }, { status: 500 });
   }
 }
-
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -126,13 +111,10 @@ export async function DELETE(
   try {
     const guard = await requirePermission("products.write", request);
     if (!guard.ok) return guard.response;
-
     const { id } = await params;
-
     const orderItemsCount = await prisma.orderItem.count({
       where: { variant: { productId: id } },
     });
-
     if (orderItemsCount > 0) {
       await prisma.product.update({
         where: { id },
@@ -143,11 +125,9 @@ export async function DELETE(
         data: { archived: true, message: "Product has past orders. It has been deactivated." },
       });
     }
-
     await prisma.batchProduct.deleteMany({ where: { productId: id } });
     await prisma.productVariant.deleteMany({ where: { productId: id } });
     await prisma.product.delete({ where: { id } });
-
     return NextResponse.json({ success: true, data: { deleted: true } });
   } catch (error) {
     console.error("[DELETE /api/admin/products/[id]]", error);

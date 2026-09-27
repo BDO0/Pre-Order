@@ -1,29 +1,15 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { variantCountLabel, stockSummary } from "@/lib/variant-stock";
 import { parseApiResponse } from "@/lib/api-client";
-
-/**
- * A row of the catalogue table, as `/api/admin/products` returns it.
- *
- * Only the columns this table renders are named: the endpoint also sends every
- * other product column, and inventing fields here that nothing reads would make
- * the type drift away from what is actually used.
- */
 interface AdminProductRow {
   id: string;
   name: string;
   slug: string;
   category: string | null;
-  /** Prisma `Decimal` arrives as a string over JSON; rendered through `Number()`. */
   price: string | number;
   images: string[];
-  /**
-   * Every variant row, retired ones included — the endpoint does not filter them.
-   * `stockSummary` and `activeVariantCount` are what decide which of them count.
-   */
   variants?: {
     id: string;
     active?: boolean;
@@ -33,11 +19,9 @@ interface AdminProductRow {
   active: boolean;
   preorderStatus: string;
 }
-
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<AdminProductRow[]>([]);
   const [loading, setLoading] = useState(true);
-  
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -54,7 +38,6 @@ export default function AdminProductsPage() {
     };
     fetchProducts();
   }, []);
-
   return (
     <div>
       <div className="admin-page-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -63,7 +46,6 @@ export default function AdminProductsPage() {
           + New Product
         </Link>
       </div>
-
       <div className="table-wrapper">
         <div className="table-scroll">
           <table className="data-table">
@@ -102,8 +84,7 @@ export default function AdminProductsPage() {
                   <td>{product.category || "—"}</td>
                   <td>₱{Number(product.price).toLocaleString()}</td>
                   <td>
-                    {/* Live variants, not rows: retired variants are kept for their
-                        order history and would otherwise be counted as sellable. */}
+                    {}
                     {variantCountLabel(product.variants)}
                   </td>
                   <td>{stockSummary(product.variants)}</td>

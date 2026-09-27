@@ -8,7 +8,6 @@ import {
   siteUrl,
 } from "@/lib/site";
 import "./globals.css";
-
 export const metadata: Metadata = {
   metadataBase: siteUrl(),
   title: {
@@ -38,13 +37,11 @@ export const metadata: Metadata = {
     "instagram:site": SHOP_INSTAGRAM_URL,
   },
 };
-
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: "#111827",
 };
-
 export default function RootLayout({
   children,
 }: {
@@ -56,4 +53,3 @@ export default function RootLayout({
     </html>
   );
 }
-

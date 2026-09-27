@@ -1,12 +1,10 @@
 "use client";
-
 import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useCartStore } from "@/store/cart";
 import { SHOP_INSTAGRAM_HANDLE, SHOP_INSTAGRAM_URL, SITE_NAME } from "@/lib/site";
 import { CustomBagIcon, CustomHangerIcon, GarmentSilhouette } from "@/components/CustomerIcons";
 import styles from "./storefront.module.css";
-
 export interface Variant {
   id: string;
   size: string | null;
@@ -17,7 +15,6 @@ export interface Variant {
   remainingCapacity: number | null;
   active: boolean;
 }
-
 export interface StorefrontProduct {
   id: string;
   name: string;
@@ -34,12 +31,10 @@ export interface StorefrontProduct {
   preorderRemaining: number | null;
   variants: Variant[];
 }
-
 interface Props {
   products: StorefrontProduct[];
   campaignStatus?: string;
 }
-
 export default function StorefrontClient({
   products,
   campaignStatus,
@@ -49,38 +44,29 @@ export default function StorefrontClient({
   const showcaseRef = useRef<HTMLDivElement>(null);
   const [highlightPulse, setHighlightPulse] = useState(false);
   const [showAllCatalogue, setShowAllCatalogue] = useState(false);
-
   useEffect(() => {
     setMounted(true);
   }, []);
-
   const itemCount = mounted ? getItemCount() : 0;
-
   const [selectedProductId, setSelectedProductId] = useState<string>(
     products[0]?.id ?? ""
   );
-
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
-
   const activeProduct = useMemo(() => {
     return products.find((p) => p.id === selectedProductId) || products[0];
   }, [products, selectedProductId]);
-
   const colors = useMemo(() => {
     if (!activeProduct?.variants) return [];
     return [...new Set(activeProduct.variants.filter((v) => v.color).map((v) => v.color!))];
   }, [activeProduct]);
-
   const sizes = useMemo(() => {
     if (!activeProduct?.variants) return [];
     return [...new Set(activeProduct.variants.filter((v) => v.size).map((v) => v.size!))];
   }, [activeProduct]);
-
   const [selectedColor, setSelectedColor] = useState<string | null>(colors[0] ?? null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
-
   const handleSelectProduct = (product: StorefrontProduct, autoScroll = true) => {
     setSelectedProductId(product.id);
     const newColors = [...new Set(product.variants.filter((v) => v.color).map((v) => v.color!))];
@@ -90,12 +76,10 @@ export default function StorefrontClient({
     setAdded(false);
     setHighlightPulse(true);
     setTimeout(() => setHighlightPulse(false), 800);
-
     if (autoScroll && typeof window !== "undefined" && window.innerWidth <= 960) {
       showcaseRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
-
   const selectedVariant = useMemo(() => {
     if (!activeProduct || !activeProduct.variants || activeProduct.variants.length === 0) {
       return null;
@@ -113,16 +97,13 @@ export default function StorefrontClient({
     );
     return match || (colors.length === 0 && sizes.length === 0 ? activeProduct.variants[0] : null);
   }, [activeProduct, selectedColor, selectedSize, colors.length, sizes.length]);
-
   const isClosed =
     campaignStatus === "CLOSED" ||
     activeProduct?.preorderStatus === "CLOSED" ||
     activeProduct?.preorderStatus === "SOLD_OUT";
-
   const isOrderable =
     !isClosed &&
     activeProduct?.preorderStatus === "OPEN";
-
   const isVariantAvailable = (color: string | null, size: string | null) => {
     if (!activeProduct) return false;
     const v = activeProduct.variants.find(
@@ -134,22 +115,18 @@ export default function StorefrontClient({
     if (v.remainingCapacity !== null && v.remainingCapacity <= 0) return false;
     return true;
   };
-
   const effectivePrice = selectedVariant?.priceOverride
     ? Number(selectedVariant.priceOverride)
     : activeProduct
     ? Number(activeProduct.price)
     : 0;
-
   const canAdd =
     isOrderable &&
     Boolean(selectedVariant) &&
     Boolean(selectedVariant?.active) &&
     (selectedVariant?.remainingCapacity === null || (selectedVariant?.remainingCapacity ?? 0) >= qty);
-
   const handleAdd = () => {
     if (!activeProduct || !selectedVariant || !canAdd) return;
-
     addItem(
       {
         id: activeProduct.id,
@@ -162,11 +139,9 @@ export default function StorefrontClient({
       activeProduct.batchId,
       activeProduct.batchSlug
     );
-
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };
-
   const categories = useMemo(() => {
     const set = new Set<string>();
     products.forEach((p) => {
@@ -174,28 +149,23 @@ export default function StorefrontClient({
     });
     return Array.from(set);
   }, [products]);
-
   const filteredProducts = useMemo(() => {
     if (selectedCategory === "ALL") return products;
     return products.filter((p) => p.category === selectedCategory);
   }, [products, selectedCategory]);
-
   const currentIndex = useMemo(() => {
     return filteredProducts.findIndex((p) => p.id === activeProduct?.id);
   }, [filteredProducts, activeProduct]);
-
   const handlePrevProduct = () => {
     if (filteredProducts.length <= 1) return;
     const prevIndex = (currentIndex - 1 + filteredProducts.length) % filteredProducts.length;
     handleSelectProduct(filteredProducts[prevIndex], false);
   };
-
   const handleNextProduct = () => {
     if (filteredProducts.length <= 1) return;
     const nextIndex = (currentIndex + 1) % filteredProducts.length;
     handleSelectProduct(filteredProducts[nextIndex], false);
   };
-
   if (products.length === 0) {
     return (
       <div className="glass-storefront" style={{ paddingBlock: "var(--space-16)", maxWidth: "var(--max-w-xl)", marginInline: "auto", paddingInline: "var(--space-6)" }}>
@@ -255,7 +225,6 @@ export default function StorefrontClient({
       </div>
     );
   }
-
   return (
     <div className={`glass-storefront ${styles.storefrontWrap}`}>
       <div className={styles.splitLayout}>
@@ -292,7 +261,6 @@ export default function StorefrontClient({
                     </button>
                   </>
                 )}
-
                 {activeProduct.images[0] ? (
                   <img
                     src={activeProduct.images[0]}
@@ -313,7 +281,6 @@ export default function StorefrontClient({
                     </span>
                   </div>
                 )}
-
                 {(activeProduct.preorderStatus === "COMING_SOON" || activeProduct.preorderStatus === "SOLD_OUT") && (
                   <div className={styles.badgeOverlay}>
                     {activeProduct.preorderStatus === "COMING_SOON" && (
@@ -325,7 +292,6 @@ export default function StorefrontClient({
                   </div>
                 )}
               </div>
-
               <div className={styles.showcaseBody}>
                 <div className={styles.headerRow}>
                   <div>
@@ -340,12 +306,10 @@ export default function StorefrontClient({
                     ₱{effectivePrice.toLocaleString()}
                   </div>
                 </div>
-
                 <p className={styles.descText}>
                   {activeProduct.description ||
                     "Limited-run crafted pre-order piece. Reserve yours before orders close."}
                 </p>
-
                 {!isOrderable ? (
                   <div
                     style={{
@@ -392,7 +356,6 @@ export default function StorefrontClient({
                         </div>
                       </div>
                     )}
-
                     {sizes.length > 0 && (
                       <div>
                         <div className={styles.selectorLabel}>
@@ -421,7 +384,6 @@ export default function StorefrontClient({
                         </div>
                       </div>
                     )}
-
                     <div className={styles.actionRow} style={{ marginTop: "var(--space-2)" }}>
                       <div className={styles.qtyBox}>
                         <button
@@ -445,7 +407,6 @@ export default function StorefrontClient({
                           +
                         </button>
                       </div>
-
                       <button
                         type="button"
                         id="add-to-order-btn"
@@ -462,7 +423,6 @@ export default function StorefrontClient({
                           : `Add to Pre-Order — ₱${(effectivePrice * qty).toLocaleString()}`}
                       </button>
                     </div>
-
                     {activeProduct.preorderRemaining !== null && (
                       <p
                         style={{
@@ -479,12 +439,10 @@ export default function StorefrontClient({
                     )}
                   </div>
                 )}
-
               </div>
             </div>
           )}
         </div>
-
         <div className={styles.catalogueCol}>
           <div className={styles.catalogueHeader}>
             <h3 className={styles.catalogueTitle}>Collection Pieces</h3>
@@ -492,7 +450,6 @@ export default function StorefrontClient({
               {filteredProducts.length} item{filteredProducts.length !== 1 ? "s" : ""}
             </span>
           </div>
-
           {categories.length > 0 && (
             <div className={styles.filterPills}>
               <button
@@ -518,7 +475,6 @@ export default function StorefrontClient({
               ))}
             </div>
           )}
-
           <div className={styles.iconGrid}>
             {(showAllCatalogue ? filteredProducts : filteredProducts.slice(0, 8)).map((p) => {
               const isSelected = p.id === activeProduct?.id;
@@ -542,7 +498,6 @@ export default function StorefrontClient({
                       </span>
                     )}
                   </div>
-
                   <div className={styles.smallCardBody}>
                     <h4 className={styles.smallProductName}>{p.name}</h4>
                     <div className={styles.smallPriceRow}>
@@ -564,7 +519,6 @@ export default function StorefrontClient({
               );
             })}
           </div>
-
           {filteredProducts.length > 8 && (
             <div style={{ textAlign: "center", marginTop: "var(--space-3)" }}>
               <button
@@ -580,7 +534,6 @@ export default function StorefrontClient({
           )}
         </div>
       </div>
-
       {itemCount > 0 && (
         <div className={styles.mobileFloatingCart}>
           <Link href="/cart" className="btn btn-primary btn-full btn-lg" style={{ boxShadow: "var(--shadow-xl)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "var(--space-2)" }}>

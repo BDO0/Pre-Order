@@ -1,5 +1,4 @@
 "use client";
-
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -11,24 +10,6 @@ import { SHOP_INSTAGRAM_HANDLE, SHOP_INSTAGRAM_URL, SITE_NAME } from "@/lib/site
 import { BrandLogo } from "@/components/BrandLogo";
 import { CustomAlertIcon } from "@/components/CustomerIcons";
 import { parseApiResponse } from "@/lib/api-client";
-
-/**
- * Track an order.
- *
- * Two ways in, because one of them will always be lost:
- *
- *   • the private link from the confirmation screen (`?token=…`), read straight
- *     from the URL and looked up on mount — nothing to type;
- *   • the lookup form (order number + the Instagram username the order was
- *     placed with), for the customer who closed the tab, cleared their history,
- *     or ordered before the private link existed.
- *
- * The refresh token, the mobile number that used to be the second factor, and
- * the per-order API route behind all of it were removed in the intake
- * simplification. This page replaces all three: one endpoint, two doors, one
- * response shape.
- */
-
 interface PublicOrderItem {
   productName: string;
   variant: string;
@@ -36,7 +17,6 @@ interface PublicOrderItem {
   unitPrice: number;
   lineTotal: number;
 }
-
 interface PublicOrder {
   reference: string;
   status: string;
@@ -49,14 +29,6 @@ interface PublicOrder {
   total: number;
   timeline: { status: string; at: string }[];
 }
-
-/**
- * Which of the existing badge colours fits a status.
- *
- * Reuses the classes the storefront already ships rather than introducing a
- * fifth set of greens and ambers: the mapping here is about meaning — waiting,
- * good, finished, dead — not about colour.
- */
 function badgeClass(status: string): string {
   switch (status) {
     case "PENDING":
@@ -79,36 +51,22 @@ function badgeClass(status: string): string {
       return "badge badge-closed";
   }
 }
-
 function peso(amount: number): string {
   return `₱${amount.toLocaleString()}`;
 }
-
 type LookupOutcome =
   | { ok: true; order: PublicOrder }
   | { ok: false; message: string };
-
-/**
- * Asks the lookup endpoint about one order.
- *
- * Pure: it returns a result and touches no React state, so the effect below can
- * hand its promise straight to a state-applying callback instead of calling a
- * setState-bearing function synchronously in the effect body — the cascading
- * render the react-hooks rule warns about. Same shape as `requestFields()` in
- * the settings screen.
- */
 async function requestOrder(query: string): Promise<LookupOutcome> {
   try {
     const res = await fetch(`/api/orders/lookup?${query}`);
     const { ok, data, error } = await parseApiResponse(res, "We could not look that order up.");
-
     if (!ok || !data) {
       return {
         ok: false,
         message: error || "We could not look that order up.",
       };
     }
-
     return { ok: true, order: data as PublicOrder };
   } catch {
     return {
@@ -117,21 +75,16 @@ async function requestOrder(query: string): Promise<LookupOutcome> {
     };
   }
 }
-
 function OrderTracker() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
   const refFromUrl = searchParams.get("ref") ?? "";
-
   const [reference, setReference] = useState(refFromUrl);
   const [handle, setHandle] = useState("");
-
   const [order, setOrder] = useState<PublicOrder | null>(null);
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(!token);
-
-  /** Puts a lookup result on the screen. */
   const applyOutcome = useCallback((outcome: LookupOutcome) => {
     if (outcome.ok) {
       setError("");
@@ -143,39 +96,31 @@ function OrderTracker() {
     }
     setLoading(false);
   }, []);
-
-  /** The form's submit path. Safe to call from an event handler. */
   const lookUp = (query: string) => {
     void requestOrder(query).then(applyOutcome);
   };
-
   useEffect(() => {
     if (!token) return;
     void requestOrder(`token=${encodeURIComponent(token)}`).then(applyOutcome);
   }, [token, applyOutcome]);
-
   const handleSearch = (event: React.FormEvent) => {
     event.preventDefault();
-
     if (!reference.trim() || !handle.trim()) {
       setError("Please fill in both your order number and your Instagram username.");
       return;
     }
-
     setLoading(true);
     setError("");
     void lookUp(
       `ref=${encodeURIComponent(reference.trim())}&handle=${encodeURIComponent(handle.trim())}`
     );
   };
-
   return (
     <div className={`${glass.glassPage} ${styles.page}`}>
       <div className={glass.bg} aria-hidden="true" />
       <div className={glass.orb1} aria-hidden="true" />
       <div className={glass.orb2} aria-hidden="true" />
       <div className={glass.orb3} aria-hidden="true" />
-
       <div className={glass.content}>
         <nav className={glass.nav}>
           <div className={glass.navInner}>
@@ -189,7 +134,6 @@ function OrderTracker() {
             </div>
           </div>
         </nav>
-
         <main className={styles.mainContainer}>
           <div style={{ display: "flex", justifyContent: "center", marginBottom: "var(--space-3)" }}>
             <BrandLogo variant="monogram" height={44} color="#fca5a5" />
@@ -213,13 +157,11 @@ function OrderTracker() {
               ? "Enter your order number and the Instagram username you ordered with."
               : "Here is where your pre-order is right now."}
           </p>
-
           {loading && (
             <p style={{ textAlign: "center", color: "rgba(255, 255, 255, 0.85)" }}>
               Looking up your order…
             </p>
           )}
-
           {error && !loading && (
             <p
               className="form-error"
@@ -228,7 +170,6 @@ function OrderTracker() {
               <CustomAlertIcon size={16} /> {error}
             </p>
           )}
-
           {showForm && !loading && (
             <div
               style={{
@@ -262,7 +203,6 @@ function OrderTracker() {
               </a>
             </div>
           )}
-
           {order && (
             <ResultCard
               order={order}
@@ -280,14 +220,6 @@ function OrderTracker() {
     </div>
   );
 }
-
-/**
- * The result card.
- *
- * Split out of the tracker so the tracker owns fetching and the card owns
- * presentation. Everything the customer is told comes from
- * `customerStatusCopy`, so the wording for a status lives in exactly one place.
- */
 function ResultCard({
   order,
   showStartOver,
@@ -298,7 +230,6 @@ function ResultCard({
   onStartOver: () => void;
 }) {
   const copy = customerStatusCopy(order.status);
-
   return (
     <div className={styles.resultCard}>
       <div className={styles.resultHeader}>
@@ -311,7 +242,6 @@ function ResultCard({
           <div className={badgeClass(order.status)}>{copy.label}</div>
         </div>
       </div>
-
       <div
         style={{
           padding: "var(--space-6)",
@@ -327,7 +257,6 @@ function ResultCard({
         >
           {copy.detail}
         </p>
-
         <div
           style={{
             marginTop: "var(--space-4)",
@@ -348,7 +277,6 @@ function ResultCard({
           </span>
         </div>
       </div>
-
       <div className={styles.itemsList}>
         <h3 className={styles.sectionTitle}>Your Items</h3>
         {order.items.map((item, index) => (
@@ -361,13 +289,11 @@ function ResultCard({
             <div style={{ fontWeight: 600, color: "white" }}>{peso(item.lineTotal)}</div>
           </div>
         ))}
-
         <div className={styles.totalRow}>
           <span>Total</span>
           <span>{peso(order.total)}</span>
         </div>
       </div>
-
       <div className={styles.timeline}>
         <h3 className={styles.sectionTitle}>Progress</h3>
         {order.timeline.map((entry, index) => (
@@ -384,7 +310,6 @@ function ResultCard({
           </div>
         ))}
       </div>
-
       <div
         style={{
           padding: "var(--space-6)",
@@ -428,7 +353,6 @@ function ResultCard({
     </div>
   );
 }
-
 export default function OrderStatusPage() {
   return (
     <Suspense

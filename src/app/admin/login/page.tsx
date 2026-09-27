@@ -1,39 +1,32 @@
 "use client";
-
 import { useState, FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { SITE_NAME } from "@/lib/site";
 import { BrandLogo } from "@/components/BrandLogo";
 import styles from "./login.module.css";
-
 export default function AdminLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
-
     const result = await signIn("credentials", {
       email,
       password,
       redirect: false,
     });
-
     setLoading(false);
-
     if (result?.error) {
       setError("Invalid email or password. Please try again.");
     } else {
       router.push("/butigadmin/dashboard");
     }
   };
-
   return (
     <div className={styles.page}>
       <div className={styles.card}>
@@ -47,10 +40,8 @@ export default function AdminLoginPage() {
           />
           <span className={styles.logoSub} style={{ marginTop: "6px" }}>Admin Portal</span>
         </div>
-
         <h1 className={styles.title}>Welcome back</h1>
         <p className={styles.subtitle}>Sign in to your admin dashboard</p>
-
         <form onSubmit={handleSubmit} className={styles.form} id="admin-login-form">
           <div className="form-group">
             <label htmlFor="email" className="form-label form-label-required">Email</label>
@@ -65,7 +56,6 @@ export default function AdminLoginPage() {
               autoComplete="email"
             />
           </div>
-
           <div className="form-group">
             <label htmlFor="password" className="form-label form-label-required">Password</label>
             <input
@@ -79,11 +69,9 @@ export default function AdminLoginPage() {
               autoComplete="current-password"
             />
           </div>
-
           {error && (
             <p className="form-error" role="alert">{error}</p>
           )}
-
           <button
             id="login-submit"
             type="submit"

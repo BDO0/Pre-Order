@@ -14,19 +14,9 @@ import ProductPageClient from "./ProductPageClient";
 import StorefrontClient, { StorefrontProduct } from "@/app/StorefrontClient";
 import { prisma } from "@/lib/db";
 import glass from "@/app/glass.module.css";
-
 interface Props {
   params: Promise<{ slug: string }>;
 }
-
-/**
- * Fetch a batch by slug (for campaign drops).
- *
- * Wrapped in React's `cache()`: `generateMetadata` and the page itself both
- * ask for the same slug in the same request, which was two identical queries
- * per page view. `cache()` is per-request, so a visitor still sees fresh
- * data - it only removes the duplicate.
- */
 const loadBatch = cache(async (slug: string) => {
   const batch = await prisma.batch.findUnique({
     where: { slug },
@@ -46,9 +36,7 @@ const loadBatch = cache(async (slug: string) => {
       },
     },
   });
-
   if (!batch) return null;
-
   const products: StorefrontProduct[] = batch.products
     .map((bp) => bp.product)
     .filter((p) => p.active)
@@ -80,7 +68,6 @@ const loadBatch = cache(async (slug: string) => {
         active: v.active,
       })),
     }));
-
   return {
     batch: {
       id: batch.id,
@@ -94,13 +81,6 @@ const loadBatch = cache(async (slug: string) => {
     products,
   };
 });
-
-/**
- * Fetch a product and the batch it sits in.
- *
- * Cached per request for the same reason as `loadBatch`: `generateMetadata`
- * and the page both need it, and the second read was pure duplication.
- */
 const loadProduct = cache(async (slug: string) => {
   const product = await prisma.product.findUnique({
     where: { slug },
@@ -115,13 +95,10 @@ const loadProduct = cache(async (slug: string) => {
       },
     },
   });
-
   if (!product || !product.active) return null;
-
   const linkedBatch =
     product.batches.find((b) => b.batch.status === "OPEN")?.batch ||
     product.batches[0]?.batch;
-
   const batch =
     linkedBatch ??
     (await prisma.batch.findFirst({
@@ -131,9 +108,7 @@ const loadProduct = cache(async (slug: string) => {
     (await prisma.batch.findFirst({
       orderBy: { createdAt: "desc" },
     }));
-
   if (!batch) return null;
-
   return {
     product: {
       id: product.id,
@@ -168,17 +143,14 @@ const loadProduct = cache(async (slug: string) => {
     },
   };
 });
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-
   const batchData = await loadBatch(slug);
   if (batchData) {
     const title = `${batchData.batch.name} — Pre-Order Now | ${SITE_NAME}`;
     const description =
       batchData.batch.description ??
       `Explore the ${batchData.batch.name} pre-order collection at ${SITE_NAME}.`;
-
     const ogImages = [
       batchData.batch.coverImage
         ? {
@@ -194,7 +166,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
             alt: `${batchData.batch.name} — pre-order at ${SITE_NAME}`,
           },
     ];
-
     return {
       title,
       description,
@@ -209,7 +180,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
     };
   }
-
   const productData = await loadProduct(slug);
   if (productData) {
     const { product } = productData;
@@ -217,7 +187,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const description =
       product.description ??
       `Pre-order ${product.name} from ${SITE_NAME}. Limited quantities, confirmed personally on Instagram.`;
-
     const ogImages = product.images[0]
       ? [
           {
@@ -228,7 +197,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
           },
         ]
       : [];
-
     return {
       title,
       description,
@@ -243,16 +211,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
     };
   }
-
   return {
     title: "Not Found",
     robots: { index: false, follow: false },
   };
 }
-
 export default async function PreorderPage({ params }: Props) {
   const { slug } = await params;
-
   const batchData = await loadBatch(slug);
   if (batchData) {
     return (
@@ -261,7 +226,6 @@ export default async function PreorderPage({ params }: Props) {
         <div className={glass.orb1} aria-hidden="true" />
         <div className={glass.orb2} aria-hidden="true" />
         <div className={glass.orb3} aria-hidden="true" />
-
         <div className={glass.content}>
           <nav className={glass.nav}>
             <div className={glass.navInner}>
@@ -282,7 +246,6 @@ export default async function PreorderPage({ params }: Props) {
               </div>
             </div>
           </nav>
-
           <StorefrontClient
             products={batchData.products}
             campaignTitle={batchData.batch.name}
@@ -290,7 +253,6 @@ export default async function PreorderPage({ params }: Props) {
             campaignEndAt={batchData.batch.endAt}
             campaignStatus={batchData.batch.status}
           />
-
           <section style={{ maxWidth: "760px", margin: "var(--space-8) auto var(--space-16)", paddingInline: "var(--space-4)" }}>
             <div
               className={glass.glassCard}
@@ -350,7 +312,6 @@ export default async function PreorderPage({ params }: Props) {
       </div>
     );
   }
-
   const productData = await loadProduct(slug);
   if (productData) {
     return (
@@ -360,6 +321,5 @@ export default async function PreorderPage({ params }: Props) {
       />
     );
   }
-
   notFound();
 }

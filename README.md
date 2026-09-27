@@ -1,57 +1,30 @@
-# Pre-Order E-Commerce System
+# Pre-Order Management System
 
-A robust, modern web application designed specifically for handling pre-orders and inventory management. This application provides a public-facing storefront for customers to place pre-orders and a secure administrative dashboard for managing the catalog, orders, and customer data.
+A dedicated platform for managing pre-orders, tracking batches, and processing customer orders seamlessly. This system serves as a central hub where customers can place their pre-orders after discovering items on Instagram, and administrators can oversee the entire workflow from order placement to fulfillment.
 
 ## Features
 
-- **Public Storefront**: A sleek, responsive landing page where customers can view available products, read descriptions, and place their pre-orders.
-- **Admin Dashboard**: A secure portal (`/butigadmin`) for store owners to manage the entire system.
-- **Order Management**: Track orders, update payment statuses (e.g., pending, paid, waiting), and view customer details.
-- **Product Catalog**: Add, edit, or remove products and assign them to specific pre-order batches.
-- **Batch Management**: Group products into batches to organize when items will arrive and be distributed.
-- **Authentication**: Secure login system using Next-Auth to protect the administrative area.
+- **Storefront**: A clean, intuitive interface for customers to browse available pre-order items and place their orders.
+- **Admin Dashboard**: A secure back-office for administrators to manage products, batches, and view analytics.
+- **Order Tracking**: End-to-end tracking of order statuses (Pending, Confirmed, Shipped, etc.) and payment statuses.
+- **Batch Management**: Group pre-orders into distinct batches to manage manufacturing and shipping timelines effectively.
+- **Audit Logs**: Comprehensive history of all actions taken on orders for transparency and accountability.
 
-## Technology Stack
+## Tech Stack
 
-- **Framework**: [Next.js](https://nextjs.org/) (App Router)
-- **Database**: PostgreSQL (managed via [Prisma ORM](https://www.prisma.io/))
-- **Authentication**: [Next-Auth](https://next-auth.js.org/) (v5 Beta)
-- **Language**: TypeScript
+- **Framework**: Next.js (App Router)
+- **Database**: PostgreSQL (managed via Prisma ORM)
+- **Styling**: Tailwind CSS
+- **Authentication**: NextAuth.js
 
 ## Getting Started
 
-### Prerequisites
+1. Clone the repository
+2. Run `npm install`
+3. Copy `.env.example` to `.env` and fill in your database credentials
+4. Run `npx prisma db push` to initialize the database
+5. Run `npm run dev` to start the development server
 
-- Node.js (v18+)
-- PostgreSQL Database
+## Deployment
 
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/BDO0/Pre-Order.git
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Configure environment variables:
-   Copy `.env.example` to `.env` and update the necessary variables (e.g., `DATABASE_URL`, `AUTH_SECRET`).
-
-4. Run database migrations:
-   ```bash
-   npm run db:migrate
-   ```
-
-5. Start the development server:
-   ```bash
-   npm run dev
-   ```
-
-6. Open `http://localhost:3000` for the storefront or `http://localhost:3000/butigadmin` for the admin dashboard.
-
-## License
-
-Private Project. All rights reserved.
+This project is configured to be easily deployed on Vercel. Ensure all environment variables in `.env.example` are configured in your deployment settings.

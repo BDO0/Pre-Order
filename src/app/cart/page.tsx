@@ -1,5 +1,4 @@
 "use client";
-
 import { useCartStore } from "@/store/cart";
 import Link from "next/link";
 import { SITE_NAME } from "@/lib/site";
@@ -7,20 +6,16 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { CustomBagIcon, GarmentSilhouette } from "@/components/CustomerIcons";
 import styles from "./cart.module.css";
 import glass from "../glass.module.css";
-
 export default function CartPage() {
   const { items, updateQuantity, removeItem, clearCart, getSubtotal, batchSlug } = useCartStore();
-
   const subtotal = getSubtotal();
   const total = subtotal;
-
   const EmptyState = () => (
     <div className={`${glass.glassPage} ${styles.page}`}>
       <div className={glass.bg} aria-hidden="true" />
       <div className={glass.orb1} aria-hidden="true" />
       <div className={glass.orb2} aria-hidden="true" />
       <div className={glass.orb3} aria-hidden="true" />
-
       <div className={glass.content}>
         <nav className={glass.nav}>
           <div className={glass.navInner}>
@@ -100,16 +95,13 @@ export default function CartPage() {
       </div>
     </div>
   );
-
   if (items.length === 0) return <EmptyState />;
-
   return (
     <div className={`${glass.glassPage} ${styles.page}`}>
       <div className={glass.bg} aria-hidden="true" />
       <div className={glass.orb1} aria-hidden="true" />
       <div className={glass.orb2} aria-hidden="true" />
       <div className={glass.orb3} aria-hidden="true" />
-
       <div className={glass.content}>
         <nav className={glass.nav}>
           <div className={glass.navInner}>
@@ -127,7 +119,6 @@ export default function CartPage() {
             </div>
           </div>
         </nav>
-
         <main
           style={{
             flex: 1,
@@ -147,7 +138,6 @@ export default function CartPage() {
           >
             Your Cart
           </h1>
-
           <div className={styles.layout}>
             <div className={styles.items}>
               {items.map((item) => (
@@ -196,7 +186,6 @@ export default function CartPage() {
                   </div>
                 </div>
               ))}
-
               <button
                 className="btn btn-ghost btn-sm"
                 onClick={clearCart}
@@ -205,7 +194,6 @@ export default function CartPage() {
                 Clear Cart
               </button>
             </div>
-
             <div className={styles.summary}>
               <div className={styles.summaryCard}>
                 <h2 className={styles.summaryTitle}>Order Summary</h2>

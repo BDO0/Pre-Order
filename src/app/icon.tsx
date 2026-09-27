@@ -1,13 +1,7 @@
 import { ImageResponse } from "next/og";
 import { TUDUNGPEOPLE_EMBLEM_PATH } from "@/components/BrandLogo";
-
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
-
-/**
- * Dynamic high-DPI browser favicon featuring the exact TudungPeople cursive ribbon monogram
- * on a deep velvet burgundy glass tile.
- */
 export default function Icon() {
   return new ImageResponse(
     (

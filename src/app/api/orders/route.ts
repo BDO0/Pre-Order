@@ -3,22 +3,18 @@ import { orderSubmissionSchema } from "@/lib/validation";
 import { createOrder, OrderError } from "@/lib/order-service";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { isSameOrigin } from "@/lib/api-guard";
-
 export async function POST(request: NextRequest) {
   try {
     const limited = enforceRateLimit(request, RATE_LIMITS.checkout);
     if (limited) return limited;
-
     if (!isSameOrigin(request)) {
       return NextResponse.json(
         { success: false, error: { code: "CROSS_ORIGIN_BLOCKED", message: "This request did not come from this site." } },
         { status: 403 }
       );
     }
-
     const body = await request.json().catch(() => null);
     const parsed = orderSubmissionSchema.safeParse(body);
-
     if (!parsed.success) {
       return NextResponse.json(
         {
@@ -32,9 +28,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
     const result = await createOrder(parsed.data);
-
     return NextResponse.json(
       { success: true, data: result.order },
       { status: result.idempotent ? 200 : 201 }
@@ -46,7 +40,6 @@ export async function POST(request: NextRequest) {
         { status: 422 }
       );
     }
-
     console.error("[POST /api/orders]", error);
     return NextResponse.json(
       {

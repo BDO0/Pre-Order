@@ -1,24 +1,14 @@
-/**
- * Safe client-side API response parser.
- *
- * Prevents "JSON.parse: unexpected character at line 1 column 1" errors when an
- * endpoint returns HTML (such as a 401 redirect to /admin/login, a 404 route not found,
- * or a 500 error page from Next.js).
- */
-
 export interface ParsedApiResponse<T = any> {
   ok: boolean;
   data: T | null;
   error: string | null;
   status: number;
 }
-
 export async function parseApiResponse<T = any>(
   res: Response,
   defaultErrorMessage = "Request failed"
 ): Promise<ParsedApiResponse<T>> {
   const status = res.status;
-
   if (res.redirected && res.url.includes("/login")) {
     return {
       ok: false,
@@ -27,10 +17,8 @@ export async function parseApiResponse<T = any>(
       status: 401,
     };
   }
-
   const contentType = res.headers.get("content-type") || "";
   let json: any = null;
-
   if (contentType.includes("application/json")) {
     try {
       json = await res.json();
@@ -88,7 +76,6 @@ export async function parseApiResponse<T = any>(
       };
     }
   }
-
   if (!res.ok) {
     const errorMsg =
       json?.error?.message ||
@@ -98,6 +85,5 @@ export async function parseApiResponse<T = any>(
         : `${defaultErrorMessage} (${status})`);
     return { ok: false, data: json?.data ?? null, error: errorMsg, status };
   }
-
   return { ok: true, data: json?.data ?? json, error: null, status };
 }

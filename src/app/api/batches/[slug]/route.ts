@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -9,10 +8,8 @@ export async function GET(
   try {
     const limited = enforceRateLimit(request, RATE_LIMITS.publicRead);
     if (limited) return limited;
-
     const { slug } = await params;
     const now = new Date();
-
     const batch = await prisma.batch.findUnique({
       where: { slug },
       include: {
@@ -31,22 +28,18 @@ export async function GET(
         },
       },
     });
-
     if (!batch) {
       return NextResponse.json(
         { success: false, error: { code: "BATCH_NOT_FOUND", message: "Batch not found." } },
         { status: 404 }
       );
     }
-
     const expired = Boolean(batch.endAt && now > batch.endAt);
-
     const activeProducts = batch.products
       .map((bp) => bp.product)
       .filter(
         (p) => p.active && p.preorderEnabled && p.preorderStatus === "OPEN"
       );
-
     const browseProducts = batch.products
       .map((bp) => bp.product)
       .filter(
@@ -55,7 +48,6 @@ export async function GET(
           p.preorderEnabled &&
           ["OPEN", "COMING_SOON", "SOLD_OUT"].includes(p.preorderStatus)
       );
-
     return NextResponse.json({
       success: true,
       data: {

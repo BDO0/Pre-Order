@@ -5,9 +5,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { CustomBagIcon } from "@/components/CustomerIcons";
 import styles from "./page.module.css";
 import StorefrontClient, { StorefrontProduct } from "./StorefrontClient";
-
-export const revalidate = 60; // revalidate every minute
-
+export const revalidate = 60; 
 async function getAvailableProducts(): Promise<{
   products: StorefrontProduct[];
   activeBatch: { name: string; description: string | null; endAt: string | null } | null;
@@ -31,15 +29,12 @@ async function getAvailableProducts(): Promise<{
     },
     orderBy: { createdAt: "desc" },
   });
-
   const defaultBatch = batches[0] ?? null;
   const productsMap = new Map<string, StorefrontProduct>();
-
   for (const batch of batches) {
     for (const batchProduct of batch.products) {
       const p = batchProduct.product;
       if (!p.active) continue;
-
       productsMap.set(p.id, {
         id: p.id,
         name: p.name,
@@ -70,7 +65,6 @@ async function getAvailableProducts(): Promise<{
       });
     }
   }
-
   if (defaultBatch) {
     const allActive = await prisma.product.findMany({
       where: { active: true, preorderEnabled: true },
@@ -81,7 +75,6 @@ async function getAvailableProducts(): Promise<{
         },
       },
     });
-
     for (const p of allActive) {
       if (!productsMap.has(p.id)) {
         productsMap.set(p.id, {
@@ -115,7 +108,6 @@ async function getAvailableProducts(): Promise<{
       }
     }
   }
-
   return {
     products: Array.from(productsMap.values()),
     activeBatch: defaultBatch
@@ -127,10 +119,8 @@ async function getAvailableProducts(): Promise<{
       : null,
   };
 }
-
 export default async function HomePage() {
   const { products, activeBatch } = await getAvailableProducts();
-
   return (
     <div className={styles.home}>
       <div className={styles.bgGradient} aria-hidden="true" />
@@ -138,7 +128,6 @@ export default async function HomePage() {
       <div className={styles.bgOrb2} aria-hidden="true" />
       <div className={styles.bgOrb3} aria-hidden="true" />
       <div className={styles.bgNoise} aria-hidden="true" />
-
       <div className={styles.pageContent}>
         <nav className={styles.glassNav}>
           <div className={styles.glassNavInner}>
@@ -153,7 +142,6 @@ export default async function HomePage() {
             </div>
           </div>
         </nav>
-
         <main style={{ flex: 1 }}>
           <StorefrontClient products={products} />
         </main>

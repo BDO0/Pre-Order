@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -10,13 +9,11 @@ import { snapshotFullName } from "@/lib/order-answers";
 import type { OrderStatus, PaymentStatus } from "@prisma/client";
 import { parseApiResponse } from "@/lib/api-client";
 import adminStyles from "../../admin.module.css";
-
 interface OrderCapabilities {
   updateOrder: boolean;
   verifyPayment: boolean;
   readCustomer: boolean;
 }
-
 interface AuditLogEntry {
   id: string;
   action: string;
@@ -24,7 +21,6 @@ interface AuditLogEntry {
   createdAt: string;
   metadata?: { note?: string | null } | null;
 }
-
 interface StatusHistoryEntry {
   id: string;
   toStatus: string;
@@ -32,7 +28,6 @@ interface StatusHistoryEntry {
   note: string | null;
   createdAt: string;
 }
-
 interface OrderItemRow {
   id: string;
   productNameSnapshot: string;
@@ -40,7 +35,6 @@ interface OrderItemRow {
   unitPriceAtPurchase: string | number;
   quantity: number;
 }
-
 interface OrderDetail {
   reference: string;
   status: OrderStatus;
@@ -59,12 +53,10 @@ interface OrderDetail {
   allowedTransitions?: OrderStatus[];
   capabilities?: OrderCapabilities;
 }
-
 function variantLabel(snapshot: unknown): string {
   const variant = (snapshot ?? {}) as { color?: string; size?: string };
   return [variant.color, variant.size].filter(Boolean).join(" / ");
 }
-
 export default function AdminOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const id = resolvedParams.id;
@@ -75,17 +67,14 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
   const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
   const [activeTab, setActiveTab] = useState<"details" | "activity">("details");
-
   const [batches, setBatches] = useState<{ id: string; name: string; etaAt: string | null }[]>([]);
   const [batchDraft, setBatchDraft] = useState<string>("");
   const [batchSaving, setBatchSaving] = useState(false);
-
   const flash = (message: string) => {
     setNotice(message);
     setActionError("");
     setTimeout(() => setNotice(""), 4000);
   };
-
   const fetchOrder = async () => {
     try {
       const res = await fetch(`/api/admin/orders/${id}`);
@@ -99,7 +88,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
       setLoading(false);
     }
   };
-
   const fetchBatches = async () => {
     try {
       const res = await fetch("/api/admin/batches");
@@ -108,17 +96,14 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
     } catch {
     }
   };
-
   useEffect(() => {
     void fetchOrder();
     void fetchBatches();
   }, [id]);
-
   const handleConfirmAndPay = async () => {
     if (!order) return;
     const prevOrder = order;
     const nextTransitions = getValidNextStatuses("CONFIRMED");
-
     setOrder((current) => {
       if (!current) return null;
       return {
@@ -141,7 +126,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
     flash("Order confirmed and marked as paid.");
     setUpdating(true);
     setActionError("");
-
     try {
       const res = await fetch(`/api/admin/orders/${id}/confirm-and-pay`, {
         method: "PATCH",
@@ -158,12 +142,10 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
       setUpdating(false);
     }
   };
-
   const handleBatchChange = async (nextBatchId: string) => {
     if (!order) return;
     const prevBatch = order.batch;
     const chosenBatch = batches.find((b) => b.id === nextBatchId);
-
     setOrder((current) => {
       if (!current) return null;
       return {
@@ -174,7 +156,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
     flash(chosenBatch ? `Assigned to ${chosenBatch.name}.` : "Removed from batch.");
     setBatchSaving(true);
     setActionError("");
-
     try {
       const res = await fetch(`/api/admin/orders/${id}/batch`, {
         method: "PATCH",
@@ -191,12 +172,10 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
       setBatchSaving(false);
     }
   };
-
   const handleUpdateStatus = async (newStatus: string) => {
     if (!order) return;
     const prevOrder = order;
     const nextTransitions = getValidNextStatuses(newStatus as OrderStatus);
-
     setOrder((current) => {
       if (!current) return null;
       return {
@@ -218,7 +197,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
     flash(`Order marked as ${newStatus.replace(/_/g, " ")}.`);
     setUpdating(true);
     setActionError("");
-
     try {
       const res = await fetch(`/api/admin/orders/${id}`, {
         method: "PATCH",
@@ -235,11 +213,9 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
       setUpdating(false);
     }
   };
-
   const handlePaymentToggle = async (paid: boolean) => {
     if (!order) return;
     const prevOrder = order;
-
     setOrder((current) => {
       if (!current) return null;
       return {
@@ -250,7 +226,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
     flash(paid ? "Payment marked as paid." : "Payment marked as unpaid.");
     setUpdating(true);
     setActionError("");
-
     try {
       const res = await fetch(`/api/admin/orders/${id}/payment`, {
         method: "PATCH",
@@ -267,14 +242,11 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
       setUpdating(false);
     }
   };
-
   if (loading) return <div style={{ padding: "var(--space-6)", color: "var(--color-neutral-500)" }}>Loading order...</div>;
   if (error) return <div style={{ padding: "var(--space-6)", color: "var(--color-error)" }}>{error}</div>;
   if (!order) return <div style={{ padding: "var(--space-6)" }}>Order not found.</div>;
-
   const customerInfo = order.customerSnapshot as Record<string, unknown>;
   const customerName = snapshotFullName(customerInfo) ?? "—";
-
   const capabilities: OrderCapabilities = order.capabilities ?? {
     updateOrder: false,
     verifyPayment: false,
@@ -285,9 +257,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
   const isPaid = String(order.paymentStatus) === "PAID";
   const customerRestricted =
     !capabilities.readCustomer || isRedacted(customerInfo?.instagramHandle);
-
   const totalActivityCount = (order.statusHistory?.length || 0) + (order.auditLogs?.length || 0);
-
   return (
     <div>
       {notice && (
@@ -300,7 +270,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
           {actionError}
         </div>
       )}
-
       <div style={{ marginBottom: "var(--space-5)" }}>
         <Link href="/butigadmin/orders" style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)", textDecoration: "none", fontWeight: 500 }}>
           Back to Orders
@@ -345,14 +314,12 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
             {order.status.replace(/_/g, " ")}
           </div>
         </div>
-        
         {order.isPossibleDuplicate && (
           <div style={{ marginTop: "var(--space-3)", padding: "var(--space-2) var(--space-3)", background: "rgb(245 158 11 / 0.1)", color: "#b45309", borderRadius: "var(--radius-md)", fontSize: "var(--text-xs)", fontWeight: 600 }}>
             Warning: This order was flagged as a potential duplicate.
           </div>
         )}
       </div>
-
       <div style={{ display: "flex", gap: "var(--space-2)", borderBottom: "1px solid var(--color-neutral-200)", marginBottom: "var(--space-5)" }}>
         <button
           type="button"
@@ -406,7 +373,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
           )}
         </button>
       </div>
-
       {activeTab === "details" && (
         <div className={adminStyles.orderDetailGrid}>
           <div>
@@ -453,7 +419,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
               </div>
             </div>
           </div>
-
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
             <div className="card">
               <div className="card-body">
@@ -474,7 +439,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
                     {isPaid ? "PAID" : "UNPAID"}
                   </span>
                 </div>
-
                 {["PENDING", "AWAITING_PAYMENT", "PAYMENT_REVIEW"].includes(order.status) && !isPaid && capabilities.updateOrder && capabilities.verifyPayment && (
                   <button
                     type="button"
@@ -494,7 +458,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
                     {updating ? "Saving..." : "Approve & Mark as Paid"}
                   </button>
                 )}
-
                 {capabilities.updateOrder && (() => {
                   let nextStep: { label: string; status: OrderStatus } | null = null;
                   if (transitions.includes("CONFIRMED")) {
@@ -510,7 +473,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
                   } else if (transitions.includes("COMPLETED")) {
                     nextStep = { label: "Mark as Completed", status: "COMPLETED" };
                   }
-
                   if (!nextStep) return null;
                   return (
                     <button
@@ -524,7 +486,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
                     </button>
                   );
                 })()}
-
                 {capabilities.verifyPayment && (
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "var(--space-2) var(--space-3)", background: "var(--color-neutral-50)", borderRadius: "var(--radius-md)", marginBottom: "var(--space-3)" }}>
                     <span style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-600)" }}>
@@ -541,7 +502,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
                     </button>
                   </div>
                 )}
-
                 {capabilities.updateOrder && !["CANCELLED", "REJECTED", "COMPLETED"].includes(order.status) && (
                   <div style={{ borderTop: "1px solid var(--color-neutral-100)", paddingTop: "var(--space-2)" }}>
                     {transitions.filter(t => ["CANCELLED", "REJECTED"].includes(t)).map((t) => (
@@ -560,7 +520,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
                 )}
               </div>
             </div>
-
             <div className="card">
               <div className="card-body">
                 <h2 style={{ fontSize: "var(--text-sm)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-neutral-500)", marginBottom: "var(--space-3)" }}>
@@ -570,7 +529,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontWeight: 600, color: "var(--color-neutral-900)" }}>{customerName}</span>
                   </div>
-
                   <div>
                     {customerRestricted ? (
                       <span style={{ color: "var(--color-neutral-500)", fontSize: "var(--text-xs)" }}>{REDACTED_FIELD}</span>
@@ -587,7 +545,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
                       <span style={{ color: "var(--color-neutral-400)", fontSize: "var(--text-xs)" }}>No Instagram recorded</span>
                     )}
                   </div>
-
                   {typeof order.customer?.instagramHandle === "string" && (
                     <div style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)" }}>
                       {order.customer._count?.orders ?? 0} order{(order.customer._count?.orders ?? 0) === 1 ? "" : "s"} total
@@ -596,7 +553,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
                 </div>
               </div>
             </div>
-
             <div className="card">
               <div className="card-body">
                 <h2 style={{ fontSize: "var(--text-sm)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-neutral-500)", marginBottom: "var(--space-3)" }}>
@@ -614,7 +570,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
                     Not assigned to a batch
                   </div>
                 )}
-
                 {capabilities.updateOrder && batches.length > 0 && (
                   <div style={{ display: "flex", gap: "var(--space-2)" }}>
                     <select
@@ -644,7 +599,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
           </div>
         </div>
       )}
-
       {activeTab === "activity" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
           <div className="card">
@@ -678,7 +632,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
               )}
             </div>
           </div>
-
           <div className="card">
             <div className="card-body">
               <h2 style={{ fontSize: "var(--text-base)", fontWeight: 700, marginBottom: "var(--space-4)" }}>

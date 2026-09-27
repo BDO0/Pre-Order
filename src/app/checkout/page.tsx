@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import { useCartStore } from "@/store/cart";
 import { useRouter } from "next/navigation";
@@ -12,31 +11,24 @@ import { CustomBagIcon, CustomCardIcon, CustomAlertIcon } from "@/components/Cus
 import { parseApiResponse } from "@/lib/api-client";
 import styles from "./checkout.module.css";
 import glass from "../glass.module.css";
-
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, getSubtotal, clearCart, batchId } = useCartStore();
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-
   const [fullName, setFullName] = useState("");
   const [instagramHandle, setInstagramHandle] = useState("");
-
   const [questions, setQuestions] = useState<PublicFormField[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [questionsFailed, setQuestionsFailed] = useState(false);
-
   useEffect(() => {
     if (items.length === 0) {
       router.push("/cart");
     }
   }, [items, router]);
-
   useEffect(() => {
     let cancelled = false;
-
     fetch("/api/form-fields")
       .then((res) => parseApiResponse<PublicFormField[]>(res))
       .then(({ ok, data }) => {
@@ -50,20 +42,15 @@ export default function CheckoutPage() {
       .catch(() => {
         if (!cancelled) setQuestionsFailed(true);
       });
-
     return () => {
       cancelled = true;
     };
   }, []);
-
   const missingRequired = questions.filter(
     (question) => question.required && !(answers[question.key] ?? "").trim()
   );
-
   const paymentStep = questions.length > 0 ? 3 : 2;
-
   const subtotal = getSubtotal();
-
   const handleOpenConfirmation = (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !instagramHandle.trim()) {
@@ -83,15 +70,12 @@ export default function CheckoutPage() {
       );
       return;
     }
-
     setError(null);
     setShowConfirmModal(true);
   };
-
   const handleConfirmOrder = async () => {
     setLoading(true);
     setError(null);
-
     try {
       const orderPayload = {
         idempotencyKey: crypto.randomUUID(),
@@ -109,26 +93,21 @@ export default function CheckoutPage() {
           value: (answers[question.key] ?? "").trim(),
         })),
       };
-
       const orderRes = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(orderPayload),
       });
-
       const { ok, data: orderData, error: orderErr } = await parseApiResponse(
         orderRes,
         "We could not place your order. Please try again."
       );
-
       if (!ok || !orderData) {
         throw new Error(
           orderErr || "We could not place your order. Please try again."
         );
       }
-
       clearCart();
-
       const params = new URLSearchParams({ ref: orderData.reference });
       if (typeof orderData.accessToken === "string" && orderData.accessToken) {
         params.set("token", orderData.accessToken);
@@ -143,26 +122,11 @@ export default function CheckoutPage() {
       setLoading(false);
     }
   };
-
-  /**
-   * One operator-defined question, as the customer fills it in.
-   *
-   * A plain function rather than a nested component: a component declared inside
-   * this one is a new type on every render, which remounts the input and drops
-   * the caret every time a keystroke lands.
-   *
-   * `type` maps to the matching native input so the browser's own keyboard and
-   * validation help out (`tel`, `email`, `number`); SELECT falls back to a text
-   * input if the operator saved no options, because a dropdown with no choices
-   * asks nothing and cannot be answered.
-   */
   const renderQuestion = (question: PublicFormField) => {
     const value = answers[question.key] ?? "";
     const inputId = `answer-${question.key}`;
-
     const update = (next: string) =>
       setAnswers((current) => ({ ...current, [question.key]: next }));
-
     const shared = {
       id: inputId,
       name: inputId,
@@ -172,7 +136,6 @@ export default function CheckoutPage() {
       placeholder: question.placeholder ?? undefined,
       maxLength: MAX_ANSWER_LENGTH,
     };
-
     const inputType =
       question.type === "PHONE"
         ? "tel"
@@ -181,7 +144,6 @@ export default function CheckoutPage() {
           : question.type === "NUMBER"
             ? "number"
             : "text";
-
     return (
       <div className="form-group" key={question.key}>
         <label
@@ -190,7 +152,6 @@ export default function CheckoutPage() {
         >
           {question.label}
         </label>
-
         {question.type === "TEXTAREA" ? (
           <textarea {...shared} rows={4} onChange={(e) => update(e.target.value)} />
         ) : question.type === "SELECT" && question.options.length > 0 ? (
@@ -205,12 +166,10 @@ export default function CheckoutPage() {
         ) : (
           <input {...shared} type={inputType} onChange={(e) => update(e.target.value)} />
         )}
-
         {question.helpText && <span className="form-hint">{question.helpText}</span>}
       </div>
     );
   };
-
   if (items.length === 0) {
     return (
       <div className={`${glass.glassPage} ${styles.page}`}>
@@ -278,14 +237,12 @@ export default function CheckoutPage() {
       </div>
     );
   }
-
   return (
     <div className={`${glass.glassPage} ${styles.page}`}>
       <div className={glass.bg} aria-hidden="true" />
       <div className={glass.orb1} aria-hidden="true" />
       <div className={glass.orb2} aria-hidden="true" />
       <div className={glass.orb3} aria-hidden="true" />
-
       <div className={glass.content}>
         <nav className={glass.nav}>
           <div className={glass.navInner}>
@@ -299,12 +256,10 @@ export default function CheckoutPage() {
             </div>
           </div>
         </nav>
-
         <main style={{ flex: 1, maxWidth: "var(--max-w-6xl)", margin: "0 auto", width: "100%", padding: "var(--space-8) var(--space-6)" }}>
           <h1 className={glass.pageTitleEditorial} style={{ fontSize: "clamp(2rem, 4vw, 2.75rem)", textAlign: "left", marginBottom: "var(--space-6)" }}>
             Checkout
           </h1>
-
           <form onSubmit={handleOpenConfirmation} className={styles.layout}>
             <div className={styles.formSections}>
               <section className={styles.sectionCard}>
@@ -339,14 +294,12 @@ export default function CheckoutPage() {
                   </div>
                 </div>
               </section>
-
               {questions.length > 0 && (
                 <section className={styles.sectionCard}>
                   <h2 className={styles.sectionTitle}>2. Order Details</h2>
                   <div className={styles.grid}>{questions.map(renderQuestion)}</div>
                 </section>
               )}
-
               <section className={styles.sectionCard}>
                 <h2 className={styles.sectionTitle}>{paymentStep}. Payment &amp; shipping</h2>
                 <div className={styles.paymentInstructions}>
@@ -354,7 +307,6 @@ export default function CheckoutPage() {
                     <CustomCardIcon size={18} /> No payment taken now — order confirmation, payment, and delivery are arranged via Instagram DM.
                   </p>
                 </div>
-
                 {error && (
                   <div style={{ padding: "var(--space-3) var(--space-4)", background: "rgba(220,38,38,.15)", border: "1px solid rgba(248,113,113,.3)", borderRadius: "var(--radius-lg)", color: "#f87171", fontWeight: 500, marginTop: "var(--space-4)", display: "flex", alignItems: "center", gap: "8px" }}>
                     <CustomAlertIcon size={16} /> {error}
@@ -362,7 +314,6 @@ export default function CheckoutPage() {
                 )}
               </section>
             </div>
-
             <div className={styles.summarySidebar}>
               <div className={styles.summaryCard}>
                 <h2 className={styles.sectionTitle}>Order Summary</h2>
@@ -397,7 +348,6 @@ export default function CheckoutPage() {
               </div>
             </div>
           </form>
-
           {showConfirmModal && (
             <div
               className={styles.modalOverlay}
@@ -419,7 +369,6 @@ export default function CheckoutPage() {
                     Please review your details before final submission
                   </p>
                 </div>
-
                 <div className={styles.modalSection}>
                   <div className={styles.modalRow}>
                     <span className={styles.modalRowLabel}>Full Name</span>
@@ -434,7 +383,6 @@ export default function CheckoutPage() {
                     </span>
                   </div>
                 </div>
-
                 <div className={styles.modalSection}>
                   <div className={styles.modalRow}>
                     <span className={styles.modalRowLabel}>Pre-Order Items</span>
@@ -462,7 +410,6 @@ export default function CheckoutPage() {
                     <span className={styles.modalTotalAmount}>₱{subtotal.toLocaleString()}</span>
                   </div>
                 </div>
-
                 <div className={styles.modalNotice}>
                   No payment is charged right now. We will message{" "}
                   <strong style={{ color: "#ff8fa0" }}>
@@ -472,7 +419,6 @@ export default function CheckoutPage() {
                   </strong>{" "}
                   on Instagram to verify sizing, settle payment, and coordinate delivery.
                 </div>
-
                 {error && (
                   <div
                     style={{
@@ -490,7 +436,6 @@ export default function CheckoutPage() {
                     <CustomAlertIcon size={14} /> {error}
                   </div>
                 )}
-
                 <div className={styles.modalActions}>
                   <button
                     type="button"

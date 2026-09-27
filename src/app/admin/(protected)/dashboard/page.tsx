@@ -3,21 +3,6 @@ import Link from "next/link";
 import styles from "./dashboard.module.css";
 import { format } from "date-fns";
 import { describeEta } from "@/lib/batches";
-
-/**
- * The dashboard's job is to answer "what needs doing today?".
- *
- * It used to be a grid of counts. A count is not an instruction: "Payment Review
- * 7" tells the operator a number, not what to do about it. So the top of the page
- * is now an action list — one row per piece of outstanding work, each a link
- * into the exact filtered queue that resolves it — and the counters moved below
- * it, where they belong (they describe, they do not direct).
- *
- * There are no notifications in this system by design: there is no email, no
- * SMS, no push. This list is what replaces them, which is why it leads.
- */
-
-/** One outstanding thing, with the link that resolves it. */
 interface ActionItem {
   label: string;
   detail: string;
@@ -25,12 +10,10 @@ interface ActionItem {
   href: string;
   tone: "warn" | "info" | "success";
 }
-
 async function getStats() {
   const now = new Date();
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
-
   const [
     statusGroups, todayOrders, activeBatches, recentOrders,
     unpaidOrders, unpaidNewCustomers, dueBatches,
@@ -72,7 +55,6 @@ async function getStats() {
       select: { id: true, name: true, endAt: true, _count: { select: { orders: true } } },
     }),
   ]);
-
   let totalOrders = 0;
   let pendingOrders = 0;
   let paymentReview = 0;
@@ -80,20 +62,16 @@ async function getStats() {
   let completedOrders = 0;
   let confirmedRevenue = 0;
   let grossValue = 0;
-
   const confirmedStatuses = new Set(["CONFIRMED", "PROCESSING", "READY", "SHIPPED", "COMPLETED"]);
   const voidedStatuses = new Set(["CANCELLED", "REJECTED"]);
-
   for (const group of statusGroups) {
     const count = group._count.id;
     const sum = Number(group._sum.total ?? 0);
     totalOrders += count;
-
     if (group.status === "PENDING") pendingOrders = count;
     if (group.status === "PAYMENT_REVIEW") paymentReview = count;
     if (group.status === "CONFIRMED") confirmedOrders = count;
     if (group.status === "COMPLETED") completedOrders = count;
-
     if (confirmedStatuses.has(group.status)) {
       confirmedRevenue += sum;
     }
@@ -101,7 +79,6 @@ async function getStats() {
       grossValue += sum;
     }
   }
-
   return {
     totalOrders, todayOrders, pendingOrders, paymentReview,
     confirmedOrders, completedOrders, activeBatches,
@@ -111,7 +88,6 @@ async function getStats() {
     unpaidOrders, unpaidNewCustomers, dueBatches,
   };
 }
-
 const STATUS_BADGE: Record<string, string> = {
   PENDING: "badge-pending",
   AWAITING_PAYMENT: "badge-pending",
@@ -124,17 +100,8 @@ const STATUS_BADGE: Record<string, string> = {
   CANCELLED: "badge-cancelled",
   REJECTED: "badge-cancelled",
 };
-
 export default async function DashboardPage() {
   const stats = await getStats();
-
-  /**
-   * The action list.
-   *
-   * Items with nothing outstanding are dropped entirely rather than shown as
-   * zero: a page of zeros trains the operator to stop reading it. When every
-   * item is gone, that is the signal — and it is stated explicitly below.
-   */
   const allActions: ActionItem[] = [
     {
       label: "New orders awaiting approval",
@@ -151,18 +118,14 @@ export default async function DashboardPage() {
       tone: "info",
     },
   ];
-
   const actions = allActions.filter((action) => action.count > 0);
-
   return (
     <div>
       <h1 className="admin-page-title">Dashboard</h1>
-
       <div className={styles.section} style={{ marginTop: 0 }}>
         <div className={styles.sectionHeader}>
           <h2 className={styles.sectionTitle}>Needs your attention</h2>
         </div>
-
         {actions.length === 0 ? (
           <div className="card">
             <div className="card-body" style={{ textAlign: "center", padding: "var(--space-6)" }}>
@@ -208,7 +171,6 @@ export default async function DashboardPage() {
           </div>
         )}
       </div>
-
       {stats.dueBatches.length > 0 && (
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
@@ -240,7 +202,6 @@ export default async function DashboardPage() {
           </div>
         </div>
       )}
-
       <div className="stats-grid">
         <div className="stat-card">
           <p className="stat-label">Orders Today</p>
@@ -275,13 +236,11 @@ export default async function DashboardPage() {
           </p>
         </div>
       </div>
-
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <h2 className={styles.sectionTitle}>Recent Orders</h2>
           <Link href="/butigadmin/orders" className="btn btn-secondary btn-sm">View All</Link>
         </div>
-
         <div className="table-wrapper">
           <div className="table-scroll">
             <table className="data-table">
@@ -342,10 +301,7 @@ export default async function DashboardPage() {
                         )}
                       </td>
                       <td>
-                        {/* No "unbatched" branch: `Order.batchId` is required, so an
-                            order without a batch is not a state this data can be in.
-                            The warning badge that used to live here described a
-                            condition that could never appear. */}
+                        {}
                         {order.batch.name}
                       </td>
                       <td style={{ fontWeight: 600 }}>₱{Number(order.total).toLocaleString()}</td>

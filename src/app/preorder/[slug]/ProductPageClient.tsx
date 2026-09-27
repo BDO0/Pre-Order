@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useCartStore } from "@/store/cart";
@@ -8,7 +7,6 @@ import { CustomBagIcon, GarmentSilhouette } from "@/components/CustomerIcons";
 import { BrandLogo } from "@/components/BrandLogo";
 import glass from "@/app/glass.module.css";
 import styles from "./campaign.module.css";
-
 interface Variant {
   id: string;
   size: string | null;
@@ -19,7 +17,6 @@ interface Variant {
   remainingCapacity: number | null;
   active: boolean;
 }
-
 interface Product {
   id: string;
   name: string;
@@ -32,7 +29,6 @@ interface Product {
   preorderRemaining: number | null;
   variants: Variant[];
 }
-
 export interface Batch {
   id: string;
   name: string;
@@ -40,33 +36,26 @@ export interface Batch {
   status: string;
   endAt: string | null;
 }
-
 export default function ProductPageClient({ product, batch }: { product: Product; batch: Batch }) {
   const { addItem, getItemCount, setBatch, batchId } = useCartStore();
   const [mounted, setMounted] = useState(false);
-
   useEffect(() => {
     setMounted(true);
   }, []);
-
   useEffect(() => {
     if (batchId !== batch.id) {
       setBatch(batch.id, batch.slug);
     }
   }, [batch.id, batch.slug, batchId, setBatch]);
-
   const isClosed = batch.status === "CLOSED" || product.preorderStatus === "CLOSED" || product.preorderStatus === "SOLD_OUT";
   const isOrderable = !isClosed && product.preorderStatus === "OPEN";
   const itemCount = mounted ? getItemCount() : 0;
-
   const colors = [...new Set(product.variants.filter((v) => v.color).map((v) => v.color!))];
   const sizes = [...new Set(product.variants.filter((v) => v.size).map((v) => v.size!))];
-
   const [selectedColor, setSelectedColor] = useState<string | null>(colors[0] ?? null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
-
   const selectedVariant =
     (sizes.length > 0 && !selectedSize) || (colors.length > 0 && !selectedColor)
       ? null
@@ -75,7 +64,6 @@ export default function ProductPageClient({ product, batch }: { product: Product
             (colors.length === 0 || v.color === selectedColor) &&
             (sizes.length === 0 || v.size === selectedSize)
         ) ?? (colors.length === 0 && sizes.length === 0 ? product.variants[0] : null);
-
   const isVariantAvailable = (color: string | null, size: string | null) => {
     const v = product.variants.find(
       (v) =>
@@ -86,13 +74,11 @@ export default function ProductPageClient({ product, batch }: { product: Product
     if (v.remainingCapacity !== null && v.remainingCapacity <= 0) return false;
     return true;
   };
-
   const canAdd =
     isOrderable &&
     Boolean(selectedVariant) &&
     Boolean(selectedVariant?.active) &&
     (selectedVariant?.remainingCapacity === null || (selectedVariant?.remainingCapacity ?? 0) >= qty);
-
   const handleAdd = () => {
     if (!selectedVariant || !canAdd) return;
     addItem(
@@ -105,18 +91,15 @@ export default function ProductPageClient({ product, batch }: { product: Product
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };
-
   const effectivePrice = selectedVariant?.priceOverride
     ? Number(selectedVariant.priceOverride)
     : Number(product.price);
-
   return (
     <div className={`${glass.glassPage} ${styles.page}`}>
       <div className={glass.bg} />
       <div className={glass.orb1} />
       <div className={glass.orb2} />
       <div className={glass.orb3} />
-
       <div className={glass.content}>
         <nav className={glass.nav}>
           <div className={glass.navInner}>
@@ -149,12 +132,10 @@ export default function ProductPageClient({ product, batch }: { product: Product
             </div>
           </div>
         </nav>
-
         <main className={styles.mainContent}>
           <Link href="/" className={styles.backLink}>
             ← Back to Catalogue
           </Link>
-
           <div className={styles.productGrid}>
             <div className={styles.imageCard}>
               <div className={styles.imageWrap}>
@@ -171,7 +152,6 @@ export default function ProductPageClient({ product, batch }: { product: Product
                 )}
               </div>
             </div>
-
             <div className={styles.infoCol}>
               <div>
                 <div className={styles.badgeRow} style={{ marginBottom: "var(--space-3)" }}>
@@ -188,11 +168,9 @@ export default function ProductPageClient({ product, batch }: { product: Product
                   ₱{effectivePrice.toLocaleString()}
                 </p>
               </div>
-
               {product.description && (
                 <p className={styles.productDesc}>{product.description}</p>
               )}
-
               {!isOrderable ? (
                 <div
                   className={styles.formCard}
@@ -231,7 +209,6 @@ export default function ProductPageClient({ product, batch }: { product: Product
                       </div>
                     </div>
                   )}
-
                   {sizes.length > 0 && (
                     <div>
                       <div className={styles.fieldLabel}>
@@ -262,7 +239,6 @@ export default function ProductPageClient({ product, batch }: { product: Product
                       </div>
                     </div>
                   )}
-
                   <div>
                     <div className={styles.fieldLabel}>
                       <span>Quantity</span>
@@ -288,7 +264,6 @@ export default function ProductPageClient({ product, batch }: { product: Product
                       </button>
                     </div>
                   </div>
-
                   <button
                     id="confirm-add-to-order"
                     className={`${styles.submitBtn} ${added ? styles.addedBtn : ""}`}
@@ -303,7 +278,6 @@ export default function ProductPageClient({ product, batch }: { product: Product
                       ? "Select a Color to Pre-order"
                       : `Add to Order — ₱${(effectivePrice * qty).toLocaleString()}`}
                   </button>
-
                   {product.preorderRemaining !== null && (
                     <p className={styles.remainingText}>
                       Only {product.preorderRemaining} slots left in this batch!
@@ -314,7 +288,6 @@ export default function ProductPageClient({ product, batch }: { product: Product
             </div>
           </div>
         </main>
-
         <section style={{ maxWidth: "760px", margin: "var(--space-6) auto var(--space-16)", paddingInline: "var(--space-4)", position: "relative", zIndex: 1 }}>
           <div
             className={glass.glassCard}
@@ -371,7 +344,6 @@ export default function ProductPageClient({ product, batch }: { product: Product
             </a>
           </div>
         </section>
-
         {itemCount > 0 && (
           <div className={styles.floatingCart}>
             <Link href="/cart" className="btn btn-primary btn-lg btn-full">

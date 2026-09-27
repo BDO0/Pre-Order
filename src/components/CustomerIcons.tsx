@@ -1,11 +1,4 @@
 import React from "react";
-
-/**
- * Bespoke luxury SVG icons for customer-facing UI.
- * Replaces generic cartoon emojis and AI-styled sparkle markers with
- * elegant, high-craft atelier fashion vectors.
- */
-
 export function CustomBagIcon({
   size = 18,
   className = "",
@@ -35,7 +28,6 @@ export function CustomBagIcon({
     </svg>
   );
 }
-
 export function CustomHangerIcon({
   size = 24,
   className = "",
@@ -66,7 +58,6 @@ export function CustomHangerIcon({
     </svg>
   );
 }
-
 export function CustomDressIcon({
   size = 24,
   className = "",
@@ -96,7 +87,6 @@ export function CustomDressIcon({
     </svg>
   );
 }
-
 export function CustomTopIcon({
   size = 24,
   className = "",
@@ -125,7 +115,6 @@ export function CustomTopIcon({
     </svg>
   );
 }
-
 export function CustomJacketIcon({
   size = 24,
   className = "",
@@ -155,7 +144,6 @@ export function CustomJacketIcon({
     </svg>
   );
 }
-
 export function CustomPantsIcon({
   size = 24,
   className = "",
@@ -185,7 +173,6 @@ export function CustomPantsIcon({
     </svg>
   );
 }
-
 export function CustomCheckSealIcon({
   size = 48,
   className = "",
@@ -218,7 +205,6 @@ export function CustomCheckSealIcon({
     </svg>
   );
 }
-
 export function CustomCardIcon({
   size = 20,
   className = "",
@@ -248,7 +234,6 @@ export function CustomCardIcon({
     </svg>
   );
 }
-
 export function CustomAlertIcon({
   size = 18,
   className = "",
@@ -278,11 +263,6 @@ export function CustomAlertIcon({
     </svg>
   );
 }
-
-/**
- * Dynamically renders an atelier garment silhouette SVG based on
- * category or item name, replacing generic emoji placeholders.
- */
 export function GarmentSilhouette({
   category,
   name,
@@ -298,7 +278,6 @@ export function GarmentSilhouette({
 }) {
   const cat = (category || "").toLowerCase();
   const n = (name || "").toLowerCase();
-
   if (
     cat.includes("bottom") ||
     n.includes("pant") ||
