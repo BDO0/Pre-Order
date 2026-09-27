@@ -68,7 +68,8 @@ export default function StorefrontClient({
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [imgZoom, setImgZoom] = useState(1);
-  const MIN_ZOOM = 0.3;
+  const [imgFit, setImgFit] = useState<"cover" | "contain">("cover");
+  const MIN_ZOOM = 0.25;
   const MAX_ZOOM = 3;
   const ZOOM_STEP = 0.25;
 
@@ -80,6 +81,7 @@ export default function StorefrontClient({
     setQty(1);
     setAdded(false);
     setImgZoom(1);
+    setImgFit("cover");
     setHighlightPulse(true);
     setTimeout(() => setHighlightPulse(false), 800);
     if (autoScroll && typeof window !== "undefined" && window.innerWidth <= 960) {
@@ -276,8 +278,8 @@ export default function StorefrontClient({
                       style={{
                         transform: `scale(${imgZoom})`,
                         transformOrigin: "center center",
-                        transition: "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), object-fit 0s",
-                        objectFit: imgZoom < 1 ? "contain" : "cover",
+                        transition: "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+                        objectFit: imgFit,
                       }}
                     />
                     {activeProduct.images[0] && (
@@ -291,8 +293,16 @@ export default function StorefrontClient({
                       }}>
                         <button
                           type="button"
-                          onClick={() => setImgZoom((z) => Math.max(MIN_ZOOM, +(z - ZOOM_STEP).toFixed(2)))}
-                          disabled={imgZoom <= MIN_ZOOM}
+                          onClick={() => {
+                            if (imgFit === "cover") {
+                              // First zoom-out: switch to contain at scale 1 (full image, touching edges)
+                              setImgFit("contain");
+                            } else {
+                              // Already in contain mode: scale down
+                              setImgZoom((z) => Math.max(MIN_ZOOM, +(z - ZOOM_STEP).toFixed(2)));
+                            }
+                          }}
+                          disabled={imgFit === "contain" && imgZoom <= MIN_ZOOM}
                           aria-label="Zoom out"
                           style={{
                             width: "32px",
@@ -305,8 +315,8 @@ export default function StorefrontClient({
                             fontSize: "18px",
                             fontWeight: 700,
                             lineHeight: 1,
-                            cursor: imgZoom <= MIN_ZOOM ? "not-allowed" : "pointer",
-                            opacity: imgZoom <= MIN_ZOOM ? 0.35 : 1,
+                            cursor: (imgFit === "contain" && imgZoom <= MIN_ZOOM) ? "not-allowed" : "pointer",
+                            opacity: (imgFit === "contain" && imgZoom <= MIN_ZOOM) ? 0.35 : 1,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
@@ -316,8 +326,18 @@ export default function StorefrontClient({
                         >−</button>
                         <button
                           type="button"
-                          onClick={() => setImgZoom((z) => Math.min(MAX_ZOOM, +(z + ZOOM_STEP).toFixed(2)))}
-                          disabled={imgZoom >= MAX_ZOOM}
+                          onClick={() => {
+                            if (imgFit === "contain" && imgZoom <= 1) {
+                              // Going back to cover from the first zoom-out step
+                              setImgFit("cover");
+                              setImgZoom(1);
+                            } else if (imgFit === "contain") {
+                              setImgZoom((z) => Math.min(1, +(z + ZOOM_STEP).toFixed(2)));
+                            } else {
+                              setImgZoom((z) => Math.min(MAX_ZOOM, +(z + ZOOM_STEP).toFixed(2)));
+                            }
+                          }}
+                          disabled={imgFit === "cover" && imgZoom >= MAX_ZOOM}
                           aria-label="Zoom in"
                           style={{
                             width: "32px",
@@ -330,8 +350,8 @@ export default function StorefrontClient({
                             fontSize: "18px",
                             fontWeight: 700,
                             lineHeight: 1,
-                            cursor: imgZoom >= MAX_ZOOM ? "not-allowed" : "pointer",
-                            opacity: imgZoom >= MAX_ZOOM ? 0.35 : 1,
+                            cursor: (imgFit === "cover" && imgZoom >= MAX_ZOOM) ? "not-allowed" : "pointer",
+                            opacity: (imgFit === "cover" && imgZoom >= MAX_ZOOM) ? 0.35 : 1,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
