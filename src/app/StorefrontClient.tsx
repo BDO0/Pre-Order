@@ -68,7 +68,7 @@ export default function StorefrontClient({
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [imgZoom, setImgZoom] = useState(1);
-  const MIN_ZOOM = 1;
+  const MIN_ZOOM = 0.3;
   const MAX_ZOOM = 3;
   const ZOOM_STEP = 0.25;
 
