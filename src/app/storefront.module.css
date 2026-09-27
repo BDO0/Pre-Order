@@ -600,21 +600,10 @@
   align-items: stretch;
 }
 
-@media (max-width: 400px) {
+@media (max-width: 640px) {
   .actionRow {
-    flex-direction: column;
+    flex-direction: row;
     gap: var(--space-2);
-  }
-
-  .qtyBox {
-    align-self: flex-start;
-    width: 100%;
-    justify-content: center;
-  }
-
-  .addToOrderBtn {
-    width: 100%;
-    font-size: var(--text-sm);
   }
 }
 
@@ -634,6 +623,12 @@
     0 4px 14px rgba(0, 0, 0, 0.2);
 }
 
+@media (max-width: 640px) {
+  .qtyBox {
+    height: 48px;
+  }
+}
+
 .qtyBtn {
   width: 44px;
   height: 100%;
@@ -649,6 +644,13 @@
   transition: all 0.2s;
 }
 
+@media (max-width: 640px) {
+  .qtyBtn {
+    width: 32px;
+    font-size: var(--text-base);
+  }
+}
+
 .qtyBtn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.15);
   color: white;
@@ -660,6 +662,13 @@
   font-size: var(--text-base);
   font-weight: 700;
   color: white;
+}
+
+@media (max-width: 640px) {
+  .qtyVal {
+    min-width: 24px;
+    font-size: var(--text-sm);
+  }
 }
 
 /* High-Fashion Primary Add to Order Pill Button */
@@ -683,6 +692,15 @@
     0 8px 24px rgba(168, 16, 56, 0.45),
     inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.5);
   letter-spacing: 0.01em;
+}
+
+@media (max-width: 640px) {
+  .addToOrderBtn {
+    height: 48px;
+    font-size: 13px;
+    white-space: nowrap;
+    padding: 0 var(--space-2);
+  }
 }
 
 .addToOrderBtn:hover:not(:disabled) {
