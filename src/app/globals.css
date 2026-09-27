@@ -945,10 +945,6 @@ h1, h2, h3, h4, h5, h6 {
    ============================================================ */
 
 @media (max-width: 640px) {
-  .brand-logo-tagline {
-    display: none !important;
-  }
-
   .brand-logo-title {
     font-size: clamp(0.72rem, 3.4vw, 0.95rem) !important;
     letter-spacing: 0.08em !important;
