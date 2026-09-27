@@ -697,9 +697,11 @@
 @media (max-width: 640px) {
   .addToOrderBtn {
     height: 48px;
-    font-size: 13px;
-    white-space: nowrap;
+    font-size: clamp(11px, 3.5vw, 13px);
     padding: 0 var(--space-2);
+    min-width: 0;
+    line-height: 1.2;
+    text-align: center;
   }
 }
 
