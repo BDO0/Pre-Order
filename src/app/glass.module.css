@@ -1,0 +1,609 @@
+/* ================================================================
+   SHARED GLASS BACKGROUND & CRYSTAL DESIGN SYSTEM — Customer Pages
+   Royal Velvet Burgundy + Holographic Crystal Glass
+   ================================================================ */
+
+/* --- Root wrapper --- */
+.glassPage {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-x: hidden;
+  background: #140207;
+  color: #fff;
+}
+
+/* --- Animated Velvet Burgundy Layered Background --- */
+.bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 90% 70% at 15% 10%, rgba(168, 16, 56, 0.32) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 80% at 85% 85%, rgba(120, 10, 42, 0.38) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 60% at 50% 40%, rgba(70, 6, 24, 0.45) 0%, transparent 80%),
+    linear-gradient(165deg, #140207 0%, #220510 35%, #150209 70%, #1e040e 100%);
+}
+
+/* Luminous Ambient Glowing Orbs */
+.orb1 {
+  position: fixed;
+  top: -15%;
+  left: -8%;
+  width: 650px;
+  height: 650px;
+  background: radial-gradient(circle, rgba(220, 40, 85, 0.22) 0%, rgba(160, 20, 60, 0.08) 50%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(40px);
+  animation: orb1 14s ease-in-out infinite;
+}
+
+.orb2 {
+  position: fixed;
+  bottom: -20%;
+  right: -12%;
+  width: 850px;
+  height: 850px;
+  background: radial-gradient(circle, rgba(180, 20, 65, 0.2) 0%, rgba(130, 10, 45, 0.07) 50%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(50px);
+  animation: orb2 18s ease-in-out infinite;
+}
+
+.orb3 {
+  position: fixed;
+  top: 35%;
+  left: 55%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(255, 175, 200, 0.12) 0%, rgba(197, 160, 245, 0.08) 40%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(45px);
+  animation: orb3 22s ease-in-out infinite;
+}
+
+@keyframes orb1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(40px, 30px) scale(1.08); }
+  66%      { transform: translate(-30px, 45px) scale(0.94); }
+}
+
+@keyframes orb2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(-50px, -40px) scale(1.1); }
+}
+
+@keyframes orb3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  40%      { transform: translate(60px, -50px) scale(1.12); }
+  70%      { transform: translate(-40px, 30px) scale(0.92); }
+}
+
+/* --- Content layer --- */
+.content {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ================================================================
+   GLASS NAVBAR — Editorial Luxury
+   ================================================================ */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: rgba(20, 2, 7, 0.72);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border-bottom: 1px solid rgba(255, 220, 230, 0.12);
+  padding-block: 1rem;
+  box-shadow: 0 8px 36px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.navInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  max-width: var(--max-w-7xl);
+  margin-inline: auto;
+  padding-inline: var(--space-6);
+}
+
+.navBrand {
+  text-decoration: none;
+  transition: opacity 0.25s, transform 0.25s;
+  display: inline-flex;
+  align-items: center;
+}
+.navBrand:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* Tactile Frosted Pill Back Button */
+.navBack {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.55rem 1.25rem;
+  border-radius: var(--radius-full);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.4),
+    0 4px 16px rgba(0, 0, 0, 0.25);
+  text-decoration: none;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  min-height: 42px;
+}
+.navBack:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 200, 220, 0.45);
+  color: #fff;
+  transform: translateY(-1.5px);
+  box-shadow:
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.6),
+    0 8px 24px rgba(220, 40, 85, 0.3);
+}
+
+.navInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  max-width: var(--max-w-7xl);
+  margin-inline: auto;
+  padding-inline: var(--space-6);
+  overflow: hidden;
+}
+
+.navBrand {
+  text-decoration: none;
+  transition: opacity 0.25s, transform 0.25s;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+}
+
+.navBrand:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.navActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.navGhostBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.55rem 1.25rem;
+  border-radius: var(--radius-full);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.4),
+    0 4px 16px rgba(0, 0, 0, 0.25);
+  text-decoration: none;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.navGhostBtn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 200, 220, 0.45);
+  color: #fff;
+  transform: translateY(-1.5px);
+  box-shadow:
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.6),
+    0 8px 24px rgba(220, 40, 85, 0.3);
+}
+
+.navCartBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.55rem 1.35rem;
+  border-radius: var(--radius-full);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #a81038 0%, #800020 100%);
+  border: 1px solid rgba(255, 200, 220, 0.35);
+  box-shadow:
+    0 4px 20px rgba(168, 16, 56, 0.4),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45);
+  text-decoration: none;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.navCartBtn:hover {
+  background: linear-gradient(135deg, #c01442 0%, #940328 100%);
+  border-color: rgba(255, 220, 235, 0.6);
+  box-shadow:
+    0 6px 28px rgba(220, 40, 85, 0.55),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.65);
+  transform: translateY(-1.5px);
+  color: #fff;
+}
+
+/* ── Mobile Navbar Fixes (shared glass navbar) ── */
+@media (max-width: 640px) {
+  .nav {
+    padding-block: 0.55rem;
+  }
+
+  .navInner {
+    padding-inline: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .navActions {
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .navBack {
+    padding: 0.42rem 0.65rem;
+    font-size: 0.78rem;
+    min-height: 38px;
+    white-space: nowrap;
+  }
+
+  .navGhostBtn {
+    padding: 0.42rem 0.65rem;
+    font-size: 0.78rem;
+    min-height: 38px;
+  }
+
+  .navCartBtn {
+    padding: 0.42rem 0.75rem;
+    font-size: 0.78rem;
+    min-height: 38px;
+  }
+}
+
+@media (max-width: 480px) {
+  .navActions .mobileHideText {
+    display: none !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .navBack {
+    padding: 0.4rem 0.55rem;
+    font-size: 0.72rem;
+  }
+
+  .navGhostBtn {
+    padding: 0.4rem 0.55rem;
+    font-size: 0.72rem;
+  }
+
+  .navCartBtn {
+    padding: 0.4rem 0.55rem;
+    font-size: 0.72rem;
+  }
+}
+
+/* ================================================================
+   CRYSTAL GLASS CARD — Thick 3D Beveled Specular Highlights
+   ================================================================ */
+
+.glassCard {
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(32px) saturate(190%);
+  -webkit-backdrop-filter: blur(32px) saturate(190%);
+  border-radius: var(--radius-2xl);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.55),
+    0 4px 16px rgba(120, 10, 42, 0.25),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.42),
+    inset 0 -1px 1px 0 rgba(255, 255, 255, 0.08);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ================================================================
+   HOLOGRAPHIC PRISMATIC CARD / FRAME
+   ================================================================ */
+
+.holographicCard {
+  position: relative;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  border-radius: var(--radius-2xl);
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.6),
+    0 0 32px rgba(255, 175, 200, 0.15),
+    0 0 60px rgba(156, 232, 248, 0.1),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1px 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.holographicCard::before {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 190, 210, 0.8) 0%,
+    rgba(200, 180, 255, 0.7) 28%,
+    rgba(150, 235, 255, 0.75) 55%,
+    rgba(255, 230, 170, 0.8) 80%,
+    rgba(255, 190, 210, 0.8) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ================================================================
+   TACTILE FROSTED PILL CONTROLS
+   ================================================================ */
+
+.pillControl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1.25rem;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.35),
+    0 4px 12px rgba(0, 0, 0, 0.2);
+  color: rgba(255, 255, 255, 0.85);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.pillControl:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 210, 225, 0.4);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.pillControl.active {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 200, 220, 0.8);
+  color: #fff;
+  box-shadow:
+    0 0 18px rgba(255, 180, 205, 0.4),
+    0 0 32px rgba(156, 232, 248, 0.2),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* ================================================================
+   GLASS FORM INPUTS
+   ================================================================ */
+
+.glassPage .form-input,
+.glassPage input.form-input,
+.glassPage select.form-input,
+.glassPage textarea.form-input {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-xl);
+  color: #ffffff;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transition: all 0.25s ease;
+}
+
+.glassPage .form-input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.glassPage .form-input:focus {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 180, 205, 0.8);
+  box-shadow:
+    0 0 0 3px rgba(220, 40, 85, 0.25),
+    0 0 16px rgba(255, 180, 205, 0.25),
+    inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  outline: none;
+}
+
+.glassPage .form-label {
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  letter-spacing: 0.01em;
+}
+.glassPage .form-hint {
+  color: rgba(255, 255, 255, 0.78);
+}
+.glassPage .form-error {
+  color: #ff8095;
+  font-weight: 500;
+}
+
+/* ================================================================
+   GLASS BUTTONS
+   ================================================================ */
+
+.glassPage .btn-primary {
+  background: linear-gradient(135deg, #a81038 0%, #800020 50%, #5e0018 100%);
+  color: #ffffff;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 200, 220, 0.35);
+  box-shadow:
+    0 8px 24px rgba(168, 16, 56, 0.45),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.4);
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.glassPage .btn-primary:hover {
+  background: linear-gradient(135deg, #c01844 0%, #950026 50%, #6e001d 100%);
+  border-color: rgba(255, 220, 235, 0.6);
+  box-shadow:
+    0 12px 32px rgba(220, 40, 85, 0.55),
+    0 0 24px rgba(255, 180, 205, 0.3),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.6);
+  transform: translateY(-1.5px);
+}
+
+.glassPage .btn-secondary {
+  background: rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-full);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.35),
+    0 4px 16px rgba(0, 0, 0, 0.25);
+  font-weight: 600;
+  transition: all 0.25s ease;
+}
+.glassPage .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 210, 225, 0.45);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.glassPage .btn-ghost {
+  color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-full);
+  transition: all 0.2s ease;
+}
+.glassPage .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* ================================================================
+   EDITORIAL HEADINGS & LABELS
+   ================================================================ */
+
+.glassPage .page-title,
+.pageTitleEditorial {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  background: linear-gradient(135deg, #ffffff 0%, #ffeaf0 50%, #f7b4c4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.glassPage .page-subtitle {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: var(--text-base);
+}
+
+/* ================================================================
+   CRYSTAL GLASS BADGES
+   ================================================================ */
+
+.glassPage .badge-open {
+  background: rgba(34, 197, 94, 0.18);
+  color: #86efac;
+  border: 1px solid rgba(134, 239, 172, 0.35);
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-full);
+}
+.glassPage .badge-coming {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fde68a;
+  border: 1px solid rgba(253, 230, 138, 0.35);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-full);
+}
+.glassPage .badge-pending {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fde68a;
+  border: 1px solid rgba(253, 230, 138, 0.35);
+  border-radius: var(--radius-full);
+}
+.glassPage .badge-confirmed {
+  background: rgba(59, 130, 246, 0.2);
+  color: #bfdbfe;
+  border: 1px solid rgba(191, 219, 254, 0.35);
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.25);
+  border-radius: var(--radius-full);
+}
+.glassPage .badge-completed {
+  background: rgba(34, 197, 94, 0.18);
+  color: #86efac;
+  border: 1px solid rgba(134, 239, 172, 0.35);
+  border-radius: var(--radius-full);
+}
+.glassPage .badge-cancelled {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(252, 165, 165, 0.35);
+  border-radius: var(--radius-full);
+}
+.glassPage .badge-sold-out {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+  border: 1px solid rgba(252, 165, 165, 0.35);
+  border-radius: var(--radius-full);
+}
+.glassPage .badge-closed {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-full);
+}

@@ -1,0 +1,148 @@
+/**
+ * Client-Side Auto-Compression for Admin Image Uploads.
+ *
+ * Compresses images in the browser right when selected, before uploading:
+ * - Retains crystal-clear resolution (up to 2560px Ultra-HD, or exact original if smaller)
+ * - Uses high-quality canvas smoothing (bicubic interpolation)
+ * - Encodes to high-fidelity WebP at 88-90% quality
+ * - Reduces 8MB-15MB camera photos down to 300KB-800KB without visible quality loss
+ * - Prevents network timeouts, saves server storage, and avoids "File too large" errors
+ */
+
+export interface CompressionResult {
+  file: File;
+  originalBytes: number;
+  compressedBytes: number;
+  savingsPercent: number;
+  width: number;
+  height: number;
+  previewUrl: string;
+}
+
+export async function compressImageClient(
+  file: File,
+  options: {
+    maxDimension?: number;
+    quality?: number;
+  } = {}
+): Promise<CompressionResult> {
+  if (!file.type.startsWith("image/")) {
+    return {
+      file,
+      originalBytes: file.size,
+      compressedBytes: file.size,
+      savingsPercent: 0,
+      width: 0,
+      height: 0,
+      previewUrl: URL.createObjectURL(file),
+    };
+  }
+
+  const maxDimension = options.maxDimension ?? 2560; // Ultra-HD 2.5K limit for clothing texture
+  const quality = options.quality ?? 0.88; // 88% WebP is virtually indistinguishable from lossless
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onerror = () => reject(new Error("Failed to read image file"));
+
+    reader.onload = (e) => {
+      const img = new Image();
+
+      img.onerror = () => reject(new Error("Failed to decode image"));
+
+      img.onload = () => {
+        let { naturalWidth: width, naturalHeight: height } = img;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d", { alpha: true });
+        if (!ctx) {
+          return resolve({
+            file,
+            originalBytes: file.size,
+            compressedBytes: file.size,
+            savingsPercent: 0,
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+            previewUrl: URL.createObjectURL(file),
+          });
+        }
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const exportFormat = "image/webp";
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              return resolve({
+                file,
+                originalBytes: file.size,
+                compressedBytes: file.size,
+                savingsPercent: 0,
+                width,
+                height,
+                previewUrl: URL.createObjectURL(file),
+              });
+            }
+
+            const shouldUseCompressed = blob.size < file.size || file.type !== exportFormat;
+            const finalBlob = shouldUseCompressed ? blob : file;
+            const newFilename = file.name.replace(/\.[^.]+$/, ".webp");
+            const compressedFile = new File([finalBlob], newFilename, {
+              type: exportFormat,
+              lastModified: Date.now(),
+            });
+
+            const originalBytes = file.size;
+            const compressedBytes = compressedFile.size;
+            const savingsPercent = Math.max(
+              0,
+              Math.round(((originalBytes - compressedBytes) / originalBytes) * 100)
+            );
+
+            resolve({
+              file: compressedFile,
+              originalBytes,
+              compressedBytes,
+              savingsPercent,
+              width,
+              height,
+              previewUrl: URL.createObjectURL(compressedFile),
+            });
+          },
+          exportFormat,
+          quality
+        );
+      };
+
+      img.src = e.target?.result as string;
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+/** Formats byte sizes cleanly (e.g. "4.2 MB", "450 KB") */
+export function formatFileSize(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}

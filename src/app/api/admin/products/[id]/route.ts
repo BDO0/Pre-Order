@@ -38,7 +38,7 @@ export async function PATCH(
     if (!guard.ok) return guard.response;
 
     const { id } = await params;
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
     const parsed = productUpdateSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -58,20 +58,11 @@ export async function PATCH(
 
     const { variants, images, ...columns } = parsed.data;
 
-    // The whole edit in one transaction.
-    //
-    // The product row used to be written first and the variants second, so a
-    // failure in the variant half (Postgres refusing to delete a variant that an
-    // order refers to) answered with a 500 from a form whose name and price had
-    // in fact been saved. Neither half can land without the other now.
     const result = await prisma.$transaction(async (tx) => {
       const product = await tx.product.update({
         where: { id },
         data: {
           ...columns,
-          // Two names for one intent: `preorderEnabled` is what the storefront
-          // and the order service check, `preorderStatus` is what the operator
-          // sets. Only a status that was actually sent moves them.
           ...(columns.preorderStatus !== undefined
             ? { preorderEnabled: columns.preorderStatus !== "DISABLED" }
             : {}),
@@ -79,17 +70,9 @@ export async function PATCH(
         },
       });
 
-      // `undefined` means the screen did not send a variant list, which is not
-      // the same as sending an empty one. An empty list is honoured: it retires
-      // every variant, which is what "these are the sizes now" means when the
-      // operator has cleared the field.
       const variantChanges =
         variants === undefined ? null : await syncProductVariants(tx, id, variants);
 
-      // A product that belongs to no batch cannot be ordered at all, because the
-      // order service requires the join. Creating a product links it to the open
-      // batch; editing one did not, which is why the storefront page used to
-      // press the missing join in while a customer was reading it.
       const batchId = await ensureProductInOpenBatch(tx, id);
 
       await tx.auditLog.create({
@@ -119,8 +102,6 @@ export async function PATCH(
         { status: 400 }
       );
     }
-    // Renaming a product's slug onto another product's slug is the edit-screen
-    // version of the same collision the create route now reports as a 409.
     if (uniqueViolationTarget(error)?.includes("slug")) {
       return NextResponse.json(
         {
@@ -148,13 +129,11 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Check if product has ordered items
     const orderItemsCount = await prisma.orderItem.count({
       where: { variant: { productId: id } },
     });
 
     if (orderItemsCount > 0) {
-      // Soft-delete by setting active: false and preorderEnabled: false
       await prisma.product.update({
         where: { id },
         data: { active: false, preorderEnabled: false, preorderStatus: "DISABLED" },

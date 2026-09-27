@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { SITE_NAME } from "@/lib/site";
+import { BrandLogo } from "@/components/BrandLogo";
+import { CustomBagIcon } from "@/components/CustomerIcons";
 import styles from "./page.module.css";
 import StorefrontClient, { StorefrontProduct } from "./StorefrontClient";
 
@@ -69,8 +71,6 @@ async function getAvailableProducts(): Promise<{
     }
   }
 
-  // Fallback: If any active preorder-enabled products are not in an OPEN batch,
-  // associate them with the default batch so they can be viewed and pre-ordered.
   if (defaultBatch) {
     const allActive = await prisma.product.findMany({
       where: { active: true, preorderEnabled: true },
@@ -132,32 +132,32 @@ export default async function HomePage() {
   const { products, activeBatch } = await getAvailableProducts();
 
   return (
-    <main className={styles.home}>
-      <nav className="navbar">
-        <div className="container navbar-inner">
-          <Link href="/" className="navbar-brand">
-            {SITE_NAME}
-          </Link>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-            {/* The only public way back to an order for a customer who closed the
-                confirmation tab: `/order-status` takes the order number plus the
-                Instagram username it was placed with. Without this link the page
-                existed and nothing pointed at it. */}
-            <Link href="/order-status" className="btn btn-ghost btn-sm">
-              Track Order
+    <div className={styles.home}>
+      <div className={styles.bgGradient} aria-hidden="true" />
+      <div className={styles.bgOrb1} aria-hidden="true" />
+      <div className={styles.bgOrb2} aria-hidden="true" />
+      <div className={styles.bgOrb3} aria-hidden="true" />
+      <div className={styles.bgNoise} aria-hidden="true" />
+
+      <div className={styles.pageContent}>
+        <nav className={styles.glassNav}>
+          <div className={styles.glassNavInner}>
+            <Link href="/" className={styles.navBrand} aria-label={SITE_NAME}>
+              <BrandLogo variant="horizontal" height={34} />
             </Link>
-            <Link href="/cart" className="btn btn-secondary btn-sm" id="nav-cart-link">
-              🛒 View Cart
-            </Link>
+            <div className={styles.navActions}>
+              <Link href="/cart" className={styles.navCartBtn} id="nav-cart-link" aria-label="View Cart" title="View Cart">
+                <CustomBagIcon size={16} />
+                <span className={styles.navCartLabel}>Cart</span>
+              </Link>
+            </div>
           </div>
-        </div>
-      </nav>
-      <StorefrontClient
-        products={products}
-        campaignTitle={activeBatch?.name}
-        campaignDescription={activeBatch?.description}
-        campaignEndAt={activeBatch?.endAt}
-      />
-    </main>
+        </nav>
+
+        <main style={{ flex: 1 }}>
+          <StorefrontClient products={products} />
+        </main>
+      </div>
+    </div>
   );
 }

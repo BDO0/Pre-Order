@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import type { OrderStatus, PaymentStatus } from "@prisma/client";
+import { parseApiResponse } from "@/lib/api-client";
 
 /**
  * A row of the order queue, as `GET /api/admin/orders` returns it.
@@ -45,16 +46,9 @@ interface AdminOrderRow {
  * altogether, though the state machine can put an order there.
  */
 const STATUS_OPTIONS: { value: OrderStatus; label: string }[] = [
-  { value: "PENDING", label: "Pending" },
-  { value: "AWAITING_PAYMENT", label: "Awaiting Payment" },
-  { value: "PAYMENT_REVIEW", label: "Payment Review" },
-  { value: "CONFIRMED", label: "Confirmed" },
-  { value: "PROCESSING", label: "Processing" },
-  { value: "READY", label: "Ready for Pickup" },
-  { value: "SHIPPED", label: "Shipped" },
-  { value: "COMPLETED", label: "Completed" },
+  { value: "PENDING", label: "New Orders" },
+  { value: "CONFIRMED", label: "Accepted" },
   { value: "CANCELLED", label: "Cancelled" },
-  { value: "REJECTED", label: "Rejected" },
 ];
 
 export default function AdminOrdersPage() {
@@ -89,9 +83,72 @@ export default function AdminOrdersPage() {
   const paymentFilter = searchParams.get("paymentStatus") ?? "";
   const customerTypeFilter = searchParams.get("customerType") ?? "";
 
-  // The one filter that is not in the URL: a search box that wrote to the address
-  // bar on every keystroke would leave a history entry per letter.
   const [search, setSearch] = useState("");
+
+  const [notice, setNotice] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const flash = (message: string) => {
+    setNotice(message);
+    setActionError("");
+    setTimeout(() => setNotice(""), 4000);
+  };
+
+  const handleUpdateStatus = async (orderId: string, reference: string, newStatus: OrderStatus) => {
+    setActionLoading(orderId);
+    setActionError("");
+
+    const previousOrders = orders;
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)));
+    flash(`Order ${reference} marked as ${newStatus}.`);
+
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const { ok, error } = await parseApiResponse(res, "Failed to update order");
+      if (!ok) throw new Error(error || "Failed to update order");
+    } catch (err) {
+      setOrders(previousOrders);
+      setNotice("");
+      setActionError(err instanceof Error ? err.message : "Failed to update order");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleTogglePaid = async (orderId: string, reference: string, currentlyPaid: boolean) => {
+    const nextPaid = !currentlyPaid;
+    setActionLoading(orderId);
+    setActionError("");
+
+    const previousOrders = orders;
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId ? { ...o, paymentStatus: nextPaid ? "PAID" : "UNPAID" } : o
+      )
+    );
+    flash(`Order ${reference} marked as ${nextPaid ? "PAID" : "UNPAID"}.`);
+
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/payment`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paid: nextPaid }),
+      });
+      const { ok, error } = await parseApiResponse(res, "Failed to update payment");
+      if (!ok) throw new Error(error || "Failed to update payment");
+    } catch (err) {
+      setOrders(previousOrders);
+      setNotice("");
+      setActionError(err instanceof Error ? err.message : "Failed to update payment");
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   /** Puts one filter in the URL, where the other four already live. */
   const setFilter = (key: string, value: string) => {
@@ -99,8 +156,6 @@ export default function AdminOrdersPage() {
     if (value) params.set(key, value);
     else params.delete(key);
     const query = params.toString();
-    // Page 1, because the old page number belonged to a longer list: filtering a
-    // queue down and still being on page 3 shows an empty table.
     setPage(1);
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
@@ -111,27 +166,19 @@ export default function AdminOrdersPage() {
     router.replace(pathname, { scroll: false });
   };
 
-  // What the banner says the table is showing. The status filter was missing from
-  // it, so a queue narrowed to Pending still read as unfiltered.
   const filterDescriptions: string[] = [];
   if (statusFilter) {
     const option = STATUS_OPTIONS.find((entry) => entry.value === statusFilter);
     filterDescriptions.push(option ? option.label : statusFilter);
   }
   if (batchFilter) {
-    // Always "in one batch": an order with no batch is not a state the database
-    // allows (`Order.batchId` is required), so there is no other phrasing to pick.
     filterDescriptions.push("in one batch");
   }
   if (paymentFilter) filterDescriptions.push(paymentFilter === "UNPAID" ? "unpaid" : "paid");
   if (customerTypeFilter === "new") filterDescriptions.push("first-time customers");
 
-  // The search box counts too, or a search could not be cleared once the address
-  // bar had been emptied of everything else.
   const hasFilters = filterDescriptions.length > 0 || Boolean(search);
 
-  // The export must carry the same filters the table is showing, or the file
-  // would silently disagree with the screen it was downloaded from.
   const exportHref = (() => {
     const params = new URLSearchParams();
     if (batchFilter) params.set("batchId", batchFilter);
@@ -142,17 +189,6 @@ export default function AdminOrdersPage() {
     return `/api/admin/orders/export${query ? `?${query}` : ""}`;
   })();
 
-  // The queue is loaded from inside the effect, where its inputs live: every
-  // filter that goes into the query is a dependency, so the loader is re-created
-  // and re-run exactly when one of them changes, and nothing has to be silenced
-  // to keep the linter happy.
-  //
-  // `loading` is not set back to `true` on a re-fetch. It starts `true`, so the
-  // first paint still says "Loading…", and a filter change keeps the previous
-  // rows on screen for the moment it takes to answer — steadier than throwing
-  // the table away on every keystroke, and it keeps the only state write out of
-  // the synchronous part of the effect, which is the cascading render React
-  // warns about.
   useEffect(() => {
     const fetchOrders = async () => {
       try {
@@ -166,10 +202,10 @@ export default function AdminOrdersPage() {
           ...(customerTypeFilter && { customerType: customerTypeFilter }),
         });
         const res = await fetch(`/api/admin/orders?${params}`);
-        const json = await res.json();
-        if (res.ok) {
-          setOrders(json.data.orders);
-          setTotalPages(json.data.pagination.totalPages);
+        const { ok, data } = await parseApiResponse(res);
+        if (ok && data) {
+          setOrders(data.orders);
+          setTotalPages(data.pagination.totalPages);
         }
       } catch (e) {
         console.error(e);
@@ -202,9 +238,20 @@ export default function AdminOrdersPage() {
       <div className="admin-page-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span>Orders</span>
         <a href={exportHref} className="btn btn-secondary btn-sm">
-          ⬇ Export CSV
+          Export CSV
         </a>
       </div>
+
+      {notice && (
+        <div style={{ padding: "var(--space-3) var(--space-4)", background: "rgb(22 163 74 / 0.08)", border: "1px solid rgb(22 163 74 / 0.3)", borderRadius: "var(--radius-lg)", color: "var(--color-success)", fontWeight: 500, marginBottom: "var(--space-4)" }}>
+          {notice}
+        </div>
+      )}
+      {actionError && (
+        <div role="alert" style={{ padding: "var(--space-3) var(--space-4)", background: "rgb(220 38 38 / 0.08)", border: "1px solid rgb(220 38 38 / 0.3)", borderRadius: "var(--radius-lg)", color: "var(--color-error)", fontWeight: 500, marginBottom: "var(--space-4)" }}>
+          {actionError}
+        </div>
+      )}
 
       {hasFilters && (
         <p style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-600)", marginBottom: "var(--space-3)" }}>
@@ -215,18 +262,18 @@ export default function AdminOrdersPage() {
         </p>
       )}
 
-      <div style={{ display: "flex", gap: "var(--space-4)", marginBottom: "var(--space-6)" }}>
+      <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-6)", flexWrap: "wrap" }}>
         <input
           type="text"
-          placeholder="Search by reference, name, or Instagram handle..."
+          placeholder="Search by customer name, Instagram handle, or reference..."
           className="form-input"
-          style={{ maxWidth: "400px" }}
+          style={{ flex: "1 1 240px", maxWidth: "420px" }}
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(1); }}
         />
         <select
           className="form-input"
-          style={{ maxWidth: "200px" }}
+          style={{ flex: "0 1 180px", minWidth: "140px" }}
           value={statusFilter}
           onChange={(e) => setFilter("status", e.target.value)}
           aria-label="Filter by order status"
@@ -243,13 +290,12 @@ export default function AdminOrdersPage() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Reference</th>
                 <th>Customer</th>
+                <th>Reference</th>
                 <th>Batch / Drop</th>
                 <th>Items</th>
                 <th>Total</th>
                 <th>Payment</th>
-                <th>Status</th>
                 <th>Date</th>
                 <th></th>
               </tr>
@@ -274,25 +320,41 @@ export default function AdminOrdersPage() {
 
                 return (
                   <tr key={order.id}>
-                    <td style={{ fontWeight: 700, fontFamily: "var(--font-display)" }}>
-                      {order.reference}
-                      {order.isPossibleDuplicate && <span style={{ color: "var(--color-warning)", marginLeft: "4px" }} title="Possible duplicate">⚠</span>}
-                    </td>
                     <td>
                       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                        <span style={{ fontWeight: 600, color: "var(--color-neutral-900)" }}>{snapshot.fullName}</span>
-                        {/* OG vs NEW decides the tone of the DM: a first-timer
-                            needs the payment conversation, a regular usually does not. */}
-                        <span
-                          className={`badge ${order.isNewCustomer ? "badge-coming" : "badge-confirmed"}`}
-                          title={order.isNewCustomer ? "First order from this account" : "Has ordered before"}
+                        <Link
+                          href={`/admin/orders/${order.id}`}
+                          style={{
+                            fontSize: "var(--text-lg)",
+                            fontWeight: 700,
+                            color: "var(--color-neutral-900)",
+                            textDecoration: "none",
+                            lineHeight: 1.3,
+                          }}
                         >
-                          {order.isNewCustomer ? "NEW" : "OG"}
-                        </span>
+                          {snapshot.fullName || "—"}
+                        </Link>
                       </div>
-                      <div style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)" }}>
+                      <div style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)", marginTop: "2px" }}>
                         {handle ? `@${handle}` : "no Instagram handle"}
                       </div>
+                    </td>
+                    <td>
+                      <span
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          fontSize: "var(--text-xs)",
+                          color: "var(--color-neutral-600)",
+                          background: "var(--color-neutral-100)",
+                          padding: "2px 7px",
+                          borderRadius: "var(--radius-sm)",
+                          fontWeight: 500,
+                          letterSpacing: "0.02em",
+                        }}
+                      >
+                        {order.reference}
+                      </span>
+                      {order.isPossibleDuplicate && <span style={{ color: "var(--color-warning)", fontSize: "11px", marginLeft: "4px" }} title="Possible duplicate">Duplicate</span>}
                     </td>
                     <td>
                       {/* No "unassigned" branch: `Order.batchId` is required, so every
@@ -304,20 +366,70 @@ export default function AdminOrdersPage() {
                     <td>{itemCount} item{itemCount !== 1 ? 's' : ''}</td>
                     <td style={{ fontWeight: 600 }}>₱{Number(order.total).toLocaleString()}</td>
                     <td>
-                      <span className={`badge ${isPaid ? "badge-confirmed" : "badge-pending"}`}>
-                        {isPaid ? "PAID" : "UNPAID"}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={getStatusBadge(order.status)}>
-                        {order.status.replace(/_/g, " ")}
-                      </span>
+                      {order.status === "PENDING" ? (
+                        <span className="badge" style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d", fontWeight: 700 }}>
+                          Waiting
+                        </span>
+                      ) : (
+                        <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={isPaid}
+                            disabled={actionLoading === order.id || ["CANCELLED", "REJECTED"].includes(order.status)}
+                            onChange={() => handleTogglePaid(order.id, order.reference, isPaid)}
+                            style={{ accentColor: "var(--color-brand-600)", width: "16px", height: "16px" }}
+                          />
+                          <span
+                            className="badge"
+                            style={{
+                              background: isPaid ? "#dcfce7" : "#fee2e2",
+                              color: isPaid ? "#14532d" : "#991b1b",
+                              border: isPaid ? "1px solid #86efac" : "1px solid #fca5a5",
+                              fontWeight: 700,
+                              fontSize: "12px",
+                              padding: "2px 8px",
+                            }}
+                          >
+                            {isPaid ? "PAID" : "UNPAID"}
+                          </span>
+                        </label>
+                      )}
                     </td>
                     <td style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)" }}>
                       {format(new Date(order.createdAt), "MMM d, yyyy h:mm a")}
                     </td>
                     <td>
-                      <Link href={`/admin/orders/${order.id}`} className="btn btn-ghost btn-sm">View</Link>
+                      <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", justifyContent: "flex-end" }}>
+                        {order.status === "PENDING" && (
+                          <>
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              style={{ whiteSpace: "nowrap" }}
+                              disabled={actionLoading === order.id}
+                              onClick={() => handleUpdateStatus(order.id, order.reference, "CONFIRMED")}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              style={{ color: "var(--color-error)" }}
+                              disabled={actionLoading === order.id}
+                              onClick={() => {
+                                if (window.confirm("Cancel this order? Stock will be returned.")) {
+                                  handleUpdateStatus(order.id, order.reference, "CANCELLED");
+                                }
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        )}
+                        <Link href={`/admin/orders/${order.id}`} className="btn btn-ghost btn-sm">
+                          View
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -327,7 +439,6 @@ export default function AdminOrdersPage() {
         </div>
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div style={{ display: "flex", justifyContent: "center", gap: "var(--space-2)", marginTop: "var(--space-6)" }}>
           <button 

@@ -6,8 +6,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { INSTAGRAM_HANDLE_HINT } from "@/lib/instagram";
 import { SHOP_INSTAGRAM_HANDLE, SITE_NAME } from "@/lib/site";
+import { BrandLogo } from "@/components/BrandLogo";
 import { MAX_ANSWER_LENGTH, type PublicFormField } from "@/lib/order-answers";
+import { CustomBagIcon, CustomCardIcon, CustomAlertIcon } from "@/components/CustomerIcons";
+import { parseApiResponse } from "@/lib/api-client";
 import styles from "./checkout.module.css";
+import glass from "../glass.module.css";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -15,24 +19,14 @@ export default function CheckoutPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const [fullName, setFullName] = useState("");
   const [instagramHandle, setInstagramHandle] = useState("");
 
-  // The operator-defined questions, and the customer's answers to them.
-  //
-  // `questions` starts empty, and an empty list is a fully working state: a shop
-  // that has defined no questions shows none and checks out exactly as it did
-  // before any of this existed.
   const [questions, setQuestions] = useState<PublicFormField[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  // Tracked separately from `questions.length` so "there are none" and "we never
-  // managed to ask" cannot be confused — the second blocks the order, because a
-  // required question the customer cannot see is a rejection they cannot fix.
   const [questionsFailed, setQuestionsFailed] = useState(false);
-
-  // State for confirmation modal
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
     if (items.length === 0) {
@@ -40,22 +34,18 @@ export default function CheckoutPage() {
     }
   }, [items, router]);
 
-  // Fetched on the client rather than rendered on the server: this page is a
-  // client component driven by the cart store, so there is nothing to render
-  // before hydration anyway, and a slow or unhappy endpoint delays one section
-  // instead of the whole page.
   useEffect(() => {
     let cancelled = false;
 
     fetch("/api/form-fields")
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
-      .then((json) => {
+      .then((res) => parseApiResponse<PublicFormField[]>(res))
+      .then(({ ok, data }) => {
         if (cancelled) return;
-        if (!json?.success || !Array.isArray(json.data)) {
+        if (!ok || !Array.isArray(data)) {
           setQuestionsFailed(true);
           return;
         }
-        setQuestions(json.data as PublicFormField[]);
+        setQuestions(data);
       })
       .catch(() => {
         if (!cancelled) setQuestionsFailed(true);
@@ -66,27 +56,15 @@ export default function CheckoutPage() {
     };
   }, []);
 
-  // Checked here so a missing answer is a sentence next to the button rather
-  // than a round trip that ends in a generic error. The server enforces the same
-  // rule against the field definitions it actually holds, which is what makes
-  // this convenience rather than the guard.
   const missingRequired = questions.filter(
     (question) => question.required && !(answers[question.key] ?? "").trim()
   );
 
-  /** The questions the customer actually filled in, for the confirmation modal. */
-  const answeredQuestions = questions.filter(
-    (question) => (answers[question.key] ?? "").trim() !== ""
-  );
-
-  // The questions section is only numbered when it is on screen: a constant
-  // "2." would leave the payment section reading "3." with nothing above it in
-  // a shop that asks no questions at all.
   const paymentStep = questions.length > 0 ? 3 : 2;
 
   const subtotal = getSubtotal();
 
-  const handlePreSubmit = (e: React.FormEvent) => {
+  const handleOpenConfirmation = (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !instagramHandle.trim()) {
       setError("Please fill in all required details.");
@@ -105,11 +83,12 @@ export default function CheckoutPage() {
       );
       return;
     }
+
     setError(null);
     setShowConfirmModal(true);
   };
 
-  const handleConfirmSubmit = async () => {
+  const handleConfirmOrder = async () => {
     setLoading(true);
     setError(null);
 
@@ -125,10 +104,6 @@ export default function CheckoutPage() {
           fullName,
           instagramHandle,
         },
-        // Every question, answered or not. The server is what decides which ones
-        // mattered, and it can only say "this one is required" about a question
-        // it was actually sent; a blank answer to an optional one is dropped
-        // there rather than stored as an empty string.
         answers: questions.map((question) => ({
           fieldId: question.key,
           value: (answers[question.key] ?? "").trim(),
@@ -141,25 +116,22 @@ export default function CheckoutPage() {
         body: JSON.stringify(orderPayload),
       });
 
-      const orderJson = await orderRes.json();
+      const { ok, data: orderData, error: orderErr } = await parseApiResponse(
+        orderRes,
+        "We could not place your order. Please try again."
+      );
 
-      if (!orderRes.ok) {
+      if (!ok || !orderData) {
         throw new Error(
-          orderJson.error?.message ||
-          "We could not place your order. Please try again."
+          orderErr || "We could not place your order. Please try again."
         );
       }
 
       clearCart();
-      setShowConfirmModal(false);
 
-      // Only carry the token when there is one. `URLSearchParams` writes the
-      // literal string "undefined" for an absent value, which turned the link
-      // on the very next screen into `/order-status?token=undefined` — a broken
-      // link that looked like a bug rather than like an untracked order.
-      const params = new URLSearchParams({ ref: orderJson.data.reference });
-      if (typeof orderJson.data.accessToken === "string" && orderJson.data.accessToken) {
-        params.set("token", orderJson.data.accessToken);
+      const params = new URLSearchParams({ ref: orderData.reference });
+      if (typeof orderData.accessToken === "string" && orderData.accessToken) {
+        params.set("token", orderData.accessToken);
       }
       router.push(`/order-success?${params.toString()}`);
     } catch (err) {
@@ -239,201 +211,310 @@ export default function CheckoutPage() {
     );
   };
 
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return (
+      <div className={`${glass.glassPage} ${styles.page}`}>
+        <div className={glass.bg} aria-hidden="true" />
+        <div className={glass.orb1} aria-hidden="true" />
+        <div className={glass.orb2} aria-hidden="true" />
+        <div className={glass.orb3} aria-hidden="true" />
+        <div className={glass.content}>
+          <nav className={glass.nav}>
+            <div className={glass.navInner}>
+              <Link href="/" className={glass.navBrand} aria-label={SITE_NAME}>
+                <BrandLogo variant="horizontal" height={34} />
+              </Link>
+              <div className={glass.navActions}>
+                <Link href="/" className={glass.navGhostBtn} aria-label="Back to Shop">
+                  ← <span className={glass.mobileHideText}>Back to </span>Shop
+                </Link>
+              </div>
+            </div>
+          </nav>
+          <main style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "var(--space-8) var(--space-4)" }}>
+            <div
+              className={glass.glassCard}
+              style={{
+                padding: "clamp(var(--space-6), 5vw, var(--space-10)) clamp(var(--space-4), 4vw, var(--space-8))",
+                maxWidth: "460px",
+                width: "100%",
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "var(--space-3)",
+              }}
+            >
+              <div
+                style={{
+                  width: "80px",
+                  height: "80px",
+                  borderRadius: "50%",
+                  background: "radial-gradient(circle, rgba(168, 16, 56, 0.3) 0%, rgba(20, 2, 7, 0.7) 100%)",
+                  border: "1px solid rgba(255, 200, 220, 0.3)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "rgba(255, 255, 255, 0.9)",
+                  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4), 0 0 20px rgba(220, 40, 85, 0.25)",
+                  marginBottom: "var(--space-2)",
+                }}
+                aria-hidden="true"
+              >
+                <CustomBagIcon size={38} />
+              </div>
+              <h2 className={glass.pageTitleEditorial} style={{ fontSize: "1.75rem", margin: 0 }}>Your cart is empty</h2>
+              <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "var(--text-sm)", margin: 0 }}>You don&apos;t have any items to check out.</p>
+              <Link
+                href="/"
+                className="btn btn-primary btn-lg"
+                style={{ marginTop: "var(--space-5)", display: "inline-flex", alignItems: "center", gap: "var(--space-2)" }}
+              >
+                ← Back to Shop
+              </Link>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className={styles.page}>
-      <nav className="navbar">
-        <div className="container navbar-inner">
-          <Link href="/" className="navbar-brand">{SITE_NAME}</Link>
-          <Link href="/cart" className="btn btn-ghost btn-sm">← Back to Cart</Link>
-        </div>
-      </nav>
+    <div className={`${glass.glassPage} ${styles.page}`}>
+      <div className={glass.bg} aria-hidden="true" />
+      <div className={glass.orb1} aria-hidden="true" />
+      <div className={glass.orb2} aria-hidden="true" />
+      <div className={glass.orb3} aria-hidden="true" />
 
-      <main className="container" style={{ paddingBlock: "var(--space-8)" }}>
-        <h1 className="page-title" style={{ textAlign: "left", marginBottom: "var(--space-6)" }}>
-          Checkout
-        </h1>
+      <div className={glass.content}>
+        <nav className={glass.nav}>
+          <div className={glass.navInner}>
+            <Link href="/" className={glass.navBrand} aria-label={SITE_NAME}>
+              <BrandLogo variant="horizontal" height={34} />
+            </Link>
+            <div className={glass.navActions}>
+              <Link href="/cart" className={glass.navGhostBtn} aria-label="Back to Cart">
+                ← <span className={glass.mobileHideText}>Back to </span>Cart
+              </Link>
+            </div>
+          </div>
+        </nav>
 
-        <form onSubmit={handlePreSubmit} className={styles.layout}>
-          <div className={styles.formSections}>
-            {/* Identity */}
-            <section className={styles.sectionCard}>
-              <h2 className={styles.sectionTitle}>1. Who are you?</h2>
-              <p style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-500)", marginBottom: "var(--space-5)" }}>
-                Your name and your Instagram account, plus anything else we ask for
-                below. Sizing, payment and delivery are all settled in Instagram DM.
-              </p>
-              <div className={styles.grid}>
-                <div className="form-group">
-                  <label className="form-label form-label-required">Full Name</label>
-                  <input
-                    required
-                    name="fullName"
-                    className="form-input"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Juan dela Cruz"
-                    autoComplete="name"
-                    maxLength={120}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label form-label-required">Instagram Username</label>
-                  <input
-                    required
-                    name="instagramHandle"
-                    className="form-input"
-                    value={instagramHandle}
-                    onChange={(e) => setInstagramHandle(e.target.value)}
-                    placeholder="@juandc"
-                    autoComplete="username"
-                    maxLength={60}
-                  />
-                  <span className="form-hint">{INSTAGRAM_HANDLE_HINT}</span>
-                </div>
-              </div>
-            </section>
+        <main style={{ flex: 1, maxWidth: "var(--max-w-6xl)", margin: "0 auto", width: "100%", padding: "var(--space-8) var(--space-6)" }}>
+          <h1 className={glass.pageTitleEditorial} style={{ fontSize: "clamp(2rem, 4vw, 2.75rem)", textAlign: "left", marginBottom: "var(--space-6)" }}>
+            Checkout
+          </h1>
 
-            {questions.length > 0 && (
+          <form onSubmit={handleOpenConfirmation} className={styles.layout}>
+            <div className={styles.formSections}>
               <section className={styles.sectionCard}>
-                <h2 className={styles.sectionTitle}>2. A few details we need</h2>
-                <p
-                  style={{
-                    fontSize: "var(--text-sm)",
-                    color: "var(--color-neutral-500)",
-                    marginBottom: "var(--space-5)",
-                  }}
-                >
-                  We ask these before we can pack your order. Anything we still need
-                  after this, we will sort out with you in DM.
-                </p>
-                <div className={styles.grid}>{questions.map(renderQuestion)}</div>
-              </section>
-            )}
-
-            <section className={styles.sectionCard}>
-              <h2 className={styles.sectionTitle}>{paymentStep}. Payment &amp; shipping</h2>
-              <div className={styles.paymentInstructions}>
-                <p>
-                  <strong>Everything is settled on Instagram.</strong>
-                </p>
-                <p style={{ marginTop: "var(--space-2)" }}>
-                  Message us at <strong>@{SHOP_INSTAGRAM_HANDLE}</strong> (or reply to our DM) to arrange
-                  payment and delivery. Your order is only reserved once we have confirmed it
-                  with you, and your order number is on the next screen.
-                </p>
-              </div>
-
-              {error && (
-                <div style={{ padding: "var(--space-3) var(--space-4)", background: "rgb(220 38 38 / 0.08)", border: "1px solid rgb(220 38 38 / 0.3)", borderRadius: "var(--radius-lg)", color: "var(--color-error)", fontWeight: 500, marginTop: "var(--space-4)" }}>
-                  ⚠ {error}
-                </div>
-              )}
-            </section>
-          </div>
-
-          {/* Order Summary */}
-          <div className={styles.summarySidebar}>
-            <div className={styles.summaryCard}>
-              <h2 className={styles.sectionTitle}>Order Summary</h2>
-              <div className={styles.itemsList}>
-                {items.map((item) => (
-                  <div key={item.id} className={styles.summaryItem}>
-                    <div className={styles.summaryItemQty}>{item.quantity}×</div>
-                    <div className={styles.summaryItemName}>
-                      {item.product.name}
-                      <span className={styles.summaryItemVariant}>
-                        {[item.variant.color, item.variant.size].filter(Boolean).join(" / ")}
-                      </span>
-                    </div>
-                    <div className={styles.summaryItemPrice}>
-                      ₱{(item.unitPrice * item.quantity).toLocaleString()}
-                    </div>
+                <h2 className={styles.sectionTitle}>1. Contact Details</h2>
+                <div className={styles.grid}>
+                  <div className="form-group">
+                    <label className="form-label form-label-required">Full Name</label>
+                    <input
+                      required
+                      name="fullName"
+                      className="form-input"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Juan dela Cruz"
+                      autoComplete="name"
+                      maxLength={120}
+                    />
                   </div>
-                ))}
-              </div>
-              <div className={styles.summaryTotals}>
-                <div className={`${styles.summaryRow} ${styles.summaryGrandTotal}`}>
-                  <span>Total</span><span>₱{subtotal.toLocaleString()}</span>
+                  <div className="form-group">
+                    <label className="form-label form-label-required">Instagram Username</label>
+                    <input
+                      required
+                      name="instagramHandle"
+                      className="form-input"
+                      value={instagramHandle}
+                      onChange={(e) => setInstagramHandle(e.target.value)}
+                      placeholder="@juandc"
+                      autoComplete="username"
+                      maxLength={60}
+                    />
+                    <span className="form-hint">{INSTAGRAM_HANDLE_HINT}</span>
+                  </div>
                 </div>
-              </div>
-              <button type="submit" disabled={loading}
-                className="btn btn-primary btn-full btn-lg" style={{ marginTop: "var(--space-5)" }}>
-                Place Pre-Order
-              </button>
-              <p style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)", marginTop: "var(--space-3)", textAlign: "center" }}>
-                No payment is taken now.
-              </p>
-            </div>
-          </div>
-        </form>
+              </section>
 
-        {/* Confirmation Modal */}
-        {showConfirmModal && (
-          <div style={{
-            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 1000,
-            padding: "var(--space-4)"
-          }}>
-            <div style={{
-              background: "white", padding: "var(--space-6)", borderRadius: "var(--radius-xl)",
-              maxWidth: "500px", width: "100%", boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)"
-            }}>
-              <h2 style={{ fontSize: "var(--text-xl)", fontWeight: 700, marginBottom: "var(--space-4)", color: "var(--color-neutral-900)" }}>
-                Confirm Your Pre-Order
-              </h2>
-              
-              <div style={{ marginBottom: "var(--space-4)" }}>
-                <h3 style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-neutral-500)", marginBottom: "var(--space-2)" }}>Your Details</h3>
-                <p><strong>Name:</strong> {fullName}</p>
-                <p><strong>Instagram:</strong> {instagramHandle}</p>
-                {answeredQuestions.map((question) => (
-                  <p key={question.key}>
-                    <strong>{question.label}:</strong> {(answers[question.key] ?? "").trim()}
+              {questions.length > 0 && (
+                <section className={styles.sectionCard}>
+                  <h2 className={styles.sectionTitle}>2. Order Details</h2>
+                  <div className={styles.grid}>{questions.map(renderQuestion)}</div>
+                </section>
+              )}
+
+              <section className={styles.sectionCard}>
+                <h2 className={styles.sectionTitle}>{paymentStep}. Payment &amp; shipping</h2>
+                <div className={styles.paymentInstructions}>
+                  <p style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "white", display: "inline-flex", alignItems: "center", gap: "8px", margin: 0 }}>
+                    <CustomCardIcon size={18} /> No payment taken now — order confirmation, payment, and delivery are arranged via Instagram DM.
                   </p>
-                ))}
-              </div>
-              
-              <div style={{ marginBottom: "var(--space-6)" }}>
-                <h3 style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-neutral-500)", marginBottom: "var(--space-2)" }}>Your Order</h3>
-                <ul style={{ listStyle: "none", padding: 0, margin: 0, borderTop: "1px solid var(--color-neutral-100)", borderBottom: "1px solid var(--color-neutral-100)", paddingBlock: "var(--space-2)" }}>
-                  {items.map((item) => (
-                    <li key={item.id} style={{ display: "flex", justifyContent: "space-between", marginBottom: "var(--space-2)", fontSize: "var(--text-sm)" }}>
-                      <span>{item.quantity}× {item.product.name} ({[item.variant.color, item.variant.size].filter(Boolean).join("/")})</span>
-                      <span style={{ fontWeight: 600 }}>₱{(item.unitPrice * item.quantity).toLocaleString()}</span>
-                    </li>
-                  ))}
-                </ul>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--space-2)", fontWeight: 700, fontSize: "var(--text-lg)" }}>
-                  <span>Total Due</span>
-                  <span>₱{subtotal.toLocaleString()}</span>
                 </div>
-              </div>
-              
-              <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
-                <button 
-                  onClick={() => setShowConfirmModal(false)}
-                  className="btn btn-secondary"
-                  disabled={loading}
-                >
-                  Edit Details
+
+                {error && (
+                  <div style={{ padding: "var(--space-3) var(--space-4)", background: "rgba(220,38,38,.15)", border: "1px solid rgba(248,113,113,.3)", borderRadius: "var(--radius-lg)", color: "#f87171", fontWeight: 500, marginTop: "var(--space-4)", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <CustomAlertIcon size={16} /> {error}
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <div className={styles.summarySidebar}>
+              <div className={styles.summaryCard}>
+                <h2 className={styles.sectionTitle}>Order Summary</h2>
+                <div className={styles.itemsList}>
+                  {items.map((item) => (
+                    <div key={item.id} className={styles.summaryItem}>
+                      <div className={styles.summaryItemQty}>{item.quantity}×</div>
+                      <div className={styles.summaryItemName}>
+                        {item.product.name}
+                        <span className={styles.summaryItemVariant}>
+                          {[item.variant.color, item.variant.size].filter(Boolean).join(" / ")}
+                        </span>
+                      </div>
+                      <div className={styles.summaryItemPrice}>
+                        ₱{(item.unitPrice * item.quantity).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className={styles.summaryTotals}>
+                  <div className={`${styles.summaryRow} ${styles.summaryGrandTotal}`}>
+                    <span>Total</span><span>₱{subtotal.toLocaleString()}</span>
+                  </div>
+                </div>
+                <button type="submit" disabled={loading}
+                  className="btn btn-primary btn-full btn-lg" style={{ marginTop: "var(--space-5)" }}>
+                  Review &amp; Place Pre-Order →
                 </button>
-                <button 
-                  onClick={handleConfirmSubmit}
-                  className="btn btn-primary"
-                  disabled={loading}
-                >
-                  {loading ? "Confirming..." : "Confirm Pre-Order"}
-                </button>
+                <p style={{ fontSize: "var(--text-xs)", color: "rgba(255, 255, 255, 0.78)", marginTop: "var(--space-3)", textAlign: "center" }}>
+                  No upfront charge · Confirmed via Instagram DM
+                </p>
               </div>
             </div>
-          </div>
-        )}
-      </main>
+          </form>
+
+          {showConfirmModal && (
+            <div
+              className={styles.modalOverlay}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="confirm-modal-title"
+              onClick={(e) => {
+                if (e.target === e.currentTarget && !loading) {
+                  setShowConfirmModal(false);
+                }
+              }}
+            >
+              <div className={styles.modalCard}>
+                <div className={styles.modalHeader}>
+                  <h3 id="confirm-modal-title" className={styles.modalTitle}>
+                    Confirm Your Pre-Order
+                  </h3>
+                  <p className={styles.modalSubtitle}>
+                    Please review your details before final submission
+                  </p>
+                </div>
+
+                <div className={styles.modalSection}>
+                  <div className={styles.modalRow}>
+                    <span className={styles.modalRowLabel}>Full Name</span>
+                    <span className={styles.modalRowValue}>{fullName}</span>
+                  </div>
+                  <div className={styles.modalRow}>
+                    <span className={styles.modalRowLabel}>Instagram</span>
+                    <span className={`${styles.modalRowValue} ${styles.modalHandleHighlight}`}>
+                      {instagramHandle.trim().startsWith("@")
+                        ? instagramHandle.trim()
+                        : `@${instagramHandle.trim()}`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className={styles.modalSection}>
+                  <div className={styles.modalRow}>
+                    <span className={styles.modalRowLabel}>Pre-Order Items</span>
+                    <span className={styles.modalRowValue}>
+                      {items.reduce((acc, i) => acc + i.quantity, 0)} pc(s)
+                    </span>
+                  </div>
+                  <div className={styles.modalItemsList}>
+                    {items.map((item) => (
+                      <div key={item.id} className={styles.modalItemRow}>
+                        <span>
+                          {item.quantity}× {item.product.name}{" "}
+                          <span style={{ color: "rgba(255, 255, 255, 0.78)" }}>
+                            ({[item.variant.color, item.variant.size].filter(Boolean).join(" / ")})
+                          </span>
+                        </span>
+                        <span style={{ fontWeight: 600 }}>
+                          ₱{(item.unitPrice * item.quantity).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className={styles.modalTotalRow}>
+                    <span>Total Amount</span>
+                    <span className={styles.modalTotalAmount}>₱{subtotal.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div className={styles.modalNotice}>
+                  No payment is charged right now. We will message{" "}
+                  <strong style={{ color: "#ff8fa0" }}>
+                    {instagramHandle.trim().startsWith("@")
+                      ? instagramHandle.trim()
+                      : `@${instagramHandle.trim()}`}
+                  </strong>{" "}
+                  on Instagram to verify sizing, settle payment, and coordinate delivery.
+                </div>
+
+                {error && (
+                  <div
+                    style={{
+                      padding: "var(--space-3)",
+                      background: "rgba(220, 38, 38, 0.2)",
+                      border: "1px solid rgba(248, 113, 113, 0.4)",
+                      borderRadius: "var(--radius-md)",
+                      color: "#f87171",
+                      fontSize: "var(--text-xs)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <CustomAlertIcon size={14} /> {error}
+                  </div>
+                )}
+
+                <div className={styles.modalActions}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-full"
+                    onClick={() => setShowConfirmModal(false)}
+                    disabled={loading}
+                  >
+                    ← Edit Details
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-full btn-lg"
+                    onClick={handleConfirmOrder}
+                    disabled={loading}
+                    id="final-confirm-order-btn"
+                  >
+                    {loading ? "Placing Pre-Order..." : "Confirm & Place Pre-Order ✓"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
-

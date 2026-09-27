@@ -1,6 +1,11 @@
+/* ================================================================
+   CHECKOUT PAGE — Royal Velvet Burgundy & Holographic Crystal Glass
+   ================================================================ */
+
 .page {
   min-height: 100dvh;
-  background: var(--color-neutral-50);
+  background: #140207;
+  color: #fff;
 }
 
 .layout {
@@ -15,24 +20,44 @@
     align-items: flex-start;
     gap: var(--space-8);
   }
-  .formSections { flex: 1; }
-  .summarySidebar { width: 380px; flex-shrink: 0; }
+  .formSections    { flex: 1; }
+  .summarySidebar  { width: 390px; flex-shrink: 0; }
 }
 
+/* ── Section Cards (Form Blocks) with Crystal Beveled Glass ── */
 .sectionCard {
-  background: white;
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--color-neutral-200);
-  padding: var(--space-6);
-  margin-bottom: var(--space-6);
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border-radius: var(--radius-2xl);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: var(--space-6) var(--space-8);
+  margin-bottom: var(--space-5);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.5),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.42),
+    inset 0 -1px 1px 0 rgba(255, 255, 255, 0.08);
+  transition: all 0.3s ease;
+}
+
+@media (max-width: 640px) {
+  .sectionCard {
+    padding: var(--space-5) var(--space-4);
+    border-radius: var(--radius-xl);
+  }
 }
 
 .sectionTitle {
-  font-size: var(--text-lg);
+  font-family: var(--font-serif);
+  font-size: 1.45rem;
   font-weight: 700;
-  color: var(--color-neutral-900);
+  color: white;
   margin-bottom: var(--space-5);
-  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+  background: linear-gradient(135deg, #ffffff 0%, #ffeaf0 60%, #f7b4c4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .grid {
@@ -41,52 +66,47 @@
 }
 
 @media (min-width: 640px) {
-  .grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  .grid { grid-template-columns: repeat(2, 1fr); }
 }
 
-.radioGroup {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.radioLabel {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--color-neutral-200);
-  border-radius: var(--radius-lg);
-  cursor: pointer;
-  font-weight: 500;
-  transition: all var(--transition-fast);
-}
-
-.radioLabel:has(input:checked) {
-  border-color: var(--color-brand-500);
-  background: var(--color-brand-50);
-}
-
+/* ── Payment Note ── */
 .paymentInstructions {
-  margin-top: var(--space-3);
-  padding: var(--space-4);
-  background: var(--color-neutral-50);
-  border-radius: var(--radius-md);
+  margin-top: var(--space-4);
+  padding: var(--space-5);
+  background: rgba(168, 16, 56, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(255, 200, 220, 0.25);
+  border-left: 4px solid #c01844;
   font-size: var(--text-sm);
-  color: var(--color-neutral-700);
-  border-left: 4px solid var(--color-brand-400);
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.6;
 }
 
-/* ── Summary Sidebar ── */
+/* ── Summary Sidebar Card with Holographic Glow ── */
 .summaryCard {
-  background: white;
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--color-neutral-200);
-  padding: var(--space-6);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  border-radius: var(--radius-2xl);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  padding: var(--space-6) var(--space-8);
   position: sticky;
-  top: calc(var(--space-6) + 60px);
+  top: calc(var(--space-6) + 68px);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.6),
+    0 0 32px rgba(255, 175, 200, 0.16),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 640px) {
+  .summaryCard {
+    padding: var(--space-5) var(--space-4);
+    position: static;
+    border-radius: var(--radius-xl);
+  }
 }
 
 .itemsList {
@@ -96,6 +116,8 @@
   margin-bottom: var(--space-6);
   max-height: 40vh;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 .summaryItem {
@@ -107,45 +129,221 @@
 
 .summaryItemQty {
   font-weight: 700;
-  color: var(--color-neutral-500);
+  color: rgba(255, 255, 255, 0.82);
   min-width: 24px;
 }
 
 .summaryItemName {
   flex: 1;
   font-weight: 600;
-  color: var(--color-neutral-900);
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .summaryItemVariant {
   display: block;
   font-size: var(--text-xs);
-  color: var(--color-neutral-500);
+  color: rgba(255, 255, 255, 0.78);
   font-weight: 400;
   margin-top: 2px;
 }
 
 .summaryItemPrice {
-  font-weight: 600;
-  color: var(--color-neutral-900);
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
 }
 
-.summaryTotals {
-  border-top: 1px solid var(--color-neutral-200);
-  padding-top: var(--space-4);
-}
-
-.summaryRow {
+.totalRow {
   display: flex;
   justify-content: space-between;
-  padding-block: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--color-neutral-600);
+  align-items: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: var(--space-4);
+  margin-top: var(--space-4);
+  font-family: var(--font-serif);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: white;
 }
 
-.summaryGrandTotal {
-  font-size: var(--text-lg);
+.totalPrice {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #ffffff 0%, #ffc0cb 50%, #f4728d 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── Confirmation Modal ── */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(10, 1, 4, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  animation: modalFadeIn 0.22s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modalCard {
+  background: rgba(22, 3, 10, 0.94);
+  border: 1px solid rgba(255, 200, 220, 0.28);
+  border-radius: var(--radius-2xl);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.8),
+    0 0 45px rgba(168, 16, 56, 0.35),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.45);
+  width: 100%;
+  max-width: 520px;
+  padding: var(--space-6) var(--space-8);
+  max-height: 90vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  animation: modalScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@keyframes modalScaleUp {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 640px) {
+  .modalCard {
+    padding: var(--space-5) var(--space-4);
+    border-radius: var(--radius-xl);
+  }
+}
+
+.modalHeader {
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: var(--space-3);
+}
+
+.modalTitle {
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
   font-weight: 700;
-  color: var(--color-neutral-900);
+  color: white;
+  margin: 0 0 var(--space-1) 0;
+  background: linear-gradient(135deg, #ffffff 0%, #ffeaf0 60%, #f7b4c4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.modalSubtitle {
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.82);
+  margin: 0;
+}
+
+.modalSection {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.modalRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--text-sm);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.modalRowLabel {
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.78);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.modalRowValue {
+  font-weight: 600;
+  color: #fff;
+  text-align: right;
+}
+
+.modalHandleHighlight {
+  color: #ff8fa0;
+  font-weight: 700;
+}
+
+.modalItemsList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.modalItemRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.modalTotalRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  padding-top: var(--space-3);
   margin-top: var(--space-2);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: white;
+}
+
+.modalTotalAmount {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #ffb4c8;
+}
+
+.modalNotice {
+  font-size: var(--text-xs);
+  color: rgba(255, 255, 255, 0.82);
+  line-height: 1.5;
+  background: rgba(168, 16, 56, 0.15);
+  border: 1px solid rgba(255, 200, 220, 0.2);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  text-align: center;
+}
+
+.modalActions {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 480px) {
+  .modalActions {
+    flex-direction: column-reverse;
+  }
 }

@@ -32,26 +32,16 @@ async function getStats() {
   todayStart.setHours(0, 0, 0, 0);
 
   const [
-    totalOrders, todayOrders, pendingOrders, paymentReview,
-    confirmedOrders, completedOrders, activeBatches,
-    confirmedRevenue, grossValue, recentOrders,
+    statusGroups, todayOrders, activeBatches, recentOrders,
     unpaidOrders, unpaidNewCustomers, dueBatches,
   ] = await Promise.all([
-    prisma.order.count(),
+    prisma.order.groupBy({
+      by: ["status"],
+      _count: { id: true },
+      _sum: { total: true },
+    }),
     prisma.order.count({ where: { createdAt: { gte: todayStart } } }),
-    prisma.order.count({ where: { status: "PENDING" } }),
-    prisma.order.count({ where: { status: "PAYMENT_REVIEW" } }),
-    prisma.order.count({ where: { status: "CONFIRMED" } }),
-    prisma.order.count({ where: { status: "COMPLETED" } }),
     prisma.batch.count({ where: { status: "OPEN" } }),
-    prisma.order.aggregate({
-      _sum: { total: true },
-      where: { status: { in: ["CONFIRMED", "PROCESSING", "READY", "SHIPPED", "COMPLETED"] } },
-    }),
-    prisma.order.aggregate({
-      _sum: { total: true },
-      where: { status: { notIn: ["CANCELLED", "REJECTED"] } },
-    }),
     prisma.order.findMany({
       take: 10,
       orderBy: { createdAt: "desc" },
@@ -59,9 +49,6 @@ async function getStats() {
         batch: { select: { name: true } },
       },
     }),
-    // Every action count excludes cancelled/rejected orders: those are resolved
-    // decisions, and leaving them in would put a permanent, unfixable number at
-    // the top of the page until the operator deleted history.
     prisma.order.count({
       where: { paymentStatus: "UNPAID", status: { notIn: ["CANCELLED", "REJECTED"] } },
     }),
@@ -72,15 +59,6 @@ async function getStats() {
         status: { notIn: ["CANCELLED", "REJECTED"] },
       },
     }),
-    // Orders in no batch are not a state this data can be in: `Order.batchId` is
-    // required, because an order that belongs to no supplier run is an order
-    // nobody will ever make.
-    // Batches that are ending soon: worth telling waiting customers about.
-    //
-    // Bounded on both sides on purpose. It used to be `endAt <= now + 7 days`,
-    // which matches every batch that has ever finished, so after a few months
-    // this panel was a permanent list of shipments that had already arrived and
-    // the operator had learned to scroll past it.
     prisma.batch.findMany({
       where: {
         endAt: {
@@ -95,11 +73,40 @@ async function getStats() {
     }),
   ]);
 
+  let totalOrders = 0;
+  let pendingOrders = 0;
+  let paymentReview = 0;
+  let confirmedOrders = 0;
+  let completedOrders = 0;
+  let confirmedRevenue = 0;
+  let grossValue = 0;
+
+  const confirmedStatuses = new Set(["CONFIRMED", "PROCESSING", "READY", "SHIPPED", "COMPLETED"]);
+  const voidedStatuses = new Set(["CANCELLED", "REJECTED"]);
+
+  for (const group of statusGroups) {
+    const count = group._count.id;
+    const sum = Number(group._sum.total ?? 0);
+    totalOrders += count;
+
+    if (group.status === "PENDING") pendingOrders = count;
+    if (group.status === "PAYMENT_REVIEW") paymentReview = count;
+    if (group.status === "CONFIRMED") confirmedOrders = count;
+    if (group.status === "COMPLETED") completedOrders = count;
+
+    if (confirmedStatuses.has(group.status)) {
+      confirmedRevenue += sum;
+    }
+    if (!voidedStatuses.has(group.status)) {
+      grossValue += sum;
+    }
+  }
+
   return {
     totalOrders, todayOrders, pendingOrders, paymentReview,
     confirmedOrders, completedOrders, activeBatches,
-    confirmedRevenue: confirmedRevenue._sum.total ?? 0,
-    grossValue: grossValue._sum.total ?? 0,
+    confirmedRevenue,
+    grossValue,
     recentOrders,
     unpaidOrders, unpaidNewCustomers, dueBatches,
   };
@@ -130,37 +137,27 @@ export default async function DashboardPage() {
    */
   const allActions: ActionItem[] = [
     {
-      label: "Orders awaiting your approval",
+      label: "New orders awaiting approval",
       detail: "New orders that nobody has looked at yet.",
       count: stats.pendingOrders,
-      href: "/admin/orders?status=PENDING",
+      href: "/butigadmin/orders?status=PENDING",
       tone: "warn",
     },
     {
-      label: "First-time customers who have not paid",
-      detail: "These usually need a DM before they go quiet.",
-      count: stats.unpaidNewCustomers,
-      href: "/admin/orders?paymentStatus=UNPAID&customerType=new",
-      tone: "warn",
-    },
-    {
-      label: "Unpaid orders",
-      detail: "Everything still waiting for money, new customer or not.",
+      label: "Unpaid Accepted Orders",
+      detail: "Approved orders that have not yet been marked as paid.",
       count: stats.unpaidOrders,
-      href: "/admin/orders?paymentStatus=UNPAID",
+      href: "/butigadmin/orders?status=CONFIRMED&paymentStatus=UNPAID",
       tone: "info",
     },
   ];
 
-  // Zero-count items are dropped: a page of zeros trains the operator to stop
-  // reading it.
   const actions = allActions.filter((action) => action.count > 0);
 
   return (
     <div>
       <h1 className="admin-page-title">Dashboard</h1>
 
-      {/* Action list — what replaces notifications in this system. */}
       <div className={styles.section} style={{ marginTop: 0 }}>
         <div className={styles.sectionHeader}>
           <h2 className={styles.sectionTitle}>Needs your attention</h2>
@@ -168,11 +165,10 @@ export default async function DashboardPage() {
 
         {actions.length === 0 ? (
           <div className="card">
-            <div className="card-body" style={{ textAlign: "center", padding: "var(--space-8)" }}>
-              <p style={{ fontSize: "var(--text-3xl)", marginBottom: "var(--space-2)" }}>✓</p>
-              <p style={{ fontWeight: 700, color: "var(--color-success)" }}>Nothing is waiting on you.</p>
+            <div className="card-body" style={{ textAlign: "center", padding: "var(--space-6)" }}>
+              <p style={{ fontWeight: 600, color: "var(--color-success)", fontSize: "var(--text-base)" }}>All caught up</p>
               <p style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-500)", marginTop: "var(--space-1)" }}>
-                Every order is approved, paid for and grouped into a batch.
+                No orders currently require your attention.
               </p>
             </div>
           </div>
@@ -213,12 +209,11 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {/* Batches arriving soon: the answer to "when will mine arrive?" */}
       {stats.dueBatches.length > 0 && (
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2 className={styles.sectionTitle}>Batches due</h2>
-            <Link href="/admin/batches" className="btn btn-secondary btn-sm">Manage batches</Link>
+            <Link href="/butigadmin/batches" className="btn btn-secondary btn-sm">Manage batches</Link>
           </div>
           <div className="card">
             <div className="card-body">
@@ -246,7 +241,6 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Stats Grid */}
       <div className="stats-grid">
         <div className="stat-card">
           <p className="stat-label">Orders Today</p>
@@ -255,10 +249,6 @@ export default async function DashboardPage() {
         <div className="stat-card">
           <p className="stat-label">Pending</p>
           <p className="stat-value" style={{ color: "var(--color-warning)" }}>{stats.pendingOrders}</p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-label">Payment Review</p>
-          <p className="stat-value" style={{ color: "var(--color-brand-500)" }}>{stats.paymentReview}</p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Confirmed</p>
@@ -286,11 +276,10 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Recent Orders */}
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <h2 className={styles.sectionTitle}>Recent Orders</h2>
-          <Link href="/admin/orders" className="btn btn-secondary btn-sm">View All</Link>
+          <Link href="/butigadmin/orders" className="btn btn-secondary btn-sm">View All</Link>
         </div>
 
         <div className="table-wrapper">
@@ -298,8 +287,8 @@ export default async function DashboardPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Order #</th>
                   <th>Customer</th>
+                  <th>Order #</th>
                   <th>Batch</th>
                   <th>Total</th>
                   <th>Payment</th>
@@ -319,21 +308,38 @@ export default async function DashboardPage() {
                   const snapshot = order.customerSnapshot as { fullName?: string };
                   return (
                     <tr key={order.id}>
-                      <td style={{ fontWeight: 700, fontFamily: "var(--font-display)" }}>
-                        {order.reference}
-                        {order.isPossibleDuplicate && (
-                          <span title="Possible duplicate" style={{ marginLeft: "var(--space-1)", color: "var(--color-warning)" }}>⚠</span>
-                        )}
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                          <Link
+                            href={`/admin/orders/${order.id}`}
+                            style={{
+                              fontWeight: 700,
+                              fontSize: "var(--text-base)",
+                              color: "var(--color-neutral-900)",
+                              textDecoration: "none",
+                            }}
+                          >
+                            {snapshot.fullName ?? "—"}
+                          </Link>
+                        </div>
                       </td>
                       <td>
-                        {snapshot.fullName ?? "—"}
                         <span
-                          className={`badge ${order.isNewCustomer ? "badge-coming" : "badge-confirmed"}`}
-                          style={{ marginLeft: "var(--space-2)" }}
-                          title={order.isNewCustomer ? "First order from this account" : "Has ordered before"}
+                          style={{
+                            fontFamily: "var(--font-mono)",
+                            fontSize: "var(--text-xs)",
+                            color: "var(--color-neutral-600)",
+                            background: "var(--color-neutral-100)",
+                            padding: "2px 6px",
+                            borderRadius: "var(--radius-sm)",
+                            fontWeight: 500,
+                          }}
                         >
-                          {order.isNewCustomer ? "NEW" : "OG"}
+                          {order.reference}
                         </span>
+                        {order.isPossibleDuplicate && (
+                          <span title="Possible duplicate" style={{ marginLeft: "var(--space-1)", color: "var(--color-warning)", fontSize: "11px" }}>Duplicate</span>
+                        )}
                       </td>
                       <td>
                         {/* No "unbatched" branch: `Order.batchId` is required, so an
@@ -344,7 +350,17 @@ export default async function DashboardPage() {
                       </td>
                       <td style={{ fontWeight: 600 }}>₱{Number(order.total).toLocaleString()}</td>
                       <td>
-                        <span className={`badge ${order.paymentStatus === "PAID" ? "badge-confirmed" : "badge-pending"}`}>
+                        <span
+                          className="badge"
+                          style={{
+                            background: order.paymentStatus === "PAID" ? "#dcfce7" : "#fee2e2",
+                            color: order.paymentStatus === "PAID" ? "#14532d" : "#991b1b",
+                            border: order.paymentStatus === "PAID" ? "1px solid #86efac" : "1px solid #fca5a5",
+                            fontWeight: 700,
+                            fontSize: "12px",
+                            padding: "2px 8px",
+                          }}
+                        >
                           {order.paymentStatus === "PAID" ? "PAID" : "UNPAID"}
                         </span>
                       </td>

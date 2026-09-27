@@ -6,13 +6,9 @@ import { isSameOrigin } from "@/lib/api-guard";
 
 export async function POST(request: NextRequest) {
   try {
-    // Public, unauthenticated, and each call can consume real stock: throttle it
-    // before any database work happens.
     const limited = enforceRateLimit(request, RATE_LIMITS.checkout);
     if (limited) return limited;
 
-    // Checkout is a form POST from our own storefront; a cross-origin one has no
-    // business placing an order.
     if (!isSameOrigin(request)) {
       return NextResponse.json(
         { success: false, error: { code: "CROSS_ORIGIN_BLOCKED", message: "This request did not come from this site." } },
@@ -20,7 +16,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
     const parsed = orderSubmissionSchema.safeParse(body);
 
     if (!parsed.success) {

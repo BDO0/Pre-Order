@@ -5,9 +5,12 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import styles from "./status.module.css";
+import glass from "../glass.module.css";
 import { customerStatusCopy } from "@/lib/order-status-copy";
-import { INSTAGRAM_HANDLE_HINT } from "@/lib/instagram";
 import { SHOP_INSTAGRAM_HANDLE, SHOP_INSTAGRAM_URL, SITE_NAME } from "@/lib/site";
+import { BrandLogo } from "@/components/BrandLogo";
+import { CustomAlertIcon } from "@/components/CustomerIcons";
+import { parseApiResponse } from "@/lib/api-client";
 
 /**
  * Track an order.
@@ -97,16 +100,16 @@ type LookupOutcome =
 async function requestOrder(query: string): Promise<LookupOutcome> {
   try {
     const res = await fetch(`/api/orders/lookup?${query}`);
-    const json = await res.json();
+    const { ok, data, error } = await parseApiResponse(res, "We could not look that order up.");
 
-    if (!res.ok) {
+    if (!ok || !data) {
       return {
         ok: false,
-        message: json.error?.message || "We could not look that order up.",
+        message: error || "We could not look that order up.",
       };
     }
 
-    return { ok: true, order: json.data as PublicOrder };
+    return { ok: true, order: data as PublicOrder };
   } catch {
     return {
       ok: false,
@@ -124,12 +127,8 @@ function OrderTracker() {
   const [handle, setHandle] = useState("");
 
   const [order, setOrder] = useState<PublicOrder | null>(null);
-  // Starting in the loading state when a token is present, rather than setting
-  // it from the effect below: a setState in an effect body is the cascading
-  // render the react-hooks rule warns about.
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState("");
-  // A working private link means the form is noise, so it starts hidden then.
   const [showForm, setShowForm] = useState(!token);
 
   /** Puts a lookup result on the screen. */
@@ -140,7 +139,6 @@ function OrderTracker() {
     } else {
       setOrder(null);
       setError(outcome.message);
-      // A failed private link is exactly when the form is needed.
       setShowForm(true);
     }
     setLoading(false);
@@ -172,114 +170,113 @@ function OrderTracker() {
   };
 
   return (
-    <div className={styles.page}>
-      <nav className="navbar">
-        <div className="container navbar-inner">
-          <Link href="/" className="navbar-brand">
-            {SITE_NAME}
-          </Link>
-        </div>
-      </nav>
+    <div className={`${glass.glassPage} ${styles.page}`}>
+      <div className={glass.bg} aria-hidden="true" />
+      <div className={glass.orb1} aria-hidden="true" />
+      <div className={glass.orb2} aria-hidden="true" />
+      <div className={glass.orb3} aria-hidden="true" />
 
-      <main
-        className="container"
-        style={{ paddingBlock: "var(--space-12)", maxWidth: "var(--max-w-xl)" }}
-      >
-        <h1
-          className="page-title"
-          style={{ textAlign: "center", paddingBlock: 0, marginBottom: "var(--space-2)" }}
-        >
-          Track Your Order
-        </h1>
-        <p
-          className="page-subtitle"
-          style={{ textAlign: "center", marginBottom: "var(--space-8)" }}
-        >
-          {showForm
-            ? "Enter your order number and the Instagram username you ordered with."
-            : "Here is where your pre-order is right now."}
-        </p>
-
-        {loading && (
-          <p style={{ textAlign: "center", color: "var(--color-neutral-500)" }}>
-            Looking up your order…
-          </p>
-        )}
-
-        {error && !loading && (
-          <p
-            className="form-error"
-            style={{ justifyContent: "center", marginBottom: "var(--space-6)" }}
-          >
-            ⚠ {error}
-          </p>
-        )}
-
-        {showForm && !loading && (
-          <form onSubmit={handleSearch} className={styles.searchForm}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="track-reference">
-                Order Number
-              </label>
-              <input
-                id="track-reference"
-                type="text"
-                required
-                className="form-input"
-                placeholder="PO-20260917-0001"
-                value={reference}
-                onChange={(event) => setReference(event.target.value.toUpperCase())}
-              />
+      <div className={glass.content}>
+        <nav className={glass.nav}>
+          <div className={glass.navInner}>
+            <Link href="/" className={glass.navBrand} aria-label={SITE_NAME}>
+              <BrandLogo variant="horizontal" height={34} />
+            </Link>
+            <div className={glass.navActions}>
+              <Link href="/" className={glass.navGhostBtn} aria-label="Back to Shop">
+                ← <span className={glass.mobileHideText}>Back to </span>Shop
+              </Link>
             </div>
+          </div>
+        </nav>
 
-            <div className="form-group">
-              <label className="form-label" htmlFor="track-handle">
-                Instagram Username
-              </label>
-              <input
-                id="track-handle"
-                type="text"
-                required
-                className="form-input"
-                placeholder="@juandc"
-                value={handle}
-                onChange={(event) => setHandle(event.target.value)}
-              />
+        <main className={styles.mainContainer}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "var(--space-3)" }}>
+            <BrandLogo variant="monogram" height={44} color="#fca5a5" />
+          </div>
+          <h1
+            className={glass.pageTitleEditorial}
+            style={{
+              fontSize: "clamp(2rem, 4vw, 2.75rem)",
+              textAlign: "center",
+              paddingBlock: 0,
+              marginBottom: "var(--space-2)",
+            }}
+          >
+            Track Your Order
+          </h1>
+          <p
+            className="page-subtitle"
+            style={{ textAlign: "center", marginBottom: "var(--space-8)" }}
+          >
+            {showForm
+              ? "Enter your order number and the Instagram username you ordered with."
+              : "Here is where your pre-order is right now."}
+          </p>
+
+          {loading && (
+            <p style={{ textAlign: "center", color: "rgba(255, 255, 255, 0.85)" }}>
+              Looking up your order…
+            </p>
+          )}
+
+          {error && !loading && (
+            <p
+              className="form-error"
+              style={{ justifyContent: "center", marginBottom: "var(--space-6)", color: "#f87171", display: "flex", alignItems: "center", gap: "6px" }}
+            >
+              <CustomAlertIcon size={16} /> {error}
+            </p>
+          )}
+
+          {showForm && !loading && (
+            <div
+              style={{
+                padding: "var(--space-6)",
+                background: "rgba(255,255,255,.055)",
+                backdropFilter: "blur(20px)",
+                WebkitBackdropFilter: "blur(20px)",
+                border: "1px solid rgba(255,255,255,.1)",
+                borderRadius: "var(--radius-2xl)",
+                textAlign: "center",
+                boxShadow: "0 16px 48px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.07)",
+              }}
+            >
               <p
                 style={{
-                  fontSize: "var(--text-xs)",
-                  color: "var(--color-neutral-500)",
-                  marginTop: "var(--space-1)",
+                  fontSize: "var(--text-base)",
+                  color: "rgba(255,255,255,.7)",
+                  marginBottom: "var(--space-4)",
+                  lineHeight: 1.6,
                 }}
               >
-                {INSTAGRAM_HANDLE_HINT}
+                Lost your order link? Send us a DM on Instagram <strong style={{ color: "#ff8fa0" }}>@{SHOP_INSTAGRAM_HANDLE}</strong> and we&apos;ll send it right to you!
               </p>
+              <a
+                href={SHOP_INSTAGRAM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary btn-lg"
+              >
+                Message @{SHOP_INSTAGRAM_HANDLE}
+              </a>
             </div>
+          )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn btn-primary btn-full btn-lg"
-              style={{ marginTop: "var(--space-2)" }}
-            >
-              Track Order
-            </button>
-          </form>
-        )}
-
-        {order && (
-          <ResultCard
-            order={order}
-            showStartOver={!token}
-            onStartOver={() => {
-              setOrder(null);
-              setError("");
-              setHandle("");
-              setShowForm(true);
-            }}
-          />
-        )}
-      </main>
+          {order && (
+            <ResultCard
+              order={order}
+              showStartOver={!token}
+              onStartOver={() => {
+                setOrder(null);
+                setError("");
+                setHandle("");
+                setShowForm(true);
+              }}
+            />
+          )}
+        </main>
+      </div>
     </div>
   );
 }
@@ -318,12 +315,12 @@ function ResultCard({
       <div
         style={{
           padding: "var(--space-6)",
-          borderBottom: "1px solid var(--color-neutral-100)",
+          borderBottom: "1px solid rgba(255,255,255,.07)",
         }}
       >
         <p
           style={{
-            color: "var(--color-neutral-700)",
+            color: "rgba(255,255,255,.75)",
             fontSize: "var(--text-base)",
             lineHeight: 1.6,
           }}
@@ -338,7 +335,7 @@ function ResultCard({
             flexWrap: "wrap",
             gap: "var(--space-4)",
             fontSize: "var(--text-sm)",
-            color: "var(--color-neutral-500)",
+            color: "rgba(255, 255, 255, 0.78)",
           }}
         >
           {order.customerName && <span>Placed by {order.customerName}</span>}
@@ -361,7 +358,7 @@ function ResultCard({
               <p className={styles.itemName}>{item.productName}</p>
               {item.variant && <p className={styles.itemVariant}>{item.variant}</p>}
             </div>
-            <div style={{ fontWeight: 600 }}>{peso(item.lineTotal)}</div>
+            <div style={{ fontWeight: 600, color: "white" }}>{peso(item.lineTotal)}</div>
           </div>
         ))}
 
@@ -391,7 +388,7 @@ function ResultCard({
       <div
         style={{
           padding: "var(--space-6)",
-          borderTop: "1px solid var(--color-neutral-100)",
+          borderTop: "1px solid rgba(255,255,255,.07)",
           display: "flex",
           flexDirection: "column",
           gap: "var(--space-3)",
@@ -401,7 +398,7 @@ function ResultCard({
         <p
           style={{
             fontSize: "var(--text-sm)",
-            color: "var(--color-neutral-600)",
+            color: "rgba(255, 255, 255, 0.82)",
             textAlign: "center",
           }}
         >
@@ -439,9 +436,12 @@ export default function OrderStatusPage() {
         <div
           style={{
             minHeight: "100dvh",
+            background: "#0d0205",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            color: "rgba(255, 255, 255, 0.85)",
+            fontFamily: "var(--font-display)",
           }}
         >
           Loading…

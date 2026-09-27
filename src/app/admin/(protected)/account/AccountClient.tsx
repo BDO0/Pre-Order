@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { isKnownRole, ROLE_LABELS } from "@/lib/permissions";
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, SEEDED_DEFAULT_PASSWORD } from "@/lib/admin-password";
+import { parseApiResponse } from "@/lib/api-client";
 
 /**
  * Change the password for the signed-in account.
@@ -49,10 +50,10 @@ export default function AccountClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
-      const json = await res.json();
+      const { ok, error } = await parseApiResponse(res, "Could not change the password.");
 
-      if (!res.ok) {
-        throw new Error(json.error?.message || "Could not change the password.");
+      if (!ok) {
+        throw new Error(error || "Could not change the password.");
       }
 
       setMessage({
@@ -91,7 +92,7 @@ export default function AccountClient({
             marginBottom: "var(--space-4)",
           }}
         >
-          {message.type === "success" ? "✓" : "⚠"} {message.text}
+          {message.text}
         </div>
       )}
 
@@ -105,7 +106,7 @@ export default function AccountClient({
               color: "var(--color-brand-700)",
             }}
           >
-            👤 Change Password
+            Change Password
           </h2>
           <p
             style={{
@@ -114,9 +115,7 @@ export default function AccountClient({
               marginBottom: "var(--space-5)",
             }}
           >
-            Setup creates the first admin account with a password it generates and prints
-            once. Changing it here — to something only you know — is the step that makes
-            this shop yours; nothing else in the app depends on the old one.
+            Update your account password.
           </p>
 
           <div
@@ -186,9 +185,7 @@ export default function AccountClient({
                   marginTop: "var(--space-1)",
                 }}
               >
-                At least {MIN_PASSWORD_LENGTH} characters and at most {MAX_PASSWORD_LENGTH}, and not
-                the old demo password (<code>{SEEDED_DEFAULT_PASSWORD}</code>) this project used to
-                ship. A phrase you will remember beats a jumble you will end up writing on a note.
+                Minimum {MIN_PASSWORD_LENGTH} characters.
               </p>
             </div>
 
@@ -215,53 +212,6 @@ export default function AccountClient({
               </button>
             </div>
           </form>
-        </div>
-      </div>
-
-      <div className="card" style={{ maxWidth: "700px" }}>
-        <div className="card-body">
-          <h2
-            style={{
-              fontSize: "var(--text-lg)",
-              fontWeight: 700,
-              marginBottom: "var(--space-3)",
-              color: "var(--color-brand-700)",
-            }}
-          >
-            ℹ️ What changing it does, and does not do
-          </h2>
-          <ul
-            style={{
-              fontSize: "var(--text-sm)",
-              color: "var(--color-neutral-600)",
-              lineHeight: 1.7,
-              paddingLeft: "var(--space-5)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--space-2)",
-            }}
-          >
-            <li>
-              The new password takes effect at the next sign-in. You stay signed in on this
-              device, so changing it cannot interrupt a drop in progress.
-            </li>
-            <li>
-              Sessions are signed cookies with an eight-hour lifetime and this app keeps no
-              server-side list of them. A device that is already signed in keeps working
-              until its session expires — signing out everywhere is not something this build
-              can do.
-            </li>
-            <li>
-              Every change is written to the audit log (who and when, never what), so a
-              password nobody remembers changing is visible there.
-            </li>
-            <li>
-              There is no email reset: no mail is configured, by design. If the password is lost,
-              someone with shell and database access resets it with
-              <code> npm run admin:create -- --email you@example.com --reset-password</code>,
-              which prints the new password once.
-            </li>
-          </ul>
         </div>
       </div>
     </>

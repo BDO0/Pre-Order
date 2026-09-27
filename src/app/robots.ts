@@ -21,7 +21,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: ["/", "/preorder/"],
-        disallow: ["/admin", "/api/", "/order-status", "/order-success", "/cart", "/checkout"],
+        disallow: ["/butigadmin", "/api/", "/order-status", "/order-success", "/cart", "/checkout"],
       },
     ],
     sitemap: `${base}/sitemap.xml`,

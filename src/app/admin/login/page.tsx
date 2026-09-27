@@ -3,6 +3,8 @@
 import { useState, FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { SITE_NAME } from "@/lib/site";
+import { BrandLogo } from "@/components/BrandLogo";
 import styles from "./login.module.css";
 
 export default function AdminLoginPage() {
@@ -28,16 +30,22 @@ export default function AdminLoginPage() {
     if (result?.error) {
       setError("Invalid email or password. Please try again.");
     } else {
-      router.push("/admin/dashboard");
+      router.push("/butigadmin/dashboard");
     }
   };
 
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        <div className={styles.logo}>
-          <span className={styles.logoText}>ANA</span>
-          <span className={styles.logoSub}>Admin</span>
+        <div className={styles.logo} style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "var(--space-4)" }}>
+          <BrandLogo
+            variant="stacked"
+            height={56}
+            color="var(--color-brand-600)"
+            textColor="var(--color-brand-900)"
+            subtextColor="var(--color-neutral-600)"
+          />
+          <span className={styles.logoSub} style={{ marginTop: "6px" }}>Admin Portal</span>
         </div>
 
         <h1 className={styles.title}>Welcome back</h1>
@@ -50,7 +58,7 @@ export default function AdminLoginPage() {
               id="email"
               type="email"
               className={`form-input ${error ? "error" : ""}`}
-              placeholder="admin@anaclothing.com"
+              placeholder="admin@tudungpeople.ph"
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
@@ -73,7 +81,7 @@ export default function AdminLoginPage() {
           </div>
 
           {error && (
-            <p className="form-error" role="alert">⚠ {error}</p>
+            <p className="form-error" role="alert">{error}</p>
           )}
 
           <button

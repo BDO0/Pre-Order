@@ -22,13 +22,8 @@ export async function PATCH(
       );
     }
 
-    // Typed, not merely truthy: a number or an object used to reach Prisma as a
-    // `where` value and came back as a 500 for what is a bad request.
     const batchId = (body as { batchId?: unknown } | null)?.batchId;
     if (typeof batchId !== "string" || batchId === "") {
-      // An order must belong to a batch: `Order.batchId` is a required column, so
-      // "unassign" is not an operation this data supports. Saying so is better
-      // than the old silent no-op, which reported success and changed nothing.
       return NextResponse.json(
         { success: false, error: { code: "VALIDATION_ERROR", message: "Choose a batch for this order." } },
         { status: 400 }
@@ -58,9 +53,6 @@ export async function PATCH(
       );
     }
 
-    // The move and its audit entry land together. On its own the audit write could
-    // fail after the order had already moved, which loses the record of who moved
-    // it and from where - the one thing an audit log exists to keep.
     const updated = await prisma.$transaction(async (tx) => {
       const moved = await tx.order.update({
         where: { id },

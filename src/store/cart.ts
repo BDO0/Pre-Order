@@ -31,7 +31,6 @@ interface CartState {
   batchSlug: string | null;
   items: CartItem[];
 
-  // Actions
   setBatch: (id: string, slug: string) => void;
   addItem: (
     product: CartProduct,
@@ -44,7 +43,6 @@ interface CartState {
   removeItem: (cartItemId: string) => void;
   clearCart: () => void;
 
-  // Computed
   getSubtotal: () => number;
   getItemCount: () => number;
 }
@@ -62,13 +60,11 @@ export const useCartStore = create<CartState>()(
       addItem: (product, variant, quantity, batchId, batchSlug) => {
         const state = get();
         
-        // If adding a product from a different batch, clear the cart first!
         const items = state.batchId === batchId ? state.items : [];
         if (state.batchId !== batchId) {
           set({ batchId, batchSlug, items: [] });
         }
 
-        // Check if same variant already in cart
         const existing = items.find((i) => i.variantId === variant.id);
 
         if (existing) {

@@ -48,7 +48,19 @@ export function isSameOrigin(request: Request): boolean {
   if (!host) return false;
 
   try {
-    return new URL(origin).host === host;
+    const originHost = new URL(origin).host;
+    if (originHost === host) return true;
+
+    // In local development, localhost and 127.0.0.1 on the same port match
+    const isLocal = (h: string) =>
+      h.startsWith("localhost:") || h.startsWith("127.0.0.1:") || h === "localhost" || h === "127.0.0.1";
+    if (isLocal(originHost) && isLocal(host)) {
+      const originPort = originHost.split(":")[1] ?? "";
+      const hostPort = host.split(":")[1] ?? "";
+      if (originPort === hostPort) return true;
+    }
+
+    return false;
   } catch {
     return false;
   }

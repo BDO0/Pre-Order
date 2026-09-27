@@ -1,14 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useCartStore } from "@/store/cart";
-// The shop's own Instagram handle. This header used to spell the handle out as
-// a literal, which quietly pinned the one piece of trust copy on the page to
-// whatever the placeholder account was called: setting
-// NEXT_PUBLIC_INSTAGRAM_HANDLE changed the other nine places it appears and not
-// this one.
-import { SHOP_INSTAGRAM_HANDLE } from "@/lib/site";
+import { SHOP_INSTAGRAM_HANDLE, SHOP_INSTAGRAM_URL, SITE_NAME } from "@/lib/site";
+import { CustomBagIcon, CustomHangerIcon, GarmentSilhouette } from "@/components/CustomerIcons";
 import styles from "./storefront.module.css";
 
 export interface Variant {
@@ -41,47 +37,35 @@ export interface StorefrontProduct {
 
 interface Props {
   products: StorefrontProduct[];
-  campaignTitle?: string;
-  campaignDescription?: string | null;
-  campaignEndAt?: string | null;
   campaignStatus?: string;
-}
-
-function getGarmentIcon(category?: string | null, name?: string) {
-  const cat = (category || "").toLowerCase();
-  const n = (name || "").toLowerCase();
-  if (cat.includes("bottom") || n.includes("pant") || n.includes("cargo")) return "👖";
-  if (cat.includes("outer") || n.includes("parka") || n.includes("jacket")) return "🧥";
-  if (n.includes("sweatshirt") || n.includes("hoodie")) return "🥼";
-  if (cat.includes("top") || n.includes("shirt") || n.includes("tee")) return "👕";
-  if (n.includes("dress") || n.includes("skirt")) return "👗";
-  return "🛍️";
 }
 
 export default function StorefrontClient({
   products,
-  campaignTitle,
-  campaignDescription,
-  campaignEndAt,
   campaignStatus,
 }: Props) {
   const { addItem, getItemCount } = useCartStore();
-  const itemCount = getItemCount();
+  const [mounted, setMounted] = useState(false);
+  const showcaseRef = useRef<HTMLDivElement>(null);
+  const [highlightPulse, setHighlightPulse] = useState(false);
+  const [showAllCatalogue, setShowAllCatalogue] = useState(false);
 
-  // Selected product in left showcase
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const itemCount = mounted ? getItemCount() : 0;
+
   const [selectedProductId, setSelectedProductId] = useState<string>(
     products[0]?.id ?? ""
   );
 
-  // Active category filter on the right
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
 
-  // Highlighted product
   const activeProduct = useMemo(() => {
     return products.find((p) => p.id === selectedProductId) || products[0];
   }, [products, selectedProductId]);
 
-  // Derived variants & options for active product
   const colors = useMemo(() => {
     if (!activeProduct?.variants) return [];
     return [...new Set(activeProduct.variants.filter((v) => v.color).map((v) => v.color!))];
@@ -92,31 +76,40 @@ export default function StorefrontClient({
     return [...new Set(activeProduct.variants.filter((v) => v.size).map((v) => v.size!))];
   }, [activeProduct]);
 
-  // Variant selections
   const [selectedColor, setSelectedColor] = useState<string | null>(colors[0] ?? null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
 
-  // When changing product, reset selection state
-  const handleSelectProduct = (product: StorefrontProduct) => {
+  const handleSelectProduct = (product: StorefrontProduct, autoScroll = true) => {
     setSelectedProductId(product.id);
     const newColors = [...new Set(product.variants.filter((v) => v.color).map((v) => v.color!))];
     setSelectedColor(newColors[0] ?? null);
     setSelectedSize(null);
     setQty(1);
     setAdded(false);
+    setHighlightPulse(true);
+    setTimeout(() => setHighlightPulse(false), 800);
+
+    if (autoScroll && typeof window !== "undefined" && window.innerWidth <= 960) {
+      showcaseRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
-  // Find exact matching variant
   const selectedVariant = useMemo(() => {
     if (!activeProduct || !activeProduct.variants || activeProduct.variants.length === 0) {
       return null;
     }
+    if (sizes.length > 0 && !selectedSize) {
+      return null;
+    }
+    if (colors.length > 0 && !selectedColor) {
+      return null;
+    }
     const match = activeProduct.variants.find(
       (v) =>
-        (selectedColor === null || v.color === selectedColor) &&
-        (selectedSize === null || v.size === selectedSize)
+        (colors.length === 0 || v.color === selectedColor) &&
+        (sizes.length === 0 || v.size === selectedSize)
     );
     return match || (colors.length === 0 && sizes.length === 0 ? activeProduct.variants[0] : null);
   }, [activeProduct, selectedColor, selectedSize, colors.length, sizes.length]);
@@ -134,8 +127,8 @@ export default function StorefrontClient({
     if (!activeProduct) return false;
     const v = activeProduct.variants.find(
       (variant) =>
-        (color === null || variant.color === color) &&
-        (size === null || variant.size === size)
+        (colors.length === 0 || variant.color === color) &&
+        (sizes.length === 0 || variant.size === size)
     );
     if (!v || !v.active) return false;
     if (v.remainingCapacity !== null && v.remainingCapacity <= 0) return false;
@@ -148,12 +141,11 @@ export default function StorefrontClient({
     ? Number(activeProduct.price)
     : 0;
 
-  // Can add requires variant to be chosen (if product has sizes/colors) and sufficient capacity
   const canAdd =
     isOrderable &&
-    selectedVariant &&
-    selectedVariant.active &&
-    (selectedVariant.remainingCapacity === null || selectedVariant.remainingCapacity >= qty);
+    Boolean(selectedVariant) &&
+    Boolean(selectedVariant?.active) &&
+    (selectedVariant?.remainingCapacity === null || (selectedVariant?.remainingCapacity ?? 0) >= qty);
 
   const handleAdd = () => {
     if (!activeProduct || !selectedVariant || !canAdd) return;
@@ -175,7 +167,6 @@ export default function StorefrontClient({
     setTimeout(() => setAdded(false), 2000);
   };
 
-  // Categories list for filter tabs
   const categories = useMemo(() => {
     const set = new Set<string>();
     products.forEach((p) => {
@@ -184,63 +175,125 @@ export default function StorefrontClient({
     return Array.from(set);
   }, [products]);
 
-  // Filtered right catalogue
   const filteredProducts = useMemo(() => {
     if (selectedCategory === "ALL") return products;
     return products.filter((p) => p.category === selectedCategory);
   }, [products, selectedCategory]);
 
+  const currentIndex = useMemo(() => {
+    return filteredProducts.findIndex((p) => p.id === activeProduct?.id);
+  }, [filteredProducts, activeProduct]);
+
+  const handlePrevProduct = () => {
+    if (filteredProducts.length <= 1) return;
+    const prevIndex = (currentIndex - 1 + filteredProducts.length) % filteredProducts.length;
+    handleSelectProduct(filteredProducts[prevIndex], false);
+  };
+
+  const handleNextProduct = () => {
+    if (filteredProducts.length <= 1) return;
+    const nextIndex = (currentIndex + 1) % filteredProducts.length;
+    handleSelectProduct(filteredProducts[nextIndex], false);
+  };
+
   if (products.length === 0) {
     return (
-      <div className="container" style={{ paddingBlock: "var(--space-16)" }}>
-        <div className="empty-state">
-          <div className="empty-state-icon">🛍️</div>
-          <p className="empty-state-title">No Available Products</p>
-          <p className="empty-state-text">
-            There are currently no active pre-order items. Check back soon or visit our Instagram!
+      <div className="glass-storefront" style={{ paddingBlock: "var(--space-16)", maxWidth: "var(--max-w-xl)", marginInline: "auto", paddingInline: "var(--space-6)" }}>
+        <div
+          style={{
+            background: "rgba(255, 255, 255, 0.08)",
+            backdropFilter: "blur(32px) saturate(200%)",
+            WebkitBackdropFilter: "blur(32px) saturate(200%)",
+            borderRadius: "var(--radius-2xl)",
+            border: "1px solid rgba(255, 255, 255, 0.16)",
+            padding: "var(--space-12) var(--space-8)",
+            textAlign: "center",
+            boxShadow:
+              "0 24px 64px rgba(0, 0, 0, 0.65), 0 0 36px rgba(255, 175, 200, 0.2), 0 0 64px rgba(156, 232, 248, 0.12), inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.55), inset 0 -1px 1px 0 rgba(255, 255, 255, 0.1)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "var(--space-3)",
+          }}
+        >
+          <div className={styles.emptyStateIcon} aria-hidden="true">
+            <CustomHangerIcon size={38} />
+          </div>
+          <h2
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: "clamp(1.75rem, 3.5vw, 2.25rem)",
+              fontWeight: 700,
+              background: "linear-gradient(135deg, #ffffff 0%, #ffeaf0 50%, #f7b4c4 100%)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              margin: 0,
+              letterSpacing: "-0.01em",
+            }}
+          >
+            New Drop Coming Soon
+          </h2>
+          <p style={{ color: "rgba(255, 255, 255, 0.85)", fontSize: "var(--text-base)", maxWidth: "420px", lineHeight: 1.6, margin: 0 }}>
+            There are currently no active pre-order items. Follow our Instagram to catch the next exclusive drop.
           </p>
+          <a
+            href={SHOP_INSTAGRAM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary btn-lg"
+            style={{
+              marginTop: "var(--space-4)",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "var(--space-2)",
+            }}
+          >
+            Follow @{SHOP_INSTAGRAM_HANDLE}
+          </a>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`container ${styles.storefrontWrap}`}>
-      {/* Optional Campaign Drop Banner */}
-      {campaignTitle && (
-        <div className={styles.campaignHeader}>
-          <div className={styles.campaignHeaderLeft}>
-            <div className={styles.campaignBadgeRow}>
-              <span className="badge badge-open">✨ Pre-Order Drop</span>
-              {campaignEndAt && (
-                <span className="badge badge-coming">
-                  Closes {new Date(campaignEndAt).toLocaleDateString()}
-                </span>
-              )}
-            </div>
-            <h1 className={styles.campaignTitle}>{campaignTitle}</h1>
-            <p className={styles.campaignDesc}>
-              {campaignDescription ||
-                "Select any piece to customize sizing and color. All orders are confirmed personally with you on Instagram."}
-            </p>
-          </div>
-          <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
-            <span style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)", fontWeight: 600 }}>
-              DM: @{SHOP_INSTAGRAM_HANDLE}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* ── TWO-COLUMN SPLIT LAYOUT ── */}
+    <div className={`glass-storefront ${styles.storefrontWrap}`}>
       <div className={styles.splitLayout}>
-        {/* ── LEFT COLUMN: Highlighted Product Showcase ── */}
         <div className={styles.highlightCol}>
           {activeProduct && (
-            <div className={styles.showcaseCard}>
+            <div
+              ref={showcaseRef}
+              className={`${styles.showcaseCard} ${highlightPulse ? styles.showcasePulse : ""}`}
+            >
               <div className={styles.imageFrame}>
+                {filteredProducts.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      className={styles.showcaseNavBtnLeft}
+                      onClick={handlePrevProduct}
+                      aria-label="Previous piece"
+                      title="Previous piece"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block", transform: "translateX(-1px)" }}>
+                        <polyline points="15 18 9 12 15 6" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.showcaseNavBtnRight}
+                      onClick={handleNextProduct}
+                      aria-label="Next piece"
+                      title="Next piece"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ display: "block", transform: "translateX(1px)" }}>
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                  </>
+                )}
+
                 {activeProduct.images[0] ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={activeProduct.images[0]}
                     alt={activeProduct.name}
@@ -248,38 +301,40 @@ export default function StorefrontClient({
                   />
                 ) : (
                   <div className={styles.placeholderArt}>
-                    <span className={styles.placeholderIcon}>
-                      {getGarmentIcon(activeProduct.category, activeProduct.name)}
-                    </span>
+                    <div className={styles.placeholderIconWrap}>
+                      <GarmentSilhouette
+                        category={activeProduct.category}
+                        name={activeProduct.name}
+                        size={48}
+                      />
+                    </div>
                     <span className={styles.placeholderLabel}>
-                      {activeProduct.category || "ANA Collection"}
+                      {activeProduct.category || `${SITE_NAME} Collection`}
                     </span>
                   </div>
                 )}
 
-                <div className={styles.badgeOverlay}>
-                  <span className={styles.viewingNowBadge}>
-                    <span>★</span> Selected Item
-                  </span>
-                  {activeProduct.preorderStatus === "COMING_SOON" && (
-                    <span className="badge badge-coming">Coming Soon</span>
-                  )}
-                  {activeProduct.preorderStatus === "SOLD_OUT" && (
-                    <span className="badge badge-closed">Sold Out</span>
-                  )}
-                </div>
+                {(activeProduct.preorderStatus === "COMING_SOON" || activeProduct.preorderStatus === "SOLD_OUT") && (
+                  <div className={styles.badgeOverlay}>
+                    {activeProduct.preorderStatus === "COMING_SOON" && (
+                      <span className="badge badge-coming">Coming Soon</span>
+                    )}
+                    {activeProduct.preorderStatus === "SOLD_OUT" && (
+                      <span className="badge badge-closed">Sold Out</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className={styles.showcaseBody}>
                 <div className={styles.headerRow}>
                   <div>
                     <h2 className={styles.productName}>{activeProduct.name}</h2>
-                    <div className={styles.metaRow}>
-                      {activeProduct.category && (
+                    {activeProduct.category && (
+                      <div className={styles.metaRow}>
                         <span className={styles.categoryPill}>{activeProduct.category}</span>
-                      )}
-                      <span>Drop: <strong>{activeProduct.batchName}</strong></span>
-                    </div>
+                      </div>
+                    )}
                   </div>
                   <div className={styles.priceTag}>
                     ₱{effectivePrice.toLocaleString()}
@@ -291,31 +346,30 @@ export default function StorefrontClient({
                     "Limited-run crafted pre-order piece. Reserve yours before orders close."}
                 </p>
 
-                {/* Pre-order Controls */}
                 {!isOrderable ? (
                   <div
                     style={{
                       padding: "var(--space-4)",
-                      background: "var(--color-neutral-100)",
+                      background: "rgba(255, 255, 255, 0.08)",
+                      border: "1px solid rgba(255, 255, 255, 0.16)",
                       borderRadius: "var(--radius-lg)",
                       textAlign: "center",
                       fontWeight: 600,
-                      color: "var(--color-neutral-600)",
+                      color: "rgba(255, 255, 255, 0.85)",
                       fontSize: "var(--text-sm)",
                     }}
                   >
                     {activeProduct.preorderStatus === "COMING_SOON"
-                      ? "✨ Coming soon to pre-order"
+                      ? "Coming soon to pre-order"
                       : "Item currently unavailable"}
                   </div>
                 ) : (
                   <div className={styles.variantSection}>
-                    {/* Color selection */}
                     {colors.length > 0 && (
                       <div>
                         <div className={styles.selectorLabel}>
                           <span>Color</span>
-                          <span style={{ fontWeight: 500, color: "var(--color-neutral-800)" }}>
+                          <span style={{ fontWeight: 600, color: "rgba(255, 255, 255, 0.95)" }}>
                             {selectedColor || "Select"}
                           </span>
                         </div>
@@ -339,13 +393,12 @@ export default function StorefrontClient({
                       </div>
                     )}
 
-                    {/* Size selection */}
                     {sizes.length > 0 && (
                       <div>
                         <div className={styles.selectorLabel}>
                           <span>Size</span>
-                          <span style={{ fontWeight: 500, color: "var(--color-neutral-800)" }}>
-                            {selectedSize || "Select"}
+                          <span style={{ fontWeight: 600, color: selectedSize ? "rgba(255, 255, 255, 0.95)" : "#ff80a0" }}>
+                            {selectedSize || "Please select a size"}
                           </span>
                         </div>
                         <div className={styles.pillsRow} style={{ marginTop: "var(--space-1)" }}>
@@ -369,7 +422,6 @@ export default function StorefrontClient({
                       </div>
                     )}
 
-                    {/* Quantity & CTA */}
                     <div className={styles.actionRow} style={{ marginTop: "var(--space-2)" }}>
                       <div className={styles.qtyBox}>
                         <button
@@ -403,6 +455,10 @@ export default function StorefrontClient({
                       >
                         {added
                           ? "✓ Added to Order!"
+                          : sizes.length > 0 && !selectedSize
+                          ? "Select a Size to Pre-order"
+                          : colors.length > 0 && !selectedColor
+                          ? "Select a Color to Pre-order"
                           : `Add to Pre-Order — ₱${(effectivePrice * qty).toLocaleString()}`}
                       </button>
                     </div>
@@ -412,9 +468,10 @@ export default function StorefrontClient({
                         style={{
                           textAlign: "center",
                           fontSize: "var(--text-xs)",
-                          color: "var(--color-brand-600)",
+                          color: "#ff8fa0",
                           fontWeight: 600,
                           margin: 0,
+                          textShadow: "0 0 10px rgba(255, 143, 160, 0.4)",
                         }}
                       >
                         Only {activeProduct.preorderRemaining} slots left in this drop!
@@ -423,34 +480,19 @@ export default function StorefrontClient({
                   </div>
                 )}
 
-                <div style={{ textAlign: "center" }}>
-                  <Link
-                    href={`/preorder/${activeProduct.slug}`}
-                    className={styles.fullPageLink}
-                  >
-                    Open Standalone Page Details ↗
-                  </Link>
-                </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* ── RIGHT COLUMN: Small Icon Product Catalogue Grid ── */}
         <div className={styles.catalogueCol}>
           <div className={styles.catalogueHeader}>
-            <div>
-              <h3 className={styles.catalogueTitle}>Collection Pieces</h3>
-              <span className={styles.catalogueCount}>
-                Click any product to view & customize on the left
-              </span>
-            </div>
+            <h3 className={styles.catalogueTitle}>Collection Pieces</h3>
             <span className="badge badge-open">
               {filteredProducts.length} item{filteredProducts.length !== 1 ? "s" : ""}
             </span>
           </div>
 
-          {/* Category Filter Pills */}
           {categories.length > 0 && (
             <div className={styles.filterPills}>
               <button
@@ -477,9 +519,8 @@ export default function StorefrontClient({
             </div>
           )}
 
-          {/* Compact Product Icon Grid */}
           <div className={styles.iconGrid}>
-            {filteredProducts.map((p) => {
+            {(showAllCatalogue ? filteredProducts : filteredProducts.slice(0, 8)).map((p) => {
               const isSelected = p.id === activeProduct?.id;
               return (
                 <button
@@ -490,18 +531,15 @@ export default function StorefrontClient({
                   className={`${styles.smallProductCard} ${
                     isSelected ? styles.activeProductCard : ""
                   }`}
+                  aria-label={`Select ${p.name}`}
                 >
                   <div className={styles.smallThumbWrap}>
                     {p.images[0] ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img src={p.images[0]} alt={p.name} className={styles.smallThumbImg} />
                     ) : (
                       <span className={styles.smallPlaceholder}>
-                        {getGarmentIcon(p.category, p.name)}
+                        <GarmentSilhouette category={p.category} name={p.name} size={28} />
                       </span>
-                    )}
-                    {isSelected && (
-                      <span className={styles.activeChipBadge}>✓ Selected</span>
                     )}
                   </div>
 
@@ -511,23 +549,42 @@ export default function StorefrontClient({
                       <span className={styles.smallProductPrice}>
                         ₱{p.price.toLocaleString()}
                       </span>
-                      <span className={styles.smallStatusDot}>
-                        {p.preorderStatus === "OPEN" ? "● Open" : p.preorderStatus}
-                      </span>
+                      {p.preorderStatus !== "OPEN" && (
+                        <span className={styles.smallStatusDot}>
+                          {p.preorderStatus === "SOLD_OUT"
+                            ? "Sold Out"
+                            : p.preorderStatus === "COMING_SOON"
+                            ? "Coming Soon"
+                            : p.preorderStatus}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </button>
               );
             })}
           </div>
+
+          {filteredProducts.length > 8 && (
+            <div style={{ textAlign: "center", marginTop: "var(--space-3)" }}>
+              <button
+                type="button"
+                className={styles.viewMoreBtn}
+                onClick={() => setShowAllCatalogue((prev) => !prev)}
+              >
+                {showAllCatalogue
+                  ? "Show Less Pieces ↑"
+                  : `View All ${filteredProducts.length} Pieces ↓`}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Floating mobile Cart Button */}
       {itemCount > 0 && (
         <div className={styles.mobileFloatingCart}>
-          <Link href="/cart" className="btn btn-primary btn-full btn-lg" style={{ boxShadow: "var(--shadow-xl)" }}>
-            🛒 View Order ({itemCount} item{itemCount !== 1 ? "s" : ""}) →
+          <Link href="/cart" className="btn btn-primary btn-full btn-lg" style={{ boxShadow: "var(--shadow-xl)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "var(--space-2)" }}>
+            <CustomBagIcon size={18} /> View Order ({itemCount} item{itemCount !== 1 ? "s" : ""}) →
           </Link>
         </div>
       )}

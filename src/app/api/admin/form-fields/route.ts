@@ -62,7 +62,6 @@ export async function POST(request: NextRequest) {
       parsed.data;
     const fieldKey = key.toLowerCase().replace(/[^a-z0-9_]+/g, "_");
 
-    // Check if key already exists (even if deleted)
     const existing = await prisma.orderFormField.findUnique({
       where: { key: fieldKey },
     });
@@ -79,19 +78,11 @@ export async function POST(request: NextRequest) {
     });
     const nextSort = (maxSort._max.sortOrder ?? 0) + 1;
 
-    // `type` is validated against the enum now, so this can no longer be handed a
-    // value the database would reject.
     const cleanedOptions = normaliseFieldOptions(type as FormFieldType, options ?? []);
 
-    // The question and its audit entry land together, so a failed audit write
-    // cannot leave a question nobody can account for.
     const created = await prisma.$transaction(async (tx) => {
       const field = await tx.orderFormField.upsert({
         where: { key: fieldKey },
-        // The update branch is only reached for a key that was soft-deleted (a
-        // live one returned 409 above), so the revived question takes a fresh
-        // sort order: keeping the old one put it back in the middle of the form,
-        // on top of whichever question now held that position.
         update: {
           label,
           type,

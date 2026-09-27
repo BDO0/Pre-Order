@@ -1,9 +1,9 @@
 /* ============================================================
-   DESIGN TOKENS — ANA Clothing Pre-Order System
+   DESIGN TOKENS — TudungPeople PH Pre-Order System
    Maroon + Dirty White theme, beginner-friendly UI
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;1,400;1,600&family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap');
 
 :root {
   /* ── Brand Colors (Maroon) ── */
@@ -44,8 +44,16 @@
   --color-info:     #2563eb;
 
   /* ── Typography ── */
+  --font-serif:   'Playfair Display', 'Cormorant Garamond', 'Georgia', serif;
   --font-display: 'Outfit', system-ui, sans-serif;
   --font-body:    'Inter', system-ui, sans-serif;
+
+  /* ── Crystal Glass & Holographic Tokens (Customer Storefront) ── */
+  --glass-burgundy-base: #140307;
+  --glass-burgundy-surface: rgba(255, 255, 255, 0.07);
+  --glass-bevel-highlight: inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.45), inset 0 -1px 1px 0 rgba(255, 255, 255, 0.08);
+  --holographic-gradient: linear-gradient(135deg, rgba(255, 180, 200, 0.7) 0%, rgba(197, 179, 248, 0.7) 35%, rgba(156, 232, 248, 0.7) 70%, rgba(253, 226, 166, 0.7) 100%);
+  --holographic-glow: 0 0 24px rgba(255, 180, 200, 0.25), 0 0 48px rgba(156, 232, 248, 0.15);
 
   --text-xs:   0.75rem;
   --text-sm:   0.875rem;
@@ -68,6 +76,7 @@
   --space-12: 3rem;
   --space-16: 4rem;
   --space-20: 5rem;
+  --space-24: 6rem;
 
   /* ── Border Radius ── */
   --radius-sm:   0.375rem;
@@ -358,7 +367,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .form-hint {
   font-size: var(--text-xs);
-  color: var(--color-neutral-500);
+  color: var(--color-neutral-600);
 }
 
 /* ============================================================
@@ -388,20 +397,20 @@ h1, h2, h3, h4, h5, h6 {
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-full);
   font-size: var(--text-xs);
-  font-weight: 600;
+  font-weight: 700;
   font-family: var(--font-display);
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
 
-.badge-open       { background: rgb(22 163 74 / 0.1);   color: #15803d; }
-.badge-coming     { background: rgb(217 119 6 / 0.12);  color: #b45309; }
-.badge-sold-out   { background: rgb(220 38 38 / 0.1);   color: #b91c1c; }
-.badge-closed     { background: var(--color-neutral-100); color: var(--color-neutral-500); }
-.badge-pending    { background: rgb(217 119 6 / 0.12);  color: #b45309; }
-.badge-confirmed  { background: rgb(37 99 235 / 0.1);   color: #1d4ed8; }
-.badge-completed  { background: rgb(22 163 74 / 0.1);   color: #15803d; }
-.badge-cancelled  { background: rgb(220 38 38 / 0.1);   color: #b91c1c; }
+.badge-open       { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+.badge-coming     { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+.badge-sold-out   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+.badge-closed     { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
+.badge-pending    { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+.badge-confirmed  { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+.badge-completed  { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+.badge-cancelled  { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
 
 /* ============================================================
    COMPONENTS — SKELETON LOADER
@@ -671,7 +680,10 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: var(--shadow-sm);
 }
 
-.table-scroll { overflow-x: auto; }
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 
 .data-table {
   width: 100%;
@@ -702,6 +714,42 @@ h1, h2, h3, h4, h5, h6 {
 .data-table tr:last-child td { border-bottom: none; }
 
 .data-table tr:hover td { background: var(--color-neutral-50); }
+
+/* ── Admin High-Contrast Overrides ── */
+.admin-layout .data-table th {
+  color: #334155;
+  font-weight: 700;
+  font-size: var(--text-xs);
+}
+
+.admin-layout .data-table td {
+  color: #0f172a;
+  font-size: var(--text-sm);
+}
+
+.admin-layout .badge {
+  font-weight: 700 !important;
+  letter-spacing: 0.03em !important;
+}
+
+.admin-layout .badge-paid,
+.admin-layout .badge-confirmed,
+.admin-layout .badge-completed,
+.admin-layout .badge-open {
+  background: #dcfce7 !important;
+  color: #14532d !important;
+  border: 1px solid #86efac !important;
+}
+
+.admin-layout .badge-unpaid,
+.admin-layout .badge-pending,
+.admin-layout .badge-closed,
+.admin-layout .badge-cancelled,
+.admin-layout .badge-sold-out {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+  border: 1px solid #fca5a5 !important;
+}
 
 /* ============================================================
    EMPTY STATE
@@ -843,4 +891,72 @@ h1, h2, h3, h4, h5, h6 {
 
 @media (min-width: 768px) {
   .show-mobile-only { display: none !important; }
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .admin-main {
+    padding: var(--space-6) var(--space-4);
+    max-width: calc(100vw - 220px);
+  }
+  .admin-sidebar {
+    width: 220px;
+    min-width: 220px;
+  }
+}
+
+/* ============================================================
+   GLASSMORPHISM STOREFRONT — Badge Dark Overrides
+   Only apply inside the glass storefront layout; admin keeps
+   its original light-mode badge colors unchanged.
+   ============================================================ */
+
+.glass-storefront .badge-open {
+  background: rgba(22, 163, 74, 0.18);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.2);
+}
+
+.glass-storefront .badge-coming {
+  background: rgba(217, 119, 6, 0.18);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+.glass-storefront .badge-sold-out,
+.glass-storefront .badge-closed {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Storefront empty state on dark bg */
+.glass-storefront .empty-state-title {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.glass-storefront .empty-state-text {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ============================================================
+   BRAND LOGO — MOBILE RESPONSIVE
+   Ensure the logo adapts gracefully to phones without forcing
+   navbar actions out of view.
+   ============================================================ */
+
+@media (max-width: 640px) {
+  .brand-logo-tagline {
+    display: none !important;
+  }
+
+  .brand-logo-title {
+    font-size: clamp(0.72rem, 3.4vw, 0.95rem) !important;
+    letter-spacing: 0.08em !important;
+  }
+}
+
+@media (max-width: 350px) {
+  .brand-logo-title {
+    display: none !important;
+  }
 }

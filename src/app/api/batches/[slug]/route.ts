@@ -39,25 +39,14 @@ export async function GET(
       );
     }
 
-    // ── Expiry is COMPUTED, never written ──────────────────────
-    // This handler used to run `UPDATE batches SET status = 'CLOSED'` on any
-    // GET whose batch had ended. That made a read mutate the database: the
-    // storefront page, a crawler, or a read-only smoke test could each close a
-    // batch, and the write fired even for requests that were about to be
-    // refused. Expiry is a pure function of `endAt` and the clock, so it is now
-    // derived on read and the operator's stored status is left untouched —
-    // which also means extending a batch's window reopens it correctly
-    // instead of fighting a status the read path silently changed.
     const expired = Boolean(batch.endAt && now > batch.endAt);
 
-    // Filter to only preorder-enabled, active products
     const activeProducts = batch.products
       .map((bp) => bp.product)
       .filter(
         (p) => p.active && p.preorderEnabled && p.preorderStatus === "OPEN"
       );
 
-    // Also include COMING_SOON and SOLD_OUT for browsing (but not ordering)
     const browseProducts = batch.products
       .map((bp) => bp.product)
       .filter(
@@ -78,8 +67,6 @@ export async function GET(
         status: expired ? "CLOSED" : batch.status,
         startAt: batch.startAt,
         endAt: batch.endAt,
-        // An expired window hides the catalogue, not just the buttons: the
-        // storefront reads `status` to render the closed state.
         products: expired
           ? []
           : browseProducts.map((p) => ({

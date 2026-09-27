@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { FORM_FIELD_TYPE_LABELS, type AdminFormField } from "@/lib/order-answers";
 import { describeFieldState } from "@/lib/form-field-admin";
 import type { FormFieldType } from "@prisma/client";
+import { parseApiResponse } from "@/lib/api-client";
+import { SITE_NAME } from "@/lib/site";
 
 /**
  * Store configuration: the questions the checkout form asks.
@@ -59,12 +61,12 @@ type FieldsResponse =
  */
 async function requestFields(): Promise<FieldsResponse> {
   const res = await fetch("/api/admin/form-fields");
-  if (res.status === 401 || res.status === 403) return { denied: true };
+  if (res.status === 401 || res.status === 403 || res.redirected) return { denied: true };
 
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error?.message || "Failed to load the form fields");
+  const { ok, data, error } = await parseApiResponse(res, "Failed to load the form fields");
+  if (!ok) throw new Error(error || "Failed to load the form fields");
 
-  return { denied: false, fields: json.data ?? [] };
+  return { denied: false, fields: data ?? [] };
 }
 
 
@@ -195,8 +197,8 @@ export default function AdminSettingsPage() {
           body: JSON.stringify(draftPayload()),
         }
       );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message || "Failed to save the field");
+      const { ok, error } = await parseApiResponse(res, "Failed to save the field");
+      if (!ok) throw new Error(error || "Failed to save the field");
 
       await loadFields();
       cancelForm();
@@ -227,8 +229,8 @@ export default function AdminSettingsPage() {
           active: !field.active,
         }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message || "Failed to update the field");
+      const { ok, error } = await parseApiResponse(res, "Failed to update the field");
+      if (!ok) throw new Error(error || "Failed to update the field");
       await loadFields();
       showMsg("success", field.active ? "Field hidden from checkout." : "Field shown at checkout.");
     } catch (err) {
@@ -243,8 +245,8 @@ export default function AdminSettingsPage() {
     setBusy(true);
     try {
       const res = await fetch(`/api/admin/form-fields/${field.id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message || "Failed to delete the field");
+      const { ok, error } = await parseApiResponse(res, "Failed to delete the field");
+      if (!ok) throw new Error(error || "Failed to delete the field");
       await loadFields();
       showMsg("success", "Field deleted. Answers already collected are unaffected.");
     } catch (err) {
@@ -272,9 +274,9 @@ export default function AdminSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ order: next.map((field) => field.id) }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message || "Failed to reorder");
-      setFields(json.data ?? next);
+      const { ok, data, error } = await parseApiResponse(res, "Failed to reorder");
+      if (!ok) throw new Error(error || "Failed to reorder");
+      setFields(data ?? next);
     } catch (err) {
       showMsg("error", err instanceof Error ? err.message : "Failed to reorder");
       await loadFields();
@@ -426,7 +428,6 @@ export default function AdminSettingsPage() {
         </div>
       )}
 
-      {/* Pre-order form */}
       <div className="card" style={{ maxWidth: "900px", marginBottom: "var(--space-6)" }}>
         <div className="card-body">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-4)" }}>
@@ -553,7 +554,6 @@ export default function AdminSettingsPage() {
         </div>
       </div>
 
-      {/* System info */}
       <div className="card" style={{ maxWidth: "700px" }}>
         <div className="card-body">
           <h2 style={{ fontSize: "var(--text-lg)", fontWeight: 700, marginBottom: "var(--space-4)", color: "var(--color-brand-700)" }}>
@@ -562,7 +562,7 @@ export default function AdminSettingsPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", fontSize: "var(--text-sm)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", paddingBlock: "var(--space-2)", borderBottom: "1px solid var(--color-neutral-100)" }}>
               <span style={{ color: "var(--color-neutral-500)" }}>System</span>
-              <span style={{ fontWeight: 600 }}>ANA Pre-Order System</span>
+              <span style={{ fontWeight: 600 }}>{SITE_NAME} Pre-Order System</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", paddingBlock: "var(--space-2)", borderBottom: "1px solid var(--color-neutral-100)" }}>
               <span style={{ color: "var(--color-neutral-500)" }}>Version</span>

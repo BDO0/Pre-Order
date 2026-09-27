@@ -1,69 +1,93 @@
+/* ================================================================
+   ORDER STATUS PAGE — Royal Velvet Burgundy & Holographic Crystal Glass
+   ================================================================ */
+
 .page {
   min-height: 100dvh;
-  background: var(--color-neutral-50);
+  background: #140207;
+  color: #fff;
 }
 
-.searchForm {
-  background: white;
-  padding: var(--space-8);
-  border-radius: var(--radius-2xl);
-  border: 1px solid var(--color-neutral-200);
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  margin-bottom: var(--space-8);
+.mainContainer {
+  flex: 1;
+  max-width: var(--max-w-xl);
+  margin: 0 auto;
+  width: 100%;
+  padding: var(--space-12) var(--space-6);
 }
 
+@media (max-width: 640px) {
+  .mainContainer {
+    padding: var(--space-6) var(--space-4);
+  }
+}
+
+/* ── Result card (slides up when order is found) ── */
 .resultCard {
-  background: white;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
   border-radius: var(--radius-2xl);
-  border: 1px solid var(--color-neutral-200);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   overflow: hidden;
-  animation: slideUp var(--transition-normal);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.6),
+    0 0 32px rgba(255, 175, 200, 0.15),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 1px 0 rgba(255, 255, 255, 0.08);
+  animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ── Result Header (Rich Velvet Burgundy Bar) ── */
 .resultHeader {
-  background: var(--color-neutral-900);
-  color: white;
+  background: linear-gradient(135deg, rgba(168, 16, 56, 0.75), rgba(70, 6, 24, 0.85));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 220, 230, 0.15);
   padding: var(--space-6);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .resultLabel {
   font-size: var(--text-xs);
-  color: var(--color-neutral-400);
+  color: rgba(255, 255, 255, 0.7);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   margin-bottom: var(--space-1);
+  font-weight: 700;
 }
 
 .resultRef {
   font-family: var(--font-display);
-  font-size: var(--text-xl);
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #ffffff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
 }
 
+/* ── Section Title ── */
 .sectionTitle {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-neutral-500);
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.85);
   margin-bottom: var(--space-4);
 }
 
+/* ── Items List ── */
 .itemsList {
   padding: var(--space-6);
-  border-bottom: 1px solid var(--color-neutral-100);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .itemRow {
@@ -74,17 +98,17 @@
 
 .itemQty {
   font-weight: 700;
-  color: var(--color-neutral-400);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .itemName {
   font-weight: 600;
-  color: var(--color-neutral-900);
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .itemVariant {
   font-size: var(--text-sm);
-  color: var(--color-neutral-500);
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .totalRow {
@@ -92,15 +116,27 @@
   justify-content: space-between;
   padding-top: var(--space-4);
   margin-top: var(--space-4);
-  border-top: 1px dashed var(--color-neutral-200);
+  border-top: 1px dashed rgba(255, 255, 255, 0.15);
+  font-family: var(--font-serif);
   font-weight: 700;
-  font-size: var(--text-lg);
-  color: var(--color-neutral-900);
+  font-size: 1.35rem;
+  color: white;
 }
 
+.totalRow span:last-child {
+  font-family: var(--font-display);
+  font-weight: 800;
+  background: linear-gradient(135deg, #ffffff 0%, #ffc0cb 50%, #f4728d 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── Timeline with Glowing Ruby Nodes ── */
 .timeline {
   padding: var(--space-6);
-  background: var(--color-neutral-50);
+  background: rgba(10, 1, 4, 0.25);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .timelineItem {
@@ -117,21 +153,24 @@
 .timelineItem:not(:last-child)::before {
   content: "";
   position: absolute;
-  top: 16px;
-  left: 5px;
+  top: 18px;
+  left: 6px;
   bottom: 0;
   width: 2px;
-  background: var(--color-neutral-200);
+  background: linear-gradient(to bottom, rgba(220, 40, 85, 0.5), rgba(120, 10, 42, 0.2));
 }
 
 .timelineDot {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: var(--radius-full);
-  background: var(--color-brand-500);
+  background: linear-gradient(135deg, #a81038, #ff8095);
+  box-shadow: 0 0 12px rgba(255, 128, 149, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.5);
   margin-top: 4px;
   position: relative;
   z-index: 1;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.6);
 }
 
 .timelineContent {
@@ -140,22 +179,24 @@
 
 .timelineStatus {
   font-weight: 700;
-  color: var(--color-neutral-900);
+  color: rgba(255, 255, 255, 0.95);
   font-size: var(--text-sm);
 }
 
 .timelineDate {
   font-size: var(--text-xs);
-  color: var(--color-neutral-500);
+  color: rgba(255, 255, 255, 0.75);
   margin-top: 2px;
 }
 
 .timelineNote {
   font-size: var(--text-sm);
-  color: var(--color-neutral-600);
+  color: rgba(255, 255, 255, 0.9);
   margin-top: var(--space-2);
-  background: white;
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-neutral-200);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  line-height: 1.5;
 }

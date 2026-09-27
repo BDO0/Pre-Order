@@ -1,5 +1,3 @@
-// Type-only import: this module is safe to import from client components
-// (the transition rules are plain data, no Prisma runtime is pulled in).
 import type { OrderStatus } from "@prisma/client";
 
 /**

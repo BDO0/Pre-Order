@@ -8,9 +8,12 @@ import {
   SHOP_INSTAGRAM_URL,
   SITE_NAME,
 } from "@/lib/site";
+import { CustomBagIcon } from "@/components/CustomerIcons";
+import { BrandLogo } from "@/components/BrandLogo";
 import ProductPageClient from "./ProductPageClient";
 import StorefrontClient, { StorefrontProduct } from "@/app/StorefrontClient";
 import { prisma } from "@/lib/db";
+import glass from "@/app/glass.module.css";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -115,19 +118,10 @@ const loadProduct = cache(async (slug: string) => {
 
   if (!product || !product.active) return null;
 
-  // The batch to show this product under: the one it is really in, preferring an
-  // open one. A product with no batch link still needs a drop to appear under, so
-  // the newest open batch is the fallback.
   const linkedBatch =
     product.batches.find((b) => b.batch.status === "OPEN")?.batch ||
     product.batches[0]?.batch;
 
-  // This used to insert the missing link right here, while a customer was reading
-  // the page: a write on a read path, run twice per request, with the error
-  // swallowed. Removing it needed a real replacement, because that write is what
-  // made the link exist at all - `ensureProductInOpenBatch` in
-  // `@/lib/batch-service`, called from the admin product routes, which is where
-  // the rest of the catalogue is written. Nothing on this page writes now.
   const batch =
     linkedBatch ??
     (await prisma.batch.findFirst({
@@ -178,7 +172,6 @@ const loadProduct = cache(async (slug: string) => {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
 
-  // Check batch metadata first
   const batchData = await loadBatch(slug);
   if (batchData) {
     const title = `${batchData.batch.name} — Pre-Order Now | ${SITE_NAME}`;
@@ -186,13 +179,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       batchData.batch.description ??
       `Explore the ${batchData.batch.name} pre-order collection at ${SITE_NAME}.`;
 
-    // This is the link the operator shares — the admin panel's "Copy link" button
-    // exists to put exactly this URL on the clipboard — so it has to unfurl into a
-    // card. Without an openGraph block here the share arrived as a bare URL with
-    // no picture, while the product pages below had a card all along.
-    //
-    // The operator's own cover image wins; the generated card is the fallback, for
-    // a batch that has no artwork yet.
     const ogImages = [
       batchData.batch.coverImage
         ? {
@@ -224,7 +210,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  // Check product metadata
   const productData = await loadProduct(slug);
   if (productData) {
     const { product } = productData;
@@ -268,49 +253,57 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PreorderPage({ params }: Props) {
   const { slug } = await params;
 
-  // 1. Is this slug a Campaign / Batch?
   const batchData = await loadBatch(slug);
   if (batchData) {
     return (
-      <main style={{ minHeight: "100dvh", background: "var(--color-bg-main)" }}>
-        {/* Navbar */}
-        <nav className="navbar">
-          <div className="container navbar-inner">
-            <Link href="/" className="navbar-brand">
-              {SITE_NAME}
-            </Link>
-            <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
-              <Link href="/" className="btn btn-ghost btn-sm">
-                ← All Drops
+      <div className={glass.glassPage} style={{ minHeight: "100dvh" }}>
+        <div className={glass.bg} aria-hidden="true" />
+        <div className={glass.orb1} aria-hidden="true" />
+        <div className={glass.orb2} aria-hidden="true" />
+        <div className={glass.orb3} aria-hidden="true" />
+
+        <div className={glass.content}>
+          <nav className={glass.nav}>
+            <div className={glass.navInner}>
+              <Link href="/" className={glass.navBrand} aria-label={SITE_NAME}>
+                <BrandLogo variant="horizontal" height={34} />
               </Link>
-              <Link href="/cart" className="btn btn-secondary btn-sm">
-                🛒 Cart
-              </Link>
+              <div className={glass.navActions}>
+                <Link href="/" className={glass.navGhostBtn} aria-label="Back to Shop">
+                  ← <span className={glass.mobileHideText}>Back to </span>Shop
+                </Link>
+                <Link
+                  href="/cart"
+                  className={glass.navCartBtn}
+                  id="nav-cart-link"
+                >
+                  <CustomBagIcon size={16} /> View Cart
+                </Link>
+              </div>
             </div>
-          </div>
-        </nav>
+          </nav>
 
-        {/* Campaign Storefront with Two-Column Split Layout */}
-        <StorefrontClient
-          products={batchData.products}
-          campaignTitle={batchData.batch.name}
-          campaignDescription={batchData.batch.description}
-          campaignEndAt={batchData.batch.endAt}
-          campaignStatus={batchData.batch.status}
-        />
+          <StorefrontClient
+            products={batchData.products}
+            campaignTitle={batchData.batch.name}
+            campaignDescription={batchData.batch.description}
+            campaignEndAt={batchData.batch.endAt}
+            campaignStatus={batchData.batch.status}
+          />
 
-        {/* Trust strip */}
-        <section className="container" style={{ paddingBlock: "var(--space-8) var(--space-16)" }}>
-          <div
-            className="card"
-            style={{ maxWidth: "760px", marginInline: "auto", textAlign: "center" }}
-          >
-            <div className="card-body">
+          <section style={{ maxWidth: "760px", margin: "var(--space-8) auto var(--space-16)", paddingInline: "var(--space-4)" }}>
+            <div
+              className={glass.glassCard}
+              style={{
+                padding: "var(--space-8) var(--space-6)",
+                textAlign: "center",
+              }}
+            >
               <h2
+                className={glass.pageTitleEditorial}
                 style={{
-                  fontSize: "var(--text-xl)",
-                  fontWeight: 700,
-                  marginBottom: "var(--space-3)",
+                  fontSize: "1.5rem",
+                  marginBottom: "var(--space-2)",
                 }}
               >
                 How pre-ordering works
@@ -318,9 +311,10 @@ export default async function PreorderPage({ params }: Props) {
               <p
                 style={{
                   fontSize: "var(--text-sm)",
-                  color: "var(--color-neutral-600)",
+                  color: "rgba(255, 255, 255, 0.7)",
                   maxWidth: "560px",
-                  marginInline: "auto",
+                  margin: "0 auto var(--space-5)",
+                  lineHeight: 1.6,
                 }}
               >
                 Reserve your items here — no immediate payment is required. We reach out
@@ -329,12 +323,12 @@ export default async function PreorderPage({ params }: Props) {
               <div
                 style={{
                   display: "flex",
-                  gap: "var(--space-6)",
+                  gap: "var(--space-4)",
                   justifyContent: "center",
                   flexWrap: "wrap",
-                  marginTop: "var(--space-6)",
-                  fontSize: "var(--text-sm)",
-                  color: "var(--color-neutral-700)",
+                  fontSize: "var(--text-xs)",
+                  color: "rgba(255, 255, 255, 0.8)",
+                  marginBottom: "var(--space-5)",
                 }}
               >
                 <span>✓ Limited handcrafted batches</span>
@@ -345,87 +339,27 @@ export default async function PreorderPage({ params }: Props) {
                 href={SHOP_INSTAGRAM_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="btn btn-secondary"
-                style={{ marginTop: "var(--space-6)", display: "inline-block" }}
+                className="btn btn-secondary btn-sm"
+                style={{ display: "inline-block" }}
               >
                 Message us @{SHOP_INSTAGRAM_HANDLE}
               </a>
             </div>
-          </div>
-        </section>
-      </main>
+          </section>
+        </div>
+      </div>
     );
   }
 
-  // 2. Is this slug a Product?
   const productData = await loadProduct(slug);
   if (productData) {
     return (
-      <>
-        <ProductPageClient
-          product={productData.product}
-          batch={productData.batch}
-        />
-
-        {/* Trust strip */}
-        <section className="container" style={{ paddingBlock: "var(--space-12)" }}>
-          <div
-            className="card"
-            style={{ maxWidth: "760px", marginInline: "auto", textAlign: "center" }}
-          >
-            <div className="card-body">
-              <h2
-                style={{
-                  fontSize: "var(--text-xl)",
-                  fontWeight: 700,
-                  marginBottom: "var(--space-3)",
-                }}
-              >
-                How ordering works
-              </h2>
-              <p
-                style={{
-                  fontSize: "var(--text-sm)",
-                  color: "var(--color-neutral-600)",
-                  maxWidth: "560px",
-                  marginInline: "auto",
-                }}
-              >
-                Reserve your pieces here — no payment is taken on this site. We message you
-                on Instagram to confirm sizing, shipping and payment, and your order is
-                reserved the moment you place it.
-              </p>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "var(--space-6)",
-                  justifyContent: "center",
-                  flexWrap: "wrap",
-                  marginTop: "var(--space-6)",
-                  fontSize: "var(--text-sm)",
-                  color: "var(--color-neutral-700)",
-                }}
-              >
-                <span>✓ Limited, made-to-order pieces</span>
-                <span>✓ Confirmed personally on Instagram</span>
-                <span>✓ Your own private order link</span>
-              </div>
-              <a
-                href={SHOP_INSTAGRAM_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn-secondary"
-                style={{ marginTop: "var(--space-6)", display: "inline-block" }}
-              >
-                Message us @{SHOP_INSTAGRAM_HANDLE}
-              </a>
-            </div>
-          </div>
-        </section>
-      </>
+      <ProductPageClient
+        product={productData.product}
+        batch={productData.batch}
+      />
     );
   }
 
-  // Neither matched
   notFound();
 }

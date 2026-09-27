@@ -26,7 +26,6 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    // Auto-close batches where endAt has passed (check-on-request)
     const openBatches = batches.filter((b) => {
       if (b.endAt && now > b.endAt) return false;
       if (b.startAt && now < b.startAt) return false;

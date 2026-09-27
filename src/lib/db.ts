@@ -18,7 +18,6 @@ function createPrismaClient() {
     );
   }
 
-  // Pool/TLS options live in pg-ssl so the seed uses exactly the same settings.
   const adapter = new PrismaPg(new Pool(createPoolConfig(connectionString)));
 
   return new PrismaClient({

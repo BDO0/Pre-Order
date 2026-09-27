@@ -9,6 +9,7 @@ import {
   type Permission,
 } from "@/lib/permissions";
 import { SITE_NAME } from "@/lib/site";
+import { BrandLogo } from "@/components/BrandLogo";
 import type { AdminRole } from "@prisma/client";
 
 /**
@@ -23,20 +24,13 @@ import type { AdminRole } from "@prisma/client";
 const NAV_ITEMS: readonly {
   href: string;
   label: string;
-  icon: string;
-  /**
-   * The permission this destination requires. Omitted on screens that are about
-   * the signed-in person rather than about a resource — the account screen is
-   * about your own password, so every role can open it, including a VIEWER.
-   */
   permission?: Permission;
 }[] = [
-  { href: "/admin/dashboard",         label: "Dashboard", icon: "📊", permission: "reports.read" },
-  { href: "/admin/orders",            label: "Orders",    icon: "📋", permission: "orders.read" },
-  { href: "/admin/batches",           label: "Batches",   icon: "📦", permission: "batches.read" },
-  { href: "/admin/products",          label: "Products",  icon: "👗", permission: "products.read" },
-  { href: "/admin/settings",          label: "Settings",  icon: "⚙️", permission: "settings.write" },
-  { href: "/admin/account",           label: "Account",   icon: "👤" },
+  { href: "/butigadmin/dashboard", label: "Dashboard", permission: "reports.read" },
+  { href: "/butigadmin/orders",    label: "Orders",    permission: "orders.read" },
+  { href: "/butigadmin/batches",   label: "Batches",   permission: "batches.read" },
+  { href: "/butigadmin/products",  label: "Products",  permission: "products.read" },
+  { href: "/butigadmin/account",   label: "Account" },
 ];
 
 export default function AdminLayoutClient({
@@ -61,8 +55,8 @@ export default function AdminLayoutClient({
    * beneath it, so it must not light up for a path that merely starts with it.
    */
   const isActiveHref = (href: string) =>
-    href === "/admin/batches"
-      ? pathname === "/admin/batches"
+    href === "/butigadmin/batches"
+      ? pathname === "/butigadmin/batches"
       : pathname === href || pathname.startsWith(href + "/");
 
   const roleLabel =
@@ -80,11 +74,11 @@ export default function AdminLayoutClient({
           targets. Hidden again from 768px up, where the sidebar is better. */}
       <header className="admin-mobilebar">
         <div className="admin-mobilebar-top">
-          <span className="admin-mobilebar-brand">{SITE_NAME}</span>
+          <BrandLogo variant="horizontal" height={22} color="#fff" textColor="#fff" subtextColor="rgba(255, 255, 255, 0.7)" />
           <button
             type="button"
             className="admin-mobilebar-signout"
-            onClick={() => signOut({ callbackUrl: "/admin/login" })}
+            onClick={() => signOut({ callbackUrl: "/butigadmin/login" })}
           >
             Sign Out
           </button>
@@ -97,18 +91,18 @@ export default function AdminLayoutClient({
               href={item.href}
               className={`admin-mobilebar-link ${isActiveHref(item.href) ? "active" : ""}`}
             >
-              <span aria-hidden="true">{item.icon}</span>
               <span>{item.label}</span>
             </Link>
           ))}
         </nav>
       </header>
 
-      {/* Sidebar */}
       <aside className="admin-sidebar">
-        <div className="admin-sidebar-brand">
-          {SITE_NAME}
-          <span>Admin Panel</span>
+        <div className="admin-sidebar-brand" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+          <BrandLogo variant="stacked" height={42} color="#fff" textColor="#fff" subtextColor="rgba(255, 255, 255, 0.7)" />
+          <span style={{ textAlign: "center", fontSize: "var(--text-xs)", letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255, 255, 255, 0.6)" }}>
+            Admin Panel
+          </span>
         </div>
 
         <nav className="admin-nav" aria-label="Admin navigation">
@@ -118,9 +112,6 @@ export default function AdminLayoutClient({
               href={item.href}
               className={`admin-nav-link ${isActiveHref(item.href) ? "active" : ""}`}
             >
-              <span className="admin-nav-link-icon" aria-hidden="true">
-                {item.icon}
-              </span>
               <span>{item.label}</span>
             </Link>
           ))}
@@ -134,7 +125,6 @@ export default function AdminLayoutClient({
             <p style={{ color: "rgb(255 255 255 / 0.55)", fontSize: "var(--text-xs)", marginTop: "2px" }}>
               {user.email}
             </p>
-            {/* Staff should be able to see what they are allowed to do. */}
             <p
               style={{
                 display: "inline-block",
@@ -165,14 +155,13 @@ export default function AdminLayoutClient({
               textAlign: "left",
               transition: "all 150ms ease",
             }}
-            onClick={() => signOut({ callbackUrl: "/admin/login" })}
+            onClick={() => signOut({ callbackUrl: "/butigadmin/login" })}
           >
             Sign Out
           </button>
         </div>
       </aside>
 
-      {/* Main content */}
       <main className="admin-main">{children}</main>
     </div>
   );

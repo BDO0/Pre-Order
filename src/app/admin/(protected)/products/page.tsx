@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { variantCountLabel, stockSummary } from "@/lib/variant-stock";
+import { parseApiResponse } from "@/lib/api-client";
 
 /**
  * A row of the catalogue table, as `/api/admin/products` returns it.
@@ -41,9 +42,9 @@ export default function AdminProductsPage() {
     const fetchProducts = async () => {
       try {
         const res = await fetch("/api/admin/products");
-        const json = await res.json();
-        if (res.ok) {
-          setProducts(json.data.products);
+        const { ok, data } = await parseApiResponse(res);
+        if (ok && data) {
+          setProducts(data.products);
         }
       } catch (e) {
         console.error(e);
@@ -58,7 +59,7 @@ export default function AdminProductsPage() {
     <div>
       <div className="admin-page-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span>Products</span>
-        <Link href="/admin/products/new" className="btn btn-primary">
+        <Link href="/butigadmin/products/new" className="btn btn-primary">
           + New Product
         </Link>
       </div>
@@ -88,9 +89,10 @@ export default function AdminProductsPage() {
                   <td style={{ width: "60px" }}>
                     <div style={{ width: "40px", height: "40px", borderRadius: "var(--radius-sm)", background: "var(--color-neutral-100)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {product.images?.[0] ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img src={product.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit" }} />
-                      ) : "👗"}
+                      ) : (
+                        <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-neutral-400)" }}>IMG</span>
+                      )}
                     </div>
                   </td>
                   <td>
@@ -120,7 +122,7 @@ export default function AdminProductsPage() {
                   <td>
                     <div style={{ display: "flex", gap: "var(--space-1)", alignItems: "center" }}>
                       <Link href={`/preorder/${product.slug}`} target="_blank" className="btn btn-ghost btn-sm" title="View from customer POV">
-                        Preview ↗
+                        Preview
                       </Link>
                       <Link href={`/admin/products/${product.id}/edit`} className="btn btn-ghost btn-sm">
                         Edit
@@ -134,7 +136,7 @@ export default function AdminProductsPage() {
                           navigator.clipboard.writeText(url).then(() => alert(`Customer link copied:\n${url}`));
                         }}
                       >
-                        📋
+                        Copy
                       </button>
                     </div>
                   </td>

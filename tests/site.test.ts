@@ -18,7 +18,9 @@ describe("site configuration", () => {
   });
 
   it("builds the correct instagram URL", () => {
-    expect(SHOP_INSTAGRAM_URL).toBe(`https://instagram.com/${SHOP_INSTAGRAM_HANDLE}`);
+    expect(SHOP_INSTAGRAM_URL).toBe(
+      `https://instagram.com/${SHOP_INSTAGRAM_HANDLE.toLowerCase().replace(/\s+/g, "")}`
+    );
   });
 
   describe("siteUrl", () => {

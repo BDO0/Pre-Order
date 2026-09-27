@@ -26,14 +26,8 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // De-duplicated before it is compared or written: a repeated id would
-    // otherwise make the count check below fail on a list that is actually fine,
-    // and two writes for one row in one transaction is pointless work.
     const order = [...new Set(parsed.data.order)];
 
-    // Every id is checked first, because a stale screen (a question deleted in
-    // another tab) otherwise fails in the middle of the transaction with a Prisma
-    // P2025 and answers 500 to what is a bad request.
     const known = await prisma.orderFormField.findMany({
       where: { id: { in: order } },
       select: { id: true },
@@ -53,7 +47,6 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Update each field's sortOrder in a transaction
     await prisma.$transaction(
       order.map((id, index) =>
         prisma.orderFormField.update({

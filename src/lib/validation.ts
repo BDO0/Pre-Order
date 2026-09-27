@@ -2,9 +2,6 @@ import { z } from "zod";
 import { INSTAGRAM_HANDLE_HINT, normaliseInstagramHandle } from "@/lib/instagram";
 import { MAX_ANSWER_LENGTH } from "@/lib/order-answers";
 
-// ─────────────────────────────────────────────────────────────
-// CUSTOMER INFO
-// ─────────────────────────────────────────────────────────────
 /**
  * The checkout form asks for exactly two things: a full name (so the operator
  * knows who is talking) and an Instagram account (so the operator can actually
@@ -35,19 +32,11 @@ export const customerInfoSchema = z.object({
   instagramHandle: instagramHandleSchema,
 });
 
-// ─────────────────────────────────────────────────────────────
-// ORDER ITEM
-// ─────────────────────────────────────────────────────────────
 export const orderItemSchema = z.object({
-  // Existence, not format: seeded variant ids are `{productId}-{colour}-{size}`
-  // and were rejected by `z.cuid()` even though the row exists.
   variantId: z.string().min(1, "Invalid variant"),
   quantity: z.number().int().min(1, "Quantity must be at least 1").max(100),
 });
 
-// ─────────────────────────────────────────────────────────────
-// ORDER ANSWERS (the operator-defined checkout questions)
-// ─────────────────────────────────────────────────────────────
 /**
  * One answer to one operator-defined question.
  *
@@ -66,35 +55,20 @@ export const checkoutAnswerSchema = z.object({
 /** Most questions one order may carry an answer for. */
 const MAX_ANSWERS = 50;
 
-// ─────────────────────────────────────────────────────────────
-// ORDER SUBMISSION
-// ─────────────────────────────────────────────────────────────
 export const orderSubmissionSchema = z.object({
   idempotencyKey: z.string().uuid("Invalid idempotency key"),
   batchId: z.string().min(1, "Invalid batch"),
   items: z.array(orderItemSchema).min(1, "At least one item is required"),
   customerInfo: customerInfoSchema,
-  // Answers to whatever the operator asked for. Defaulted rather than optional
-  // so every caller states an array and the type cannot describe a payload that
-  // omits them: `createOrder` feeds this straight to `buildSnapshotAnswers`, and
-  // `undefined` there would silently skip the required-question check. A shop
-  // with no questions configured sends `[]`, which is the existing behaviour
-  // exactly.
   answers: z.array(checkoutAnswerSchema).max(MAX_ANSWERS, "Too many answers").default([]),
 });
 
-// ─────────────────────────────────────────────────────────────
-// ORDER STATUS LOOKUP (public)
-// ─────────────────────────────────────────────────────────────
 export const orderLookupSchema = z.object({
   reference: z.string().trim().min(1, "Order reference is required"),
   instagramHandle: z.string().min(1, "Instagram username is required"),
 });
 
 
-// ─────────────────────────────────────────────────────────────
-// ADMIN: STATUS UPDATE
-// ─────────────────────────────────────────────────────────────
 export const orderStatusUpdateSchema = z.object({
   status: z.enum([
     "PENDING",
@@ -111,9 +85,6 @@ export const orderStatusUpdateSchema = z.object({
   note: z.string().optional(),
 });
 
-// ─────────────────────────────────────────────────────────────
-// ADMIN: PAYMENT TOGGLE
-// ─────────────────────────────────────────────────────────────
 /**
  * The whole payment model: an admin records that money has or has not arrived.
  *
@@ -123,24 +94,16 @@ export const orderStatusUpdateSchema = z.object({
  */
 export const paymentToggleSchema = z.object({
   paid: z.boolean(),
-  // Optional context for the audit trail ("GCash ref 0123", "settled in DM").
   note: z.string().max(500, "Note is too long").optional(),
 });
 
-// ─────────────────────────────────────────────────────────────
-// ADMIN: INTERNAL NOTES
-// ─────────────────────────────────────────────────────────────
 export const internalNotesSchema = z.object({
-  // Empty string is allowed and clears the note: staff need a way to undo.
   notes: z.string().max(2000, "Note is too long"),
 });
 
 export type PaymentToggleInput = z.infer<typeof paymentToggleSchema>;
 export type InternalNotesInput = z.infer<typeof internalNotesSchema>;
 
-// ─────────────────────────────────────────────────────────────
-// PRODUCT
-// ─────────────────────────────────────────────────────────────
 /** Every pre-order state a product may be in. */
 export const PREORDER_STATUSES = ["OPEN", "COMING_SOON", "CLOSED", "SOLD_OUT", "DISABLED"] as const;
 
@@ -158,9 +121,6 @@ export const productSchema = z.object({
   preorderLimit: z.number().int().positive().optional().nullable(),
 });
 
-// ─────────────────────────────────────────────────────────────
-// PRODUCT VARIANT
-// ─────────────────────────────────────────────────────────────
 export const productVariantSchema = z.object({
   size: z.string().optional(),
   color: z.string().optional(),
@@ -237,9 +197,6 @@ export const productUpdateSchema = z.object({
   variants: productVariantListSchema.optional(),
 });
 
-// ─────────────────────────────────────────────────────────────
-// CHECKOUT FORM FIELDS (admin)
-// ─────────────────────────────────────────────────────────────
 /**
  * Every field type the checkout form can ask for.
  *
@@ -289,9 +246,6 @@ export const formFieldReorderSchema = z.object({
   order: z.array(z.string().min(1)).min(1).max(200),
 });
 
-// ─────────────────────────────────────────────────────────────
-// BATCH
-// ─────────────────────────────────────────────────────────────
 /**
  * A date-time written by a human into a `datetime-local` field.
  *
@@ -364,9 +318,6 @@ export type BatchWriteInput = z.infer<typeof batchWriteSchema>;
 export type BatchUpdateInput = z.infer<typeof batchUpdateSchema>;
 
 
-// ─────────────────────────────────────────────────────────────
-// ADMIN LOGIN
-// ─────────────────────────────────────────────────────────────
 export const adminLoginSchema = z.object({
   email: z.string().email("Enter a valid email"),
   password: z.string().min(1, "Password is required"),

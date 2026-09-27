@@ -9,6 +9,8 @@ import {
   fromDateTimeInputValue,
   toDateTimeInputValue,
 } from "@/lib/batches";
+import { compressImageClient, formatFileSize } from "@/lib/client-image-compression";
+import { parseApiResponse } from "@/lib/api-client";
 
 /**
  * Batches: the supplier runs orders are grouped into.
@@ -106,9 +108,9 @@ export default function AdminBatchesPage() {
   const load = async () => {
     try {
       const res = await fetch("/api/admin/batches");
-      const json = await res.json();
-      if (res.ok) setBatches(json.data ?? []);
-      else showMsg("error", json.error?.message || "Failed to load batches");
+      const { ok, data, error } = await parseApiResponse(res, "Failed to load batches");
+      if (ok && data) setBatches(data);
+      else showMsg("error", error || "Failed to load batches");
     } catch {
       showMsg("error", "Failed to load batches");
     } finally {
@@ -120,9 +122,10 @@ export default function AdminBatchesPage() {
   const loadProducts = async () => {
     try {
       const res = await fetch("/api/admin/products?limit=100");
-      if (!res.ok) return;
-      const json = await res.json();
-      setProducts(json.data?.products ?? []);
+      const { ok, data } = await parseApiResponse(res);
+      if (ok && data) {
+        setProducts(data.products ?? []);
+      }
     } catch {
       // A failed catalogue load leaves the list empty. The rest of the screen
       // still works, and the assignment can be made once the API is back.
@@ -152,18 +155,19 @@ export default function AdminBatchesPage() {
   const uploadCover = async (file: File) => {
     setUploading(true);
     try {
+      const compressed = await compressImageClient(file);
       const uploadData = new FormData();
-      uploadData.append("file", file);
+      uploadData.append("file", compressed.file);
       // Batch covers are public storefront content, so the API asks for
       // batches.write for this purpose.
       uploadData.append("purpose", "BATCH_IMAGE");
 
       const res = await fetch("/api/upload", { method: "POST", body: uploadData });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message || "Failed to upload the image");
+      const { ok, data, error } = await parseApiResponse(res, "Failed to upload the image");
+      if (!ok || !data) throw new Error(error || "Failed to upload the image");
 
-      setForm((prev) => ({ ...prev, coverImage: json.data.url }));
-      showMsg("success", "Cover image uploaded. Save the batch to keep it.");
+      setForm((prev) => ({ ...prev, coverImage: data.url }));
+      showMsg("success", `Cover image optimized & uploaded (${formatFileSize(compressed.originalBytes)} → ${formatFileSize(compressed.compressedBytes)}, ${compressed.savingsPercent}% saved). Save the batch to keep it.`);
     } catch (err) {
       showMsg("error", err instanceof Error ? err.message : "Failed to upload the image");
     } finally {
@@ -194,8 +198,8 @@ export default function AdminBatchesPage() {
           }),
         }
       );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message || "Failed to save the batch");
+      const { ok, error } = await parseApiResponse(res, "Failed to save the batch");
+      if (!ok) throw new Error(error || "Failed to save the batch");
 
       await load();
       setForm(EMPTY_FORM);
@@ -227,12 +231,31 @@ export default function AdminBatchesPage() {
     setBusy(true);
     try {
       const res = await fetch(`/api/admin/batches/${batch.id}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message || "Failed to delete the batch");
+      const { ok, error } = await parseApiResponse(res, "Failed to delete the batch");
+      if (!ok) throw new Error(error || "Failed to delete the batch");
       await load();
       showMsg("success", "Batch deleted.");
     } catch (err) {
       showMsg("error", err instanceof Error ? err.message : "Failed to delete the batch");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const markShipped = async (batch: BatchRow) => {
+    const confirmed = window.confirm(`Mark all accepted orders in "${batch.name}" as Shipped?`);
+    if (!confirmed) return;
+
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/batches/${batch.id}/ship`, { method: "POST" });
+      const { ok, data, error } = await parseApiResponse(res, "Failed to mark orders as shipped");
+      if (!ok) throw new Error(error || "Failed to mark orders as shipped");
+      
+      const count = data?.updatedCount ?? 0;
+      showMsg("success", count > 0 ? `Marked ${count} order(s) as Shipped.` : "No accepted orders to ship in this batch.");
+    } catch (err) {
+      showMsg("error", err instanceof Error ? err.message : "Failed to mark orders as shipped");
     } finally {
       setBusy(false);
     }
@@ -320,10 +343,6 @@ export default function AdminBatchesPage() {
             value={form.startAt}
             onChange={(e) => setForm({ ...form, startAt: e.target.value })}
           />
-          <p style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-400)", marginTop: "var(--space-1)" }}>
-            When this run starts taking orders. Leave blank to start as soon as the
-            status is Open.
-          </p>
         </div>
 
         <div className="form-group" style={{ marginTop: "var(--space-3)" }}>
@@ -334,10 +353,6 @@ export default function AdminBatchesPage() {
             value={form.etaAt}
             onChange={(e) => setForm({ ...form, etaAt: e.target.value })}
           />
-          <p style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-400)", marginTop: "var(--space-1)" }}>
-            Leave blank until the supplier confirms a date. Customers are only ever told
-            what you put here.
-          </p>
         </div>
 
         <div className="form-group" style={{ marginTop: "var(--space-3)" }}>
@@ -407,12 +422,9 @@ export default function AdminBatchesPage() {
 
         <div className="form-group" style={{ marginTop: "var(--space-3)" }}>
           <label className="form-label">Products in this run</label>
-          <p style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-400)", marginBottom: "var(--space-2)" }}>
-            Customers can only order what is ticked here. An empty batch shows nothing.
-          </p>
           {products.length === 0 ? (
             <p style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-500)" }}>
-              No products yet. <Link href="/admin/products/new" style={{ color: "var(--color-brand-600)", fontWeight: 600 }}>Add one</Link> first.
+              No products yet. <Link href="/butigadmin/products/new" style={{ color: "var(--color-brand-600)", fontWeight: 600 }}>Add one</Link> first.
             </p>
           ) : (
             <div style={{ display: "grid", gap: "var(--space-2)", maxHeight: "260px", overflowY: "auto" }}>
@@ -480,14 +492,9 @@ export default function AdminBatchesPage() {
             marginBottom: "var(--space-4)",
           }}
         >
-          {message.type === "success" ? "✓" : "⚠"} {message.text}
+          {message.text}
         </div>
       )}
-
-      <p style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-500)", marginBottom: "var(--space-5)", maxWidth: "720px" }}>
-        A batch is one supplier run. Group the orders that will be made together, set the
-        date you expect them, and export the list when you place the order.
-      </p>
 
       <div className="table-wrapper">
         <div className="table-scroll">
@@ -495,7 +502,6 @@ export default function AdminBatchesPage() {
             <thead>
               <tr>
                 <th>Batch</th>
-                <th>ETA</th>
                 <th>Orders</th>
                 <th>Value</th>
                 <th>Unpaid</th>
@@ -505,11 +511,11 @@ export default function AdminBatchesPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: "center", padding: "var(--space-8)" }}>Loading...</td>
+                  <td colSpan={5} style={{ textAlign: "center", padding: "var(--space-8)" }}>Loading...</td>
                 </tr>
               ) : batches.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--color-neutral-500)" }}>
+                  <td colSpan={5} style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--color-neutral-500)" }}>
                     No batches yet. Create one when you place your next supplier order.
                   </td>
                 </tr>
@@ -528,14 +534,17 @@ export default function AdminBatchesPage() {
                       </div>
                     )}
                   </td>
-                  <td>{etaBadge(batch)}</td>
                   <td style={{ fontWeight: 600 }}>{batch.orderCount}</td>
                   <td>₱{Number(batch.totalValue).toLocaleString()}</td>
                   <td>
                     {batch.unpaidCount > 0 ? (
-                      <span className="badge badge-pending">{batch.unpaidCount} unpaid</span>
+                      <span className="badge badge-unpaid" style={{ background: "#fee2e2", color: "#991b1b", border: "1px solid #fca5a5", fontWeight: 700, padding: "3px 10px", borderRadius: "var(--radius-full)" }}>
+                        {batch.unpaidCount} unpaid
+                      </span>
                     ) : (
-                      <span className="badge badge-confirmed">all paid</span>
+                      <span className="badge badge-paid" style={{ background: "#dcfce7", color: "#14532d", border: "1px solid #86efac", fontWeight: 700, padding: "3px 10px", borderRadius: "var(--radius-full)" }}>
+                        all paid
+                      </span>
                     )}
                   </td>
                   <td>
@@ -567,6 +576,9 @@ export default function AdminBatchesPage() {
                       >
                         Export
                       </a>
+                      <button className="btn btn-ghost btn-sm" onClick={() => markShipped(batch)} disabled={busy} title="Mark all Accepted orders in this batch as Shipped">
+                        Mark Shipped
+                      </button>
                       <button className="btn btn-ghost btn-sm" onClick={() => beginEdit(batch)} disabled={busy}>
                         Edit
                       </button>

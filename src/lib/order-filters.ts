@@ -62,9 +62,6 @@ export function buildOrderWhere(searchParams: URLSearchParams): Prisma.OrderWher
   const customerType = searchParams.get("customerType") ?? undefined;
   const search = (searchParams.get("search") ?? "").trim();
 
-  // Customers are searched by name and by their Instagram handle, because the
-  // handle is the identity the operator actually knows â€” there is no phone
-  // number to search on any more.
   const searchFilter = search
     ? {
         OR: [
@@ -89,8 +86,6 @@ export function buildOrderWhere(searchParams: URLSearchParams): Prisma.OrderWher
     ...(status ? { status } : {}),
     ...(paymentStatus ? { paymentStatus } : {}),
     ...(batchId ? { batchId } : {}),
-    // `customerType=new` is the "first-time customer" filter the dashboard links
-    // to; anything else means "no filter".
     ...(customerType === "new" ? { isNewCustomer: true } : {}),
     ...searchFilter,
   };

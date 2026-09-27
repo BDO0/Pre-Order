@@ -11,7 +11,7 @@ import { basename, join } from "node:path";
  * Server-only (uses node:path / process.cwd).
  */
 
-export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5MB
+export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25MB safety ceiling
 
 /** Formats sharp is allowed to decode. GIF is excluded: animated/lossy. */
 export const ALLOWED_UPLOAD_FORMATS = ["jpeg", "png", "webp"] as const;
@@ -26,8 +26,8 @@ export type AllowedUploadFormat = (typeof ALLOWED_UPLOAD_FORMATS)[number];
 export const STORED_EXTENSION = ".webp";
 export const STORED_MIME_TYPE = "image/webp";
 
-/** Longest edge kept after re-encode. */
-export const MAX_STORED_DIMENSION = 2400;
+/** Longest edge kept after re-encode: 2560px for Ultra-HD Retina clarity. */
+export const MAX_STORED_DIMENSION = 2560;
 
 export type UploadPurpose = "PRODUCT_IMAGE" | "BATCH_IMAGE";
 

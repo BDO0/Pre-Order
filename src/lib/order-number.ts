@@ -31,8 +31,6 @@ export async function generateOrderReference(): Promise<string> {
     RETURNING last_value
   `;
 
-  // A missing row would mean the INSERT ... RETURNING returned nothing, which
-  // Postgres does not allow, so this is a type-safety fallback only.
   const nextSequence = rows[0]?.last_value ?? 1;
 
   return `${prefix}${String(nextSequence).padStart(4, "0")}`;

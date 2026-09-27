@@ -7,12 +7,12 @@
  * not have to find four copies of its own name.
  */
 
-export const SITE_NAME = "ANA Clothing";
+export const SITE_NAME = "TudungPeople PH";
 export const SITE_TAGLINE = "Limited pre-order drops";
 
 /** What the shop does, in the words a first-time visitor needs. */
 export const SITE_DESCRIPTION =
-  "Limited pre-order drops from ANA Clothing. Reserve your pieces before they are made — we confirm every order personally on Instagram.";
+  "Limited pre-order drops from TudungPeople PH. Reserve your pieces before they are made — we confirm every order personally on Instagram.";
 
 /**
  * The Instagram account that runs the shop.
@@ -22,9 +22,11 @@ export const SITE_DESCRIPTION =
  * customer verifies they are talking to the real shop.
  */
 export const SHOP_INSTAGRAM_HANDLE =
-  process.env.NEXT_PUBLIC_INSTAGRAM_HANDLE?.trim().replace(/^@/, "") || "ana.clothing";
+  process.env.NEXT_PUBLIC_INSTAGRAM_HANDLE?.trim().replace(/^@/, "") || "tudungpeople PH";
 
-export const SHOP_INSTAGRAM_URL = `https://instagram.com/${SHOP_INSTAGRAM_HANDLE}`;
+export const SHOP_INSTAGRAM_URL =
+  process.env.NEXT_PUBLIC_INSTAGRAM_URL ||
+  `https://instagram.com/${SHOP_INSTAGRAM_HANDLE.toLowerCase().replace(/\s+/g, "")}`;
 
 /** How long an order holds its stock before the shop expects a DM. */
 export const HOLD_FOR_PAYMENT_DAYS = 2;

@@ -191,7 +191,7 @@ rotate — but there is a short list to work through before real customers arriv
       (it prints the new password once, and never asks for the old one).
 - [ ] **Replace the placeholder contact details** in the storefront copy: the
       app's `NEXT_PUBLIC_INSTAGRAM_HANDLE` must be the account customers actually
-      message (`@ana.clothing` is the placeholder).
+      message (`@tudungpeople PH` is the default).
 - [ ] **Review the checkout questions** in Admin → Settings → Pre-Order Form.
       Nothing is defined out of the box — the form asks only for name and
       Instagram handle until you add something. Delete or hide anything you do

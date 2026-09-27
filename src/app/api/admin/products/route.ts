@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const guard = await requirePermission("products.write", request);
     if (!guard.ok) return guard.response;
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
     const parsed = productCreateSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -53,24 +53,13 @@ export async function POST(request: NextRequest) {
 
     const { variants, images, ...columns } = parsed.data;
 
-    // The variant rows are built here rather than handed to Prisma as they
-    // arrived. A raw `body.variants` used to be pushed straight into a nested
-    // create: a capacity sent as a string, or any key the table does not have,
-    // came back as an unhandled Prisma error - a 500 for what is really a bad
-    // request.
     const variantRows = expandVariantPayload(variants ?? []).map((variant) => ({
       size: variant.size ?? null,
       color: variant.color ?? null,
-      // A variant that has just been created has consumed nothing, so its
-      // remaining capacity is its capacity - the same rule the edit path applies.
       capacity: variant.capacity ?? null,
       remainingCapacity: variant.capacity ?? null,
     }));
 
-    // The product, its variants, its batch link and its audit entry land together
-    // or not at all. The batch link used to be a separate best-effort write whose
-    // failure was swallowed, and a product with no batch link is one a customer
-    // can see but cannot order.
     const product = await prisma.$transaction(async (tx) => {
       const created = await tx.product.create({
         data: {
@@ -90,8 +79,6 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Automatically link to the open batch so the product is live on the
-      // storefront - and orderable, because the order service requires the join.
       await ensureProductInOpenBatch(tx, created.id);
 
       await tx.auditLog.create({
@@ -107,9 +94,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: product }, { status: 201 });
   } catch (error) {
-    // `products.slug` is the only unique column this write can collide with, and
-    // a duplicate slug is an operator typo, not a server fault: it used to come
-    // back as "Something went wrong." on a form that had just been filled in.
     if (uniqueViolationTarget(error)?.includes("slug")) {
       return NextResponse.json(
         {

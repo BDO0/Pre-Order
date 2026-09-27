@@ -12,6 +12,12 @@ import {
   variantKey,
   type VariantFormRow,
 } from "@/lib/variant-plan";
+import {
+  compressImageClient,
+  formatFileSize,
+  type CompressionResult,
+} from "@/lib/client-image-compression";
+import { parseApiResponse } from "@/lib/api-client";
 
 export default function NewProductPage() {
   const router = useRouter();
@@ -39,10 +45,15 @@ export default function NewProductPage() {
   const [stock, setStock] = useState<Record<string, string>>({});
   const [fillValue, setFillValue] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [compressionInfo, setCompressionInfo] = useState<CompressionResult | null>(null);
+  const [compressing, setCompressing] = useState(false);
 
-  const rows: VariantFormRow[] = buildVariantMatrix(
-    parseVariantList(formData.sizes),
-    parseVariantList(formData.colors)
+  const parsedSizes = parseVariantList(formData.sizes);
+  const parsedColors = parseVariantList(formData.colors);
+  const baseRows = buildVariantMatrix(parsedSizes, parsedColors);
+  // If no sizes and no colors are typed, fallback to a single default variant (one-size)
+  const rows: VariantFormRow[] = (
+    baseRows.length > 0 ? baseRows : [{ size: null, color: null }]
   ).map((row) => ({ ...row, capacity: stock[variantKey(row.size, row.color)] ?? "" }));
 
   const setStockFor = (row: VariantFormRow, value: string) => {
@@ -91,13 +102,11 @@ export default function NewProductPage() {
       if (imageFile) {
         const uploadData = new FormData();
         uploadData.append("file", imageFile);
-        // Product imagery is public storefront content, so it lands in
-        // public/uploads and the API requires products.write for this purpose.
         uploadData.append("purpose", "PRODUCT_IMAGE");
         const uploadRes = await fetch("/api/upload", { method: "POST", body: uploadData });
-        const uploadJson = await uploadRes.json();
-        if (!uploadRes.ok) throw new Error(uploadJson.error?.message || "Failed to upload image.");
-        imageUrl = uploadJson.data.url;
+        const { ok: uploadOk, data: uploadJson, error: uploadErr } = await parseApiResponse(uploadRes, "Failed to upload image.");
+        if (!uploadOk || !uploadJson) throw new Error(uploadErr || "Failed to upload image.");
+        imageUrl = uploadJson.url;
       }
 
       // 2. Generate slug
@@ -116,18 +125,15 @@ export default function NewProductPage() {
           active: true,
           preorderEnabled: true,
           preorderStatus: "OPEN",
-          // Both halves of the limit: how many this option can take, and how many
-          // the product can take overall. Blank is null, which the order service
-          // reads as "no limit".
           preorderLimit: limit.capacity,
           variants: payload.variants,
         }),
       });
 
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message || "Failed to create product");
+      const { ok: createOk, error: createErr } = await parseApiResponse(res, "Failed to create product");
+      if (!createOk) throw new Error(createErr || "Failed to create product");
 
-      router.push("/admin/products");
+      router.push("/butigadmin/products");
       router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to create product");
@@ -138,8 +144,8 @@ export default function NewProductPage() {
   return (
     <div>
       <div style={{ marginBottom: "var(--space-6)" }}>
-        <Link href="/admin/products" style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-500)", textDecoration: "none" }}>
-          ← Back to Products
+        <Link href="/butigadmin/products" style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-500)", textDecoration: "none" }}>
+          Back to Products
         </Link>
         <h1 className="admin-page-title" style={{ marginTop: "var(--space-2)" }}>Add New Product</h1>
       </div>
@@ -150,7 +156,7 @@ export default function NewProductPage() {
 
             <div className="form-group">
               <label className="form-label form-label-required">Product Name</label>
-              <input required type="text" className="form-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. ANA Basic Tee" />
+              <input required type="text" className="form-input" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. TudungPeople Classic Shawl" />
             </div>
 
             <div style={{ display: "flex", gap: "var(--space-4)" }}>
@@ -182,51 +188,45 @@ export default function NewProductPage() {
                 operator created was unlimited, whatever the copy promised. */}
             <div className="form-group">
               <label className="form-label">How many you can take</label>
-              {rows.length === 0 ? (
-                <p style={{ fontSize: "var(--text-sm)", color: "var(--color-error)", margin: 0 }}>
-                  ⚠ Type at least one size or one colour above. A product with no options cannot be ordered.
-                </p>
-              ) : (
-                <>
-                  <span className="form-hint" style={{ display: "block", marginBottom: "var(--space-2)" }}>
-                    {rows.length} option{rows.length === 1 ? "" : "s"}. Leave a box empty for no limit on that one.
-                  </span>
+              <span className="form-hint" style={{ display: "block", marginBottom: "var(--space-2)" }}>
+                {baseRows.length === 0
+                  ? "Standard / One-Size product. Leave box empty for no limit."
+                  : `${rows.length} option${rows.length === 1 ? "" : "s"}. Leave a box empty for no limit on that one.`}
+              </span>
 
-                  <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", marginBottom: "var(--space-3)" }}>
+              <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", marginBottom: "var(--space-3)" }}>
+                <input
+                  type="number"
+                  min="1"
+                  className="form-input"
+                  style={{ maxWidth: "120px" }}
+                  value={fillValue}
+                  onChange={e => setFillValue(e.target.value)}
+                  placeholder="e.g. 10"
+                  aria-label="Stock to give every option"
+                />
+                <button type="button" className="btn btn-secondary btn-sm" onClick={fillEveryBox}>
+                  Give every option this many
+                </button>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+                {rows.map((row) => (
+                  <div key={variantKey(row.size, row.color)} style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+                    <span style={{ flex: 1, fontSize: "var(--text-sm)", fontWeight: 500 }}>{describeVariant(row)}</span>
                     <input
                       type="number"
                       min="1"
                       className="form-input"
-                      style={{ maxWidth: "120px" }}
-                      value={fillValue}
-                      onChange={e => setFillValue(e.target.value)}
-                      placeholder="e.g. 10"
-                      aria-label="Stock to give every option"
+                      style={{ maxWidth: "130px" }}
+                      value={row.capacity}
+                      onChange={e => setStockFor(row, e.target.value)}
+                      placeholder="no limit"
+                      aria-label={`How many ${describeVariant(row)} you can take`}
                     />
-                    <button type="button" className="btn btn-secondary btn-sm" onClick={fillEveryBox}>
-                      Give every option this many
-                    </button>
                   </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                    {rows.map((row) => (
-                      <div key={variantKey(row.size, row.color)} style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                        <span style={{ flex: 1, fontSize: "var(--text-sm)", fontWeight: 500 }}>{describeVariant(row)}</span>
-                        <input
-                          type="number"
-                          min="1"
-                          className="form-input"
-                          style={{ maxWidth: "130px" }}
-                          value={row.capacity}
-                          onChange={e => setStockFor(row, e.target.value)}
-                          placeholder="no limit"
-                          aria-label={`How many ${describeVariant(row)} you can take`}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
+                ))}
+              </div>
             </div>
 
             <div className="form-group">
@@ -246,13 +246,66 @@ export default function NewProductPage() {
 
             <div className="form-group">
               <label className="form-label">Product Image</label>
-              <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files?.[0] || null)} className="form-input" style={{ padding: "var(--space-2)" }} />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) {
+                    setImageFile(null);
+                    setCompressionInfo(null);
+                    return;
+                  }
+                  setCompressing(true);
+                  try {
+                    const result = await compressImageClient(file);
+                    setImageFile(result.file);
+                    setCompressionInfo(result);
+                  } catch (err) {
+                    console.error("Compression error:", err);
+                    setImageFile(file);
+                  } finally {
+                    setCompressing(false);
+                  }
+                }}
+                className="form-input"
+                style={{ padding: "var(--space-2)" }}
+                disabled={compressing || loading}
+              />
+              {compressing && (
+                <span className="form-hint" style={{ color: "var(--color-info)" }}>
+                  ⚡ Auto-compressing & optimizing image clarity...
+                </span>
+              )}
+              {compressionInfo && (
+                <div style={{ marginTop: "var(--space-3)", display: "flex", gap: "var(--space-3)", alignItems: "center", background: "var(--color-neutral-50)", padding: "var(--space-3)", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-neutral-200)" }}>
+                  <img
+                    src={compressionInfo.previewUrl}
+                    alt="Preview"
+                    style={{
+                      width: "56px",
+                      height: "56px",
+                      objectFit: "cover",
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid var(--color-neutral-300)",
+                    }}
+                  />
+                  <div style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-700)" }}>
+                    <span style={{ fontWeight: 700, color: "var(--color-success)" }}>Auto-compressed for Storage</span>
+                    <br />
+                    <span>{formatFileSize(compressionInfo.originalBytes)} → <strong>{formatFileSize(compressionInfo.compressedBytes)}</strong></span>{" "}
+                    <span style={{ color: "var(--color-success)", fontWeight: 700 }}>({compressionInfo.savingsPercent}% saved)</span>
+                    <br />
+                    <span style={{ color: "var(--color-neutral-500)" }}>Resolution: {compressionInfo.width} × {compressionInfo.height} px (Full clarity preserved)</span>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {error && <div className="form-error">⚠ {error}</div>}
+            {error && <div className="form-error">{error}</div>}
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-4)", marginTop: "var(--space-4)" }}>
-              <Link href="/admin/products" className="btn btn-secondary">Cancel</Link>
+              <Link href="/butigadmin/products" className="btn btn-secondary">Cancel</Link>
               <button type="submit" disabled={loading} className="btn btn-primary">
                 {loading ? "Saving..." : "Save Product"}
               </button>

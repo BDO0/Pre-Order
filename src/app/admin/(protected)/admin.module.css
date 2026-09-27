@@ -61,3 +61,29 @@
   background: rgba(255,255,255,0.05);
   color: white;
 }
+
+.orderDetailGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .orderDetailGrid {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+.stepperScroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.stepperInner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  min-width: 440px;
+}

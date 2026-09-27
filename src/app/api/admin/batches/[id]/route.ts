@@ -32,7 +32,7 @@ export async function PATCH(
     if (!guard.ok) return guard.response;
 
     const { id } = await params;
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
     const parsed = batchUpdateSchema.safeParse(body);
 
     if (!parsed.success) {

@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     const guard = await requirePermission("batches.write", request);
     if (!guard.ok) return guard.response;
 
-    const body = await request.json();
+    const body = await request.json().catch(() => null);
     const parsed = batchWriteSchema.safeParse(body);
 
     if (!parsed.success) {

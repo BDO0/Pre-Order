@@ -54,11 +54,6 @@ export async function PATCH(
 
     const { type, options, ...columns } = parsed.data;
 
-    // Choices belong to the type, so they are re-derived only when one of the two
-    // was actually sent - and when only the type was sent, they are re-derived
-    // from the choices this question already had rather than from nothing. This
-    // is the same "absent is not the same as cleared" rule the rest of the admin
-    // API follows: a request that toggles `required` must not empty a dropdown.
     const cleanedOptions =
       options !== undefined
         ? normaliseFieldOptions((type ?? existing.type) as FormFieldType, options)
@@ -117,8 +112,6 @@ export async function DELETE(
       );
     }
 
-    // The soft delete and its audit entry land together, so a question cannot
-    // vanish from the checkout form with nothing recording who removed it.
     await prisma.$transaction(async (tx) => {
       await tx.orderFormField.update({
         where: { id },

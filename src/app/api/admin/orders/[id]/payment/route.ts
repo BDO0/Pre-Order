@@ -104,7 +104,7 @@ export async function PATCH(
             note: note ?? null,
             role: guard.role,
             orderReference: order.reference,
-            amount: order.total,
+            amount: Number(order.total),
           },
         },
       });

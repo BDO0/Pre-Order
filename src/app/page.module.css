@@ -1,170 +1,264 @@
+/* ============================================================
+   HOME PAGE — TudungPeople PH Pre-Order System
+   Royal Velvet Burgundy + Holographic Crystal Glass
+   ============================================================ */
+
 .home {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  position: relative;
+  overflow-x: hidden;
+  background: #140207;
+  color: #fff;
 }
 
-/* ── Hero ── */
-.hero {
-  background: linear-gradient(135deg, #fdf4ff 0%, #fae8ff 50%, #f0abfc22 100%);
-  padding-block: var(--space-12) var(--space-10);
+/* ── Animated Velvet Burgundy Background ── */
+.bgGradient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 90% 70% at 15% 10%, rgba(168, 16, 56, 0.32) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 80% at 85% 85%, rgba(120, 10, 42, 0.38) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 60% at 50% 40%, rgba(70, 6, 24, 0.45) 0%, transparent 80%),
+    linear-gradient(165deg, #140207 0%, #220510 35%, #150209 70%, #1e040e 100%);
 }
 
-.heroSub {
-  font-size: var(--text-lg);
-  color: var(--color-neutral-600);
-  margin-top: var(--space-2);
+/* Floating Luminous Ambient Orbs */
+.bgOrb1 {
+  position: fixed;
+  top: -15%;
+  left: -8%;
+  width: 650px;
+  height: 650px;
+  background: radial-gradient(circle, rgba(220, 40, 85, 0.22) 0%, rgba(160, 20, 60, 0.08) 50%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(40px);
+  animation: orbFloat1 14s ease-in-out infinite;
 }
 
-
-.heroInner {
-  text-align: center;
-  max-width: var(--max-w-4xl);
-  margin-inline: auto;
+.bgOrb2 {
+  position: fixed;
+  bottom: -20%;
+  right: -12%;
+  width: 850px;
+  height: 850px;
+  background: radial-gradient(circle, rgba(180, 20, 65, 0.2) 0%, rgba(130, 10, 45, 0.07) 50%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(50px);
+  animation: orbFloat2 18s ease-in-out infinite;
 }
 
-.heroBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  background: white;
-  border: 1px solid var(--color-brand-200);
-  color: var(--color-brand-700);
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-full);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  margin-bottom: var(--space-6);
-  box-shadow: var(--shadow-sm);
+.bgOrb3 {
+  position: fixed;
+  top: 35%;
+  left: 55%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(255, 175, 200, 0.12) 0%, rgba(197, 160, 245, 0.08) 40%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(45px);
+  animation: orbFloat3 22s ease-in-out infinite;
 }
 
-.heroTitle {
-  font-size: clamp(2rem, 6vw, 3.5rem);
-  font-weight: 800;
-  color: var(--color-neutral-900);
-  line-height: 1.1;
-  margin-bottom: var(--space-4);
+@keyframes orbFloat1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(40px, 30px) scale(1.08); }
+  66%      { transform: translate(-30px, 45px) scale(0.94); }
 }
 
-.heroAccent {
-  background: linear-gradient(135deg, var(--color-brand-600), var(--color-brand-400));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+@keyframes orbFloat2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(-50px, -40px) scale(1.1); }
 }
 
-.heroSubtitle {
-  font-size: var(--text-lg);
-  color: var(--color-neutral-600);
-  max-width: 480px;
-  margin-inline: auto;
-  margin-bottom: var(--space-12);
+@keyframes orbFloat3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  40%      { transform: translate(60px, -50px) scale(1.12); }
+  70%      { transform: translate(-40px, 30px) scale(0.92); }
 }
 
-.heroCampaigns {
-  width: 100%;
+/* ── Noise Texture Overlay ── */
+.bgNoise {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.025;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 128px 128px;
 }
 
-/* ── Campaign Card ── */
-.campaignCard {
-  cursor: pointer;
-  height: 100%;
-}
-
-.campaignImage {
-  aspect-ratio: 4/3;
-  background: linear-gradient(135deg, var(--color-brand-100), var(--color-brand-200));
-  overflow: hidden;
+/* ── Page Content Layer ── */
+.pageContent {
+  position: relative;
+  z-index: 1;
+  flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
 }
 
-.campaignImage img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform var(--transition-slow);
+/* ── Glass Navbar ── */
+.glassNav {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: rgba(20, 2, 7, 0.72);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border-bottom: 1px solid rgba(255, 220, 230, 0.12);
+  padding-block: 1rem;
+  box-shadow: 0 8px 36px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-.campaignCard:hover .campaignImage img {
-  transform: scale(1.05);
-}
-
-.campaignImagePlaceholder {
-  font-size: 4rem;
-  opacity: 0.5;
-}
-
-/* ── How It Works ── */
-.howItWorks {
-  background: var(--color-neutral-900);
-  padding-block: var(--space-16);
-}
-
-.sectionTitle {
-  text-align: center;
-  font-size: var(--text-3xl);
-  color: white;
-  margin-bottom: var(--space-10);
-}
-
-.steps {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-6);
-  max-width: var(--max-w-4xl);
-  margin-inline: auto;
-}
-
-@media (min-width: 768px) {
-  .steps { grid-template-columns: repeat(4, 1fr); }
-}
-
-.stepCard {
-  text-align: center;
-  padding: var(--space-6);
-  background: rgba(255,255,255,0.05);
-  border-radius: var(--radius-xl);
-  border: 1px solid rgba(255,255,255,0.1);
-}
-
-.stepEmoji {
-  font-size: 2.5rem;
-  margin-bottom: var(--space-3);
-}
-
-.stepTitle {
-  font-size: var(--text-base);
-  font-weight: 700;
-  color: white;
-  margin-bottom: var(--space-2);
-}
-
-.stepDesc {
-  font-size: var(--text-sm);
-  color: var(--color-neutral-400);
-  line-height: 1.5;
-}
-
-/* ── Footer ── */
-.footer {
-  background: var(--color-neutral-950);
-  color: var(--color-neutral-500);
-  padding-block: var(--space-6);
-  font-size: var(--text-sm);
-}
-
-.footer .container {
+.glassNavInner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
+  gap: var(--space-4);
+  max-width: var(--max-w-7xl);
+  margin-inline: auto;
+  padding-inline: var(--space-6);
+}
+
+.navBrand {
+  text-decoration: none;
+  transition: opacity 0.25s, transform 0.25s;
+  display: inline-flex;
+  align-items: center;
+}
+
+.navBrand:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.navActions {
+  display: flex;
+  align-items: center;
   gap: var(--space-3);
+  flex-shrink: 0;
 }
 
-.footer a {
-  color: var(--color-brand-400);
+/* Tactile Frosted Pill Buttons */
+.navGhostBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.55rem 1.25rem;
+  border-radius: var(--radius-full);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.4),
+    0 4px 16px rgba(0, 0, 0, 0.25);
+  text-decoration: none;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  min-height: 42px;
+  white-space: nowrap;
 }
 
-.footer a:hover { text-decoration: underline; }
+.navGhostBtn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 200, 220, 0.45);
+  color: #fff;
+  transform: translateY(-1.5px);
+  box-shadow:
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.6),
+    0 8px 24px rgba(220, 40, 85, 0.3);
+}
+
+.navCartBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.55rem 1.35rem;
+  border-radius: var(--radius-full);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: white;
+  background: linear-gradient(135deg, #a81038 0%, #800020 50%, #5e0018 100%);
+  border: 1px solid rgba(255, 200, 220, 0.35);
+  box-shadow:
+    0 8px 24px rgba(168, 16, 56, 0.45),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.4);
+  text-decoration: none;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.navCartBtn:hover {
+  background: linear-gradient(135deg, #c01844 0%, #950026 50%, #6e001d 100%);
+  border-color: rgba(255, 220, 235, 0.6);
+  box-shadow:
+    0 12px 32px rgba(220, 40, 85, 0.55),
+    0 0 24px rgba(255, 180, 205, 0.3),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.6);
+  transform: translateY(-1.5px);
+}
+
+/* ── Mobile Navbar Fixes ── */
+@media (max-width: 640px) {
+  .glassNav {
+    padding-block: 0.55rem;
+  }
+
+  .glassNavInner {
+    padding-inline: var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .navBrand {
+    min-width: 0;
+    flex-shrink: 1;
+    overflow: hidden;
+  }
+
+  .navActions {
+    flex-shrink: 0;
+    gap: 6px;
+  }
+
+  .navGhostBtn {
+    padding: 0.42rem 0.65rem;
+    font-size: 0.85rem;
+    min-height: 38px;
+  }
+
+  /* Cart button remains visible and compact */
+  .navCartBtn {
+    padding: 0.42rem 0.85rem;
+    font-size: 0.78rem;
+    min-height: 38px;
+    letter-spacing: 0.02em;
+  }
+}
+
+@media (max-width: 360px) {
+  .navCartLabel {
+    display: none;
+  }
+
+  .navCartBtn {
+    padding: 0.42rem 0.65rem;
+  }
+}

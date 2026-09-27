@@ -14,6 +14,12 @@ import {
   type StoredVariant,
   type VariantFormRow,
 } from "@/lib/variant-plan";
+import {
+  compressImageClient,
+  formatFileSize,
+  type CompressionResult,
+} from "@/lib/client-image-compression";
+import { parseApiResponse } from "@/lib/api-client";
 
 /**
  * A variant of the product being edited, as the endpoint returns it.
@@ -90,15 +96,17 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   const [storedVariants, setStoredVariants] = useState<StoredVariant[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [compressionInfo, setCompressionInfo] = useState<CompressionResult | null>(null);
+  const [compressing, setCompressing] = useState(false);
 
   useEffect(() => {
     const fetchProduct = async () => {
       try {
         const res = await fetch(`/api/admin/products/${id}`);
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error?.message || "Failed to load product");
+        const { ok, data, error: apiErr } = await parseApiResponse<ProductDetail>(res, "Failed to load product");
+        if (!ok || !data) throw new Error(apiErr || "Failed to load product");
 
-        const p = json.data as ProductDetail;
+        const p = data;
         const variants = p.variants ?? [];
         const onSale = variants.filter((variant) => variant.active);
 
@@ -146,9 +154,12 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     fetchProduct();
   }, [id]);
 
-  const rows: VariantFormRow[] = buildVariantMatrix(
-    parseVariantList(formData.sizes),
-    parseVariantList(formData.colors)
+  const parsedSizes = parseVariantList(formData.sizes);
+  const parsedColors = parseVariantList(formData.colors);
+  const baseRows = buildVariantMatrix(parsedSizes, parsedColors);
+  // If no sizes and no colors are typed, fallback to a single default variant (one-size)
+  const rows: VariantFormRow[] = (
+    baseRows.length > 0 ? baseRows : [{ size: null, color: null }]
   ).map((row) => ({ ...row, capacity: stock[variantKey(row.size, row.color)] ?? "" }));
 
   // What the product is already holding, for the hint beside each box.
@@ -243,9 +254,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
         uploadData.append("file", imageFile);
         uploadData.append("purpose", "PRODUCT_IMAGE");
         const uploadRes = await fetch("/api/upload", { method: "POST", body: uploadData });
-        const uploadJson = await uploadRes.json();
-        if (!uploadRes.ok) throw new Error(uploadJson.error?.message || "Failed to upload image.");
-        finalImages = [uploadJson.data.url];
+        const { ok: uploadOk, data: uploadDataRes, error: uploadErr } = await parseApiResponse(uploadRes, "Failed to upload image.");
+        if (!uploadOk || !uploadDataRes) throw new Error(uploadErr || "Failed to upload image.");
+        finalImages = [uploadDataRes.url];
       }
 
       const res = await fetch(`/api/admin/products/${id}`, {
@@ -259,19 +270,14 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           preorderStatus: formData.preorderStatus,
           preorderLimit: limit.capacity,
           images: finalImages,
-          // Always sent, and now always non-empty: this screen refuses a save
-          // that would leave a product with no options at all. The API still
-          // honours an empty list, for requests that are not this form.
           variants: payload.variants,
         }),
       });
 
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error?.message || "Failed to update product");
+      const { ok, data: updateData, error: updateErr } = await parseApiResponse(res, "Failed to update product");
+      if (!ok) throw new Error(updateErr || "Failed to update product");
 
-      // Say what happened to the options. "Product updated" was true but useless
-      // when saving the form had just retired two of them.
-      const changes = json.meta?.variantChanges as
+      const changes = (updateData as any)?.meta?.variantChanges as
         | { created: number; updated: number; retired: number }
         | null
         | undefined;
@@ -287,7 +293,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
           ? `Product updated. ${did.join(", ")}; past orders are untouched.`
           : "Product updated successfully!"
       );
-      setTimeout(() => router.push("/admin/products"), 1200);
+      setTimeout(() => router.push("/butigadmin/products"), 1200);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to update product");
     } finally {
@@ -306,20 +312,20 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
   return (
     <div>
       <div style={{ marginBottom: "var(--space-6)" }}>
-        <Link href="/admin/products" style={{ fontSize: "var(--text-sm)", color: "var(--color-brand-600)", textDecoration: "none", fontWeight: 500 }}>
-          ← Back to Products
+        <Link href="/butigadmin/products" style={{ fontSize: "var(--text-sm)", color: "var(--color-brand-600)", textDecoration: "none", fontWeight: 500 }}>
+          Back to Products
         </Link>
         <h1 className="admin-page-title" style={{ marginTop: "var(--space-2)", marginBottom: 0 }}>Edit Product</h1>
       </div>
 
       {error && (
         <div style={{ padding: "var(--space-3) var(--space-4)", background: "rgb(220 38 38 / 0.08)", border: "1px solid rgb(220 38 38 / 0.3)", borderRadius: "var(--radius-lg)", color: "var(--color-error)", marginBottom: "var(--space-4)", fontWeight: 500 }}>
-          ⚠ {error}
+          {error}
         </div>
       )}
       {success && (
         <div style={{ padding: "var(--space-3) var(--space-4)", background: "rgb(22 163 74 / 0.08)", border: "1px solid rgb(22 163 74 / 0.3)", borderRadius: "var(--radius-lg)", color: "var(--color-success)", marginBottom: "var(--space-4)", fontWeight: 500 }}>
-          ✓ {success}
+          {success}
         </div>
       )}
 
@@ -380,15 +386,11 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                 used to load showing only one of them. */}
             <div className="form-group">
               <label className="form-label">How many you can take</label>
-              {rows.length === 0 ? (
-                <p style={{ fontSize: "var(--text-sm)", color: "var(--color-error)", margin: 0 }}>
-                  ⚠ No options. Add a size or a colour, or a customer has nothing to choose.
-                </p>
-              ) : (
-                <>
-                  <span className="form-hint" style={{ display: "block", marginBottom: "var(--space-2)" }}>
-                    {rows.length} option{rows.length === 1 ? "" : "s"}. Leave a box empty for no limit on that one.
-                  </span>
+              <span className="form-hint" style={{ display: "block", marginBottom: "var(--space-2)" }}>
+                {baseRows.length === 0
+                  ? "Standard / One-Size product. Leave box empty for no limit."
+                  : `${rows.length} option${rows.length === 1 ? "" : "s"}. Leave a box empty for no limit on that one.`}
+              </span>
 
                   <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", marginBottom: "var(--space-3)" }}>
                     <input
@@ -431,8 +433,6 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                       );
                     })}
                   </div>
-                </>
-              )}
             </div>
 
             <div className="form-group">
@@ -450,12 +450,10 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
               </span>
             </div>
 
-            {/* Product Image */}
             <div className="form-group">
               <label className="form-label">Product Image</label>
               {existingImages[0] && (
                 <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-2)" }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={existingImages[0]}
                     alt={formData.name}
@@ -475,9 +473,56 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                 type="file"
                 accept="image/*"
                 className="form-input"
-                onChange={e => setImageFile(e.target.files?.[0] || null)}
+                disabled={compressing || loading}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) {
+                    setImageFile(null);
+                    setCompressionInfo(null);
+                    return;
+                  }
+                  setCompressing(true);
+                  try {
+                    const result = await compressImageClient(file);
+                    setImageFile(result.file);
+                    setCompressionInfo(result);
+                  } catch (err) {
+                    console.error("Compression error:", err);
+                    setImageFile(file);
+                  } finally {
+                    setCompressing(false);
+                  }
+                }}
               />
-              <span className="form-hint">Upload JPG, PNG or WebP to update product imagery.</span>
+              {compressing && (
+                <span className="form-hint" style={{ color: "var(--color-info)" }}>
+                  ⚡ Auto-compressing & optimizing image clarity...
+                </span>
+              )}
+              {compressionInfo && (
+                <div style={{ marginTop: "var(--space-3)", display: "flex", gap: "var(--space-3)", alignItems: "center", background: "var(--color-neutral-50)", padding: "var(--space-3)", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-neutral-200)" }}>
+                  <img
+                    src={compressionInfo.previewUrl}
+                    alt="New Preview"
+                    style={{
+                      width: "56px",
+                      height: "56px",
+                      objectFit: "cover",
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid var(--color-neutral-300)",
+                    }}
+                  />
+                  <div style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-700)" }}>
+                    <span style={{ fontWeight: 700, color: "var(--color-success)" }}>Auto-compressed for Storage</span>
+                    <br />
+                    <span>{formatFileSize(compressionInfo.originalBytes)} → <strong>{formatFileSize(compressionInfo.compressedBytes)}</strong></span>{" "}
+                    <span style={{ color: "var(--color-success)", fontWeight: 700 }}>({compressionInfo.savingsPercent}% saved)</span>
+                    <br />
+                    <span style={{ color: "var(--color-neutral-500)" }}>Resolution: {compressionInfo.width} × {compressionInfo.height} px (Full clarity preserved)</span>
+                  </div>
+                </div>
+              )}
+              <span className="form-hint">Upload JPG, PNG or WebP to update product imagery. Auto-optimized for web.</span>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", padding: "var(--space-3) var(--space-4)", background: "var(--color-neutral-50)", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-neutral-200)" }}>
@@ -494,7 +539,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
             </div>
 
             <div style={{ display: "flex", gap: "var(--space-3)", marginTop: "var(--space-2)" }}>
-              <Link href="/admin/products" className="btn btn-secondary" style={{ flex: 1, justifyContent: "center" }}>Cancel</Link>
+              <Link href="/butigadmin/products" className="btn btn-secondary" style={{ flex: 1, justifyContent: "center" }}>Cancel</Link>
               <button type="submit" disabled={loading} className="btn btn-primary" style={{ flex: 2 }}>
                 {loading ? "Saving..." : "Save Changes"}
               </button>

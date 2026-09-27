@@ -13,7 +13,6 @@ import {
 } from "@/lib/uploads";
 import { getStorageDriver, isReadOnlyFilesystemError } from "@/lib/storage";
 
-// Never cached, never prerendered.
 export const dynamic = "force-dynamic";
 
 /** Guard against decompression bombs: 50MP is far beyond any phone camera. */
@@ -81,9 +80,8 @@ export async function POST(request: NextRequest) {
     if (!guard.ok) return guard.response;
 
 
-    // Size is checked on the declared length before the buffer is materialised.
     if (file.size > MAX_UPLOAD_BYTES) {
-      return failure(400, "FILE_TOO_LARGE", "File must be less than 5MB.");
+      return failure(400, "FILE_TOO_LARGE", "File must be less than 25MB.");
     }
     if (file.size === 0) {
       return failure(400, "EMPTY_FILE", "The uploaded file is empty.");
@@ -91,10 +89,6 @@ export async function POST(request: NextRequest) {
 
     const input = Buffer.from(await file.arrayBuffer());
 
-    // A real decode, not a MIME sniff: this throws for anything that is not a
-    // well-formed image, whatever the client claimed it was. `.catch` turns the
-    // throw into a null so the failure path is explicit and the inferred type
-    // stays with the variable.
     const metadata = await sharp(input, {
       failOn: "error",
       limitInputPixels: MAX_INPUT_PIXELS,
@@ -126,7 +120,6 @@ export async function POST(request: NextRequest) {
       failOn: "error",
       limitInputPixels: MAX_INPUT_PIXELS,
     })
-      // Honour the EXIF orientation, then discard EXIF entirely.
       .rotate()
       .resize({
         width: MAX_STORED_DIMENSION,
@@ -134,13 +127,11 @@ export async function POST(request: NextRequest) {
         fit: "inside",
         withoutEnlargement: true,
       })
-      .webp({ quality: 82 })
+      .webp({ quality: 88, effort: 4 })
       .toBuffer({ resolveWithObject: true });
 
     const filename = `${randomBytes(16).toString("hex")}${STORED_EXTENSION}`;
 
-    // Where the file lands is configuration, not a `writeFile` call: `public/` is
-    // read-only on a serverless host, so the destination is chosen by a driver.
     const driver = getStorageDriver();
 
     try {
@@ -165,9 +156,6 @@ export async function POST(request: NextRequest) {
       });
     } catch (error) {
       if (isReadOnlyFilesystemError(error)) {
-        // Serverless filesystems are read-only. Say so plainly, and say what to
-        // do about it: an operator can act on this message, whereas "Failed to
-        // upload file" hides the cause.
         console.error("[POST /api/upload] read-only filesystem", error);
         return failure(
           503,
