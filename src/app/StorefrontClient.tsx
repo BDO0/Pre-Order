@@ -66,7 +66,11 @@ export default function StorefrontClient({
   const [selectedColor, setSelectedColor] = useState<string | null>(colors[0] ?? null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
-  const [added, setAdded] = useState(false);
+  const [imgZoom, setImgZoom] = useState(1);
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 3;
+  const ZOOM_STEP = 0.25;
+
   const handleSelectProduct = (product: StorefrontProduct, autoScroll = true) => {
     setSelectedProductId(product.id);
     const newColors = [...new Set(product.variants.filter((v) => v.color).map((v) => v.color!))];
@@ -74,6 +78,7 @@ export default function StorefrontClient({
     setSelectedSize(null);
     setQty(1);
     setAdded(false);
+    setImgZoom(1);
     setHighlightPulse(true);
     setTimeout(() => setHighlightPulse(false), 800);
     if (autoScroll && typeof window !== "undefined" && window.innerWidth <= 960) {
@@ -262,11 +267,79 @@ export default function StorefrontClient({
                   </>
                 )}
                 {activeProduct.images[0] ? (
-                  <img
-                    src={activeProduct.images[0]}
-                    alt={activeProduct.name}
-                    className={styles.showcaseImg}
-                  />
+                  <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
+                    <img
+                      src={activeProduct.images[0]}
+                      alt={activeProduct.name}
+                      className={styles.showcaseImg}
+                      style={{
+                        transform: `scale(${imgZoom})`,
+                        transformOrigin: "center center",
+                        transition: "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+                      }}
+                    />
+                    {activeProduct.images[0] && (
+                      <div style={{
+                        position: "absolute",
+                        bottom: "var(--space-3)",
+                        right: "var(--space-3)",
+                        display: "flex",
+                        gap: "6px",
+                        zIndex: 10,
+                      }}>
+                        <button
+                          type="button"
+                          onClick={() => setImgZoom((z) => Math.max(MIN_ZOOM, +(z - ZOOM_STEP).toFixed(2)))}
+                          disabled={imgZoom <= MIN_ZOOM}
+                          aria-label="Zoom out"
+                          style={{
+                            width: "32px",
+                            height: "32px",
+                            borderRadius: "50%",
+                            border: "1px solid rgba(255,255,255,0.3)",
+                            background: "rgba(20, 2, 7, 0.75)",
+                            backdropFilter: "blur(12px)",
+                            color: "white",
+                            fontSize: "18px",
+                            fontWeight: 700,
+                            lineHeight: 1,
+                            cursor: imgZoom <= MIN_ZOOM ? "not-allowed" : "pointer",
+                            opacity: imgZoom <= MIN_ZOOM ? 0.35 : 1,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            transition: "opacity 0.2s",
+                            boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+                          }}
+                        >−</button>
+                        <button
+                          type="button"
+                          onClick={() => setImgZoom((z) => Math.min(MAX_ZOOM, +(z + ZOOM_STEP).toFixed(2)))}
+                          disabled={imgZoom >= MAX_ZOOM}
+                          aria-label="Zoom in"
+                          style={{
+                            width: "32px",
+                            height: "32px",
+                            borderRadius: "50%",
+                            border: "1px solid rgba(255,255,255,0.3)",
+                            background: "rgba(20, 2, 7, 0.75)",
+                            backdropFilter: "blur(12px)",
+                            color: "white",
+                            fontSize: "18px",
+                            fontWeight: 700,
+                            lineHeight: 1,
+                            cursor: imgZoom >= MAX_ZOOM ? "not-allowed" : "pointer",
+                            opacity: imgZoom >= MAX_ZOOM ? 0.35 : 1,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            transition: "opacity 0.2s",
+                            boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+                          }}
+                        >+</button>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className={styles.placeholderArt}>
                     <div className={styles.placeholderIconWrap}>
