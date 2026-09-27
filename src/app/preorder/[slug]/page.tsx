@@ -248,10 +248,6 @@ export default async function PreorderPage({ params }: Props) {
           </nav>
           <StorefrontClient
             products={batchData.products}
-            campaignTitle={batchData.batch.name}
-            campaignDescription={batchData.batch.description}
-            campaignEndAt={batchData.batch.endAt}
-            campaignStatus={batchData.batch.status}
           />
           <section style={{ maxWidth: "760px", margin: "var(--space-8) auto var(--space-16)", paddingInline: "var(--space-4)" }}>
             <div
