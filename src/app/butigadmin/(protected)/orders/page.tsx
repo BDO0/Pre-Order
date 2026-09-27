@@ -255,7 +255,7 @@ export default function AdminOrdersPage() {
                     <td>
                       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
                         <Link
-                          href={`/admin/orders/${order.id}`}
+                          href={`/butigadmin/orders/${order.id}`}
                           style={{
                             fontSize: "var(--text-lg)",
                             fontWeight: 700,
@@ -355,7 +355,7 @@ export default function AdminOrdersPage() {
                             </button>
                           </>
                         )}
-                        <Link href={`/admin/orders/${order.id}`} className="btn btn-ghost btn-sm">
+                        <Link href={`/butigadmin/orders/${order.id}`} className="btn btn-ghost btn-sm">
                           View
                         </Link>
                       </div>

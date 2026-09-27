@@ -5,5 +5,5 @@ export default async function ProductDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  redirect(`/admin/products/${id}/edit`);
+  redirect(`/butigadmin/products/${id}/edit`);
 }

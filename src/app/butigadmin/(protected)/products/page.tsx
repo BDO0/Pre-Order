@@ -105,7 +105,7 @@ export default function AdminProductsPage() {
                       <Link href={`/preorder/${product.slug}`} target="_blank" className="btn btn-ghost btn-sm" title="View from customer POV">
                         Preview
                       </Link>
-                      <Link href={`/admin/products/${product.id}/edit`} className="btn btn-ghost btn-sm">
+                      <Link href={`/butigadmin/products/${product.id}/edit`} className="btn btn-ghost btn-sm">
                         Edit
                       </Link>
                       <button

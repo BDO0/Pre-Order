@@ -270,7 +270,7 @@ export default async function DashboardPage() {
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
                           <Link
-                            href={`/admin/orders/${order.id}`}
+                            href={`/butigadmin/orders/${order.id}`}
                             style={{
                               fontWeight: 700,
                               fontSize: "var(--text-base)",
@@ -329,7 +329,7 @@ export default async function DashboardPage() {
                         {format(new Date(order.createdAt), "MMM d, h:mm a")}
                       </td>
                       <td>
-                        <Link href={`/admin/orders/${order.id}`} className="btn btn-ghost btn-sm">View</Link>
+                        <Link href={`/butigadmin/orders/${order.id}`} className="btn btn-ghost btn-sm">View</Link>
                       </td>
                     </tr>
                   );
