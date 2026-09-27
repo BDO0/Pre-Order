@@ -276,7 +276,8 @@ export default function StorefrontClient({
                       style={{
                         transform: `scale(${imgZoom})`,
                         transformOrigin: "center center",
-                        transition: "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+                        transition: "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), object-fit 0s",
+                        objectFit: imgZoom < 1 ? "contain" : "cover",
                       }}
                     />
                     {activeProduct.images[0] && (
