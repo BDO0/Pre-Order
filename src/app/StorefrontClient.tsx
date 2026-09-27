@@ -66,6 +66,7 @@ export default function StorefrontClient({
   const [selectedColor, setSelectedColor] = useState<string | null>(colors[0] ?? null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
+  const [added, setAdded] = useState(false);
   const [imgZoom, setImgZoom] = useState(1);
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 3;
