@@ -25,8 +25,8 @@ export async function compressImageClient(
       previewUrl: URL.createObjectURL(file),
     };
   }
-  const maxDimension = options.maxDimension ?? 2560; 
-  const quality = options.quality ?? 0.88; 
+  const maxDimension = options.maxDimension ?? 1600; 
+  const quality = options.quality ?? 0.80; 
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Failed to read image file"));
