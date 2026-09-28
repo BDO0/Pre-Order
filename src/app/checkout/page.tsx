@@ -484,22 +484,25 @@ export default function CheckoutPage() {
 
                 {/* ── Screenshot banner ── */}
                 <div style={{
-                  display: "flex", alignItems: "center", gap: "10px",
-                  padding: "var(--space-3) var(--space-4)",
-                  background: "rgba(234,179,8,0.15)",
-                  border: "1px solid rgba(234,179,8,0.35)",
-                  borderRadius: "var(--radius-lg)",
-                  marginBottom: "var(--space-1)",
+                  display: "flex", alignItems: "center", gap: "12px",
+                  padding: "var(--space-4) var(--space-5)",
+                  background: "linear-gradient(135deg, rgba(234, 179, 8, 0.3) 0%, rgba(220, 38, 38, 0.3) 100%)",
+                  border: "2px solid rgba(234, 179, 8, 0.6)",
+                  borderRadius: "var(--radius-xl)",
+                  marginBottom: "var(--space-3)",
+                  boxShadow: "0 0 20px rgba(234, 179, 8, 0.2)",
                 }}>
-                  <span style={{ fontSize: "1.2rem" }}>📸</span>
-                  <p style={{ margin: 0, fontSize: "var(--text-xs)", fontWeight: 700, color: "#fde68a", lineHeight: 1.4 }}>
-                    Screenshot this screen as your proof of order before closing!
+                  <span style={{ fontSize: "2rem" }}>📸</span>
+                  <p style={{ margin: 0, fontSize: "var(--text-base)", fontWeight: 800, color: "#fef08a", lineHeight: 1.3, letterSpacing: "0.02em" }}>
+                    PLEASE SCREENSHOT THIS SCREEN NOW!
+                    <span style={{ display: "block", fontSize: "var(--text-xs)", fontWeight: 600, color: "rgba(254, 240, 138, 0.8)", marginTop: "4px" }}>
+                      This is your proof of order. Do not close without screenshotting.
+                    </span>
                   </p>
                 </div>
 
                 {/* ── Title ── */}
                 <div className={styles.modalHeader} style={{ textAlign: "center", paddingBottom: "var(--space-3)", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                  <div style={{ fontSize: "2.5rem", marginBottom: "var(--space-2)" }}>🎉</div>
                   <h2 id="success-modal-title" className={styles.modalTitle}>
                     Order Placed Successfully!
                   </h2>
