@@ -117,7 +117,8 @@ export default function CheckoutPage() {
       setError(
         err instanceof Error ? err.message : "Something went wrong. Please try again."
       );
-      setShowConfirmModal(false);
+      // Do NOT close the modal on error — the error slot is inside the modal (line 422).
+      // Closing it here would destroy the error slot before the customer can read it.
     } finally {
       setLoading(false);
     }
