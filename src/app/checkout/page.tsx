@@ -4,7 +4,7 @@ import { useCartStore } from "@/store/cart";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { INSTAGRAM_HANDLE_HINT } from "@/lib/instagram";
-import { SHOP_INSTAGRAM_HANDLE, SITE_NAME } from "@/lib/site";
+import { SHOP_INSTAGRAM_HANDLE, SHOP_INSTAGRAM_URL, SITE_NAME } from "@/lib/site";
 import { BrandLogo } from "@/components/BrandLogo";
 import { MAX_ANSWER_LENGTH, type PublicFormField } from "@/lib/order-answers";
 import { CustomBagIcon, CustomCardIcon, CustomAlertIcon } from "@/components/CustomerIcons";
@@ -22,6 +22,13 @@ export default function CheckoutPage() {
   const [questions, setQuestions] = useState<PublicFormField[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [questionsFailed, setQuestionsFailed] = useState(false);
+  // Holds placed order info to show the success popup
+  const [successData, setSuccessData] = useState<{
+    reference: string;
+    accessToken: string | null;
+    total: number;
+    copiedAll: boolean;
+  } | null>(null);
   useEffect(() => {
     if (items.length === 0) {
       router.push("/cart");
@@ -107,12 +114,15 @@ export default function CheckoutPage() {
           orderErr || "We could not place your order. Please try again."
         );
       }
-      clearCart();
-      const params = new URLSearchParams({ ref: orderData.reference });
-      if (typeof orderData.accessToken === "string" && orderData.accessToken) {
-        params.set("token", orderData.accessToken);
-      }
-      router.push(`/order-success?${params.toString()}`);
+      // Don't clear cart yet — we still need items to display in the success popup.
+      // Cart will be cleared when the customer navigates away from the success modal.
+      setShowConfirmModal(false);
+      setSuccessData({
+        reference: orderData.reference,
+        accessToken: typeof orderData.accessToken === "string" ? orderData.accessToken : null,
+        total: Number(orderData.total ?? getSubtotal()),
+        copiedAll: false,
+      });
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Something went wrong. Please try again."
@@ -459,8 +469,218 @@ export default function CheckoutPage() {
               </div>
             </div>
           )}
+
+          {/* ══════════════════════════════════════════════════════════════
+              SUCCESS POPUP — appears after the order is placed
+          ══════════════════════════════════════════════════════════════ */}
+          {successData && (
+            <div
+              className={styles.modalOverlay}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="success-modal-title"
+            >
+              <div className={styles.modalCard} style={{ maxWidth: "540px" }}>
+
+                {/* ── Screenshot banner ── */}
+                <div style={{
+                  display: "flex", alignItems: "center", gap: "10px",
+                  padding: "var(--space-3) var(--space-4)",
+                  background: "rgba(234,179,8,0.15)",
+                  border: "1px solid rgba(234,179,8,0.35)",
+                  borderRadius: "var(--radius-lg)",
+                  marginBottom: "var(--space-1)",
+                }}>
+                  <span style={{ fontSize: "1.2rem" }}>📸</span>
+                  <p style={{ margin: 0, fontSize: "var(--text-xs)", fontWeight: 700, color: "#fde68a", lineHeight: 1.4 }}>
+                    Screenshot this screen as your proof of order before closing!
+                  </p>
+                </div>
+
+                {/* ── Title ── */}
+                <div className={styles.modalHeader} style={{ textAlign: "center", paddingBottom: "var(--space-3)", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                  <div style={{ fontSize: "2.5rem", marginBottom: "var(--space-2)" }}>🎉</div>
+                  <h2 id="success-modal-title" className={styles.modalTitle}>
+                    Order Placed Successfully!
+                  </h2>
+                  <p className={styles.modalSubtitle}>
+                    Your pre-order has been received. We&apos;ll DM you on Instagram to confirm.
+                  </p>
+                </div>
+
+                {/* ── Order reference (big, prominent) ── */}
+                <div style={{
+                  textAlign: "center",
+                  padding: "var(--space-4)",
+                  background: "rgba(168,16,56,0.2)",
+                  borderRadius: "var(--radius-xl)",
+                  border: "1px dashed rgba(255,200,220,0.4)",
+                }}>
+                  <p style={{ margin: 0, fontSize: "var(--text-xs)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(255,255,255,0.6)", marginBottom: "4px" }}>
+                    Your Order Reference
+                  </p>
+                  <p style={{ margin: 0, fontSize: "2rem", fontWeight: 800, fontFamily: "var(--font-display)", color: "#fff", letterSpacing: "0.06em", textShadow: "0 2px 12px rgba(220,40,85,0.5)" }}>
+                    {successData.reference}
+                  </p>
+                </div>
+
+                {/* ── Summary details ── */}
+                <div className={styles.modalSection}>
+                  <div className={styles.modalRow}>
+                    <span className={styles.modalRowLabel}>Name</span>
+                    <span className={styles.modalRowValue}>{fullName}</span>
+                  </div>
+                  <div className={styles.modalRow}>
+                    <span className={styles.modalRowLabel}>Instagram</span>
+                    <span className={`${styles.modalRowValue} ${styles.modalHandleHighlight}`}>
+                      {instagramHandle.trim().startsWith("@") ? instagramHandle.trim() : `@${instagramHandle.trim()}`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* ── Items ── */}
+                <div className={styles.modalSection}>
+                  <div className={styles.modalRow}>
+                    <span className={styles.modalRowLabel}>Pre-Order Items</span>
+                    <span className={styles.modalRowValue}>{items.reduce((a, i) => a + i.quantity, 0)} pc(s)</span>
+                  </div>
+                  <div className={styles.modalItemsList}>
+                    {items.map((item) => (
+                      <div key={item.id} className={styles.modalItemRow}>
+                        <span>
+                          {item.quantity}× {item.product.name}{" "}
+                          <span style={{ color: "rgba(255,255,255,0.65)" }}>
+                            ({[item.variant.color, item.variant.size].filter(Boolean).join(" / ")})
+                          </span>
+                        </span>
+                        <span style={{ fontWeight: 600 }}>₱{(item.unitPrice * item.quantity).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className={styles.modalTotalRow}>
+                    <span>Total</span>
+                    <span className={styles.modalTotalAmount}>₱{successData.total.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* ── Copy All button ── */}
+                <button
+                  type="button"
+                  id="copy-all-order-info-btn"
+                  onClick={async () => {
+                    const handle = instagramHandle.trim().startsWith("@") ? instagramHandle.trim() : `@${instagramHandle.trim()}`;
+                    const itemLines = items
+                      .map((i) => `  • ${i.quantity}× ${i.product.name}${[i.variant.color, i.variant.size].filter(Boolean).length > 0 ? ` (${[i.variant.color, i.variant.size].filter(Boolean).join(" / ")})` : ""} — ₱${(i.unitPrice * i.quantity).toLocaleString()}`)
+                      .join("\n");
+                    const text = [
+                      "📦 Pre-Order Confirmation",
+                      `Order Ref: ${successData.reference}`,
+                      `Name: ${fullName}`,
+                      `Instagram: ${handle}`,
+                      "",
+                      `Items:\n${itemLines}`,
+                      "",
+                      `Total: ₱${successData.total.toLocaleString()}`,
+                      "",
+                      "Please send this as proof of your pre-order.",
+                    ].join("\n");
+                    try {
+                      await navigator.clipboard.writeText(text);
+                      setSuccessData((prev) => prev ? { ...prev, copiedAll: true } : prev);
+                      setTimeout(() => setSuccessData((prev) => prev ? { ...prev, copiedAll: false } : prev), 2500);
+                    } catch { /* ignore */ }
+                  }}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    padding: "var(--space-3)",
+                    borderRadius: "var(--radius-xl)",
+                    background: successData.copiedAll ? "rgba(34,197,94,0.18)" : "rgba(255,255,255,0.10)",
+                    border: successData.copiedAll ? "1px solid rgba(34,197,94,0.45)" : "1px solid rgba(255,255,255,0.2)",
+                    color: successData.copiedAll ? "#86efac" : "rgba(255,255,255,0.95)",
+                    fontWeight: 700,
+                    fontSize: "var(--text-sm)",
+                    cursor: "pointer",
+                    transition: "all 220ms ease",
+                  }}
+                >
+                  {successData.copiedAll ? (
+                    "✓ Copied to clipboard!"
+                  ) : (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                      Copy All Order Info
+                    </>
+                  )}
+                </button>
+
+                {/* ── Instagram DM button ── */}
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ margin: "0 0 var(--space-2) 0", fontSize: "var(--text-xs)", color: "rgba(255,255,255,0.6)", lineHeight: 1.5 }}>
+                    Copy your order info above, then tap below to DM us on Instagram and paste it.
+                  </p>
+                  <a
+                    href={`https://ig.me/m/${SHOP_INSTAGRAM_HANDLE.replace(/^@/, "").replace(/\s+/g, "")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    id="success-dm-instagram-btn"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      width: "100%",
+                      padding: "var(--space-3) var(--space-4)",
+                      borderRadius: "var(--radius-xl)",
+                      background: "linear-gradient(135deg, #833ab4 0%, #fd1d1d 50%, #fcb045 100%)",
+                      color: "#fff",
+                      fontWeight: 700,
+                      fontSize: "var(--text-sm)",
+                      textDecoration: "none",
+                      boxShadow: "0 4px 20px rgba(131,58,180,0.35)",
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                    </svg>
+                    DM us on Instagram @{SHOP_INSTAGRAM_HANDLE.replace(/^@/, "")}
+                  </a>
+                </div>
+
+                {/* ── Navigation ── */}
+                <div style={{ display: "flex", gap: "var(--space-3)", marginTop: "var(--space-1)" }}>
+                  <Link
+                    href="/"
+                    className="btn btn-secondary btn-full"
+                    onClick={clearCart}
+                  >
+                    ← Back to Shop
+                  </Link>
+                  <Link
+                    href={
+                      successData.accessToken
+                        ? `/order-status?token=${encodeURIComponent(successData.accessToken)}`
+                        : `/order-status?ref=${encodeURIComponent(successData.reference)}`
+                    }
+                    className="btn btn-primary btn-full"
+                    onClick={clearCart}
+                  >
+                    Track Order →
+                  </Link>
+                </div>
+
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>
   );
 }
+
