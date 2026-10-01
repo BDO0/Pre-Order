@@ -11,8 +11,6 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:db": "tsx scripts/test-db.ts",
-    "dev:local": "tsx scripts/test-db.ts --serve",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",

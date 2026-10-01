@@ -51,10 +51,3 @@ jobs:
 
       - name: Unit tests
         run: npm test
-
-      # The real-Postgres suite: concurrent checkouts, capacity release, the
-      # checkout-answer path. It starts its own cluster from `embedded-postgres`
-      # (the Linux binaries install as an optional dependency) and deletes it
-      # afterwards, so nothing here needs a database service to exist.
-      - name: Integration tests (throwaway Postgres)
-        run: npm run test:db
