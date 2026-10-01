@@ -43,6 +43,7 @@ function CountdownTimer({ targetDate }: { targetDate: string }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const describe = (): string | null => {
       const remaining = new Date(targetDate).getTime() - Date.now();
@@ -79,6 +80,7 @@ export default function StorefrontClient({
   const [highlightPulse, setHighlightPulse] = useState(false);
   const [showAllCatalogue, setShowAllCatalogue] = useState(false);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
   const itemCount = mounted ? getItemCount() : 0;

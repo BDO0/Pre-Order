@@ -45,6 +45,7 @@ function CountdownTimer({ targetDate }: { targetDate: string }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const describe = (): string | null => {
       const remaining = new Date(targetDate).getTime() - Date.now();
@@ -75,6 +76,7 @@ export default function ProductPageClient({ product, batch }: { product: Product
   const { addItem, getItemCount, clearCart, items } = useCartStore();
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
   const isClosed = batch.status === "CLOSED" || product.preorderStatus === "CLOSED" || product.preorderStatus === "SOLD_OUT";

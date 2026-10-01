@@ -12,92 +12,93 @@ export default function CartPage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const subtotal = getSubtotal();
   const total = subtotal;
-  const EmptyState = () => (
-    <div className={`${glass.glassPage} ${styles.page}`}>
-      <div className={glass.bg} aria-hidden="true" />
-      <div className={glass.orb1} aria-hidden="true" />
-      <div className={glass.orb2} aria-hidden="true" />
-      <div className={glass.orb3} aria-hidden="true" />
-      <div className={glass.content}>
-        <nav className={glass.nav}>
-          <div className={glass.navInner}>
-            <Link href="/" className={glass.navBrand} aria-label={SITE_NAME}>
-              <BrandLogo variant="horizontal" height={34} />
-            </Link>
-            <div className={glass.navActions}>
-              <Link href="/" className={glass.navGhostBtn} aria-label="Back to Shop">
-                ← <span className={glass.mobileHideText}>Back to </span>Shop
+  if (items.length === 0) {
+    return (
+      <div className={`${glass.glassPage} ${styles.page}`}>
+        <div className={glass.bg} aria-hidden="true" />
+        <div className={glass.orb1} aria-hidden="true" />
+        <div className={glass.orb2} aria-hidden="true" />
+        <div className={glass.orb3} aria-hidden="true" />
+        <div className={glass.content}>
+          <nav className={glass.nav}>
+            <div className={glass.navInner}>
+              <Link href="/" className={glass.navBrand} aria-label={SITE_NAME}>
+                <BrandLogo variant="horizontal" height={34} />
               </Link>
+              <div className={glass.navActions}>
+                <Link href="/" className={glass.navGhostBtn} aria-label="Back to Shop">
+                  ← <span className={glass.mobileHideText}>Back to </span>Shop
+                </Link>
+              </div>
             </div>
-          </div>
-        </nav>
-        <main
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "var(--space-8) var(--space-4)",
-          }}
-        >
-          <div
-            className={glass.glassCard}
+          </nav>
+          <main
             style={{
-              padding: "clamp(var(--space-6), 5vw, var(--space-10)) clamp(var(--space-4), 4vw, var(--space-8))",
-              maxWidth: "460px",
-              width: "100%",
-              textAlign: "center",
+              flex: 1,
               display: "flex",
-              flexDirection: "column",
               alignItems: "center",
-              gap: "var(--space-3)",
+              justifyContent: "center",
+              padding: "var(--space-8) var(--space-4)",
             }}
           >
             <div
+              className={glass.glassCard}
               style={{
-                width: "80px",
-                height: "80px",
-                borderRadius: "50%",
-                background: "radial-gradient(circle, rgba(168, 16, 56, 0.3) 0%, rgba(20, 2, 7, 0.7) 100%)",
-                border: "1px solid rgba(255, 200, 220, 0.3)",
+                padding: "clamp(var(--space-6), 5vw, var(--space-10)) clamp(var(--space-4), 4vw, var(--space-8))",
+                maxWidth: "460px",
+                width: "100%",
+                textAlign: "center",
                 display: "flex",
+                flexDirection: "column",
                 alignItems: "center",
-                justifyContent: "center",
-                color: "rgba(255, 255, 255, 0.9)",
-                boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4), 0 0 20px rgba(220, 40, 85, 0.25)",
-                marginBottom: "var(--space-2)",
+                gap: "var(--space-3)",
               }}
-              aria-hidden="true"
             >
-              <CustomBagIcon size={38} />
+              <div
+                style={{
+                  width: "80px",
+                  height: "80px",
+                  borderRadius: "50%",
+                  background: "radial-gradient(circle, rgba(168, 16, 56, 0.3) 0%, rgba(20, 2, 7, 0.7) 100%)",
+                  border: "1px solid rgba(255, 200, 220, 0.3)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "rgba(255, 255, 255, 0.9)",
+                  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4), 0 0 20px rgba(220, 40, 85, 0.25)",
+                  marginBottom: "var(--space-2)",
+                }}
+                aria-hidden="true"
+              >
+                <CustomBagIcon size={38} />
+              </div>
+              <h2
+                className={glass.pageTitleEditorial}
+                style={{ fontSize: "1.75rem", margin: 0 }}
+              >
+                Your Cart is Empty
+              </h2>
+              <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "var(--text-sm)", margin: 0 }}>
+                Explore our latest drop to find your style.
+              </p>
+              <Link
+                href="/"
+                className="btn btn-primary btn-lg"
+                style={{
+                  marginTop: "var(--space-5)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "var(--space-2)",
+                }}
+              >
+                ← Back to Shop
+              </Link>
             </div>
-            <h2
-              className={glass.pageTitleEditorial}
-              style={{ fontSize: "1.75rem", margin: 0 }}
-            >
-              Your Cart is Empty
-            </h2>
-            <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "var(--text-sm)", margin: 0 }}>
-              Explore our latest drop to find your style.
-            </p>
-            <Link
-              href="/"
-              className="btn btn-primary btn-lg"
-              style={{
-                marginTop: "var(--space-5)",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "var(--space-2)",
-              }}
-            >
-              ← Back to Shop
-            </Link>
-          </div>
-        </main>
+          </main>
+        </div>
       </div>
-    </div>
-  );
-  if (items.length === 0) return <EmptyState />;
+    );
+  }
   return (
     <div className={`${glass.glassPage} ${styles.page}`}>
       <div className={glass.bg} aria-hidden="true" />

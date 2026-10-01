@@ -10,6 +10,7 @@ export function TrustFooter({
   const [isEta, setIsEta] = React.useState(false);
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsEta(batchEndAt ? new Date(batchEndAt).getTime() > Date.now() : false);
   }, [batchEndAt]);
 

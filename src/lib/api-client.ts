@@ -1,10 +1,10 @@
-export interface ParsedApiResponse<T = any> {
+export interface ParsedApiResponse<T = unknown> {
   ok: boolean;
   data: T | null;
   error: string | null;
   status: number;
 }
-export async function parseApiResponse<T = any>(
+export async function parseApiResponse<T = unknown>(
   res: Response,
   defaultErrorMessage = "Request failed"
 ): Promise<ParsedApiResponse<T>> {
@@ -18,7 +18,7 @@ export async function parseApiResponse<T = any>(
     };
   }
   const contentType = res.headers.get("content-type") || "";
-  let json: Record<string, any> | null = null;
+  let json: Record<string, unknown> | null = null;
   if (contentType.includes("application/json")) {
     try {
       json = await res.json();
@@ -78,12 +78,12 @@ export async function parseApiResponse<T = any>(
   }
   if (!res.ok) {
     const errorMsg =
-      json?.error?.message ||
-      json?.message ||
+      (json?.error as { message?: string })?.message ||
+      (json?.message as string | undefined) ||
       (status === 401
         ? "Your session has expired. Please log in again."
         : `${defaultErrorMessage} (${status})`);
-    return { ok: false, data: json?.data ?? null, error: errorMsg, status };
+    return { ok: false, data: (json?.data as T | undefined) ?? null, error: errorMsg as string, status };
   }
-  return { ok: true, data: json?.data ?? json, error: null, status };
+  return { ok: true, data: (json?.data ?? json) as T, error: null, status };
 }

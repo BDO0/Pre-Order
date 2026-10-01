@@ -16,7 +16,7 @@ export default function NotFound() {
           <h1 className={glass.pageTitleEditorial} style={{ fontSize: "2.5rem", marginBottom: "var(--space-4)" }}>404</h1>
           <h2 style={{ fontSize: "1.25rem", color: "white", marginBottom: "var(--space-4)" }}>Page Not Found</h2>
           <p style={{ color: "rgba(255,255,255,0.8)", marginBottom: "var(--space-8)", lineHeight: 1.6 }}>
-            The batch, product, or page you're looking for doesn't exist, has ended, or has been removed.
+            The batch, product, or page you&apos;re looking for doesn&apos;t exist, has ended, or has been removed.
           </p>
           <Link href="/" className="btn btn-primary btn-lg" style={{ width: "100%", justifyContent: "center" }}>
             Return to Active Drops

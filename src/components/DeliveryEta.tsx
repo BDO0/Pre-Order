@@ -8,14 +8,17 @@ export function DeliveryEta({ batchEndAt }: { batchEndAt?: string | null }) {
 
   useEffect(() => {
     if (!batchEndAt) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setClosesOn(null);
       return;
     }
     const closes = new Date(batchEndAt);
     if (Number.isNaN(closes.getTime()) || closes.getTime() <= Date.now()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setClosesOn(null);
       return;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setClosesOn(closes.toLocaleDateString("en-US", { month: "short", day: "numeric" }));
   }, [batchEndAt]);
 

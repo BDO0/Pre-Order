@@ -17,7 +17,11 @@ interface AdminOrderRow {
   isPossibleDuplicate: boolean;
   customerSnapshot: unknown;
   batch: { id: string; name: string; slug: string; status: string };
-  items: { quantity: number; productNameSnapshot: string; unitPriceAtPurchase: string | number }[];
+  items: {
+    quantity: number;
+    productNameSnapshot: string;
+    unitPriceAtPurchase: string | number;
+  }[];
 }
 
 interface BatchOption {
@@ -28,33 +32,58 @@ interface BatchOption {
 
 type TabKey = "new" | "approved" | "approved-unpaid" | "cancelled";
 
-const TABS: { key: TabKey; label: string; statusFilter: OrderStatus | ""; paymentFilter: string }[] = [
-  { key: "new",            label: "New Orders",      statusFilter: "PENDING",   paymentFilter: "" },
-  { key: "approved",       label: "Approved",         statusFilter: "CONFIRMED", paymentFilter: "PAID" },
-  { key: "approved-unpaid",label: "Approved (Unpaid)",statusFilter: "CONFIRMED", paymentFilter: "UNPAID" },
-  { key: "cancelled",      label: "Cancelled",        statusFilter: "CANCELLED", paymentFilter: "" },
+const TABS: {
+  key: TabKey;
+  label: string;
+  statusFilter: OrderStatus | "";
+  paymentFilter: string;
+}[] = [
+  {
+    key: "new",
+    label: "New Orders",
+    statusFilter: "PENDING",
+    paymentFilter: "",
+  },
+  {
+    key: "approved",
+    label: "Approved",
+    statusFilter: "CONFIRMED",
+    paymentFilter: "PAID",
+  },
+  {
+    key: "approved-unpaid",
+    label: "Approved (Unpaid)",
+    statusFilter: "CONFIRMED",
+    paymentFilter: "UNPAID",
+  },
+  {
+    key: "cancelled",
+    label: "Cancelled",
+    statusFilter: "CANCELLED",
+    paymentFilter: "",
+  },
 ];
 
 export default function AdminOrdersPage() {
   const searchParams = useSearchParams();
-  const router       = useRouter();
-  const pathname     = usePathname();
+  const router = useRouter();
+  const pathname = usePathname();
 
-  const activeTab   = (searchParams.get("tab") as TabKey) ?? "new";
+  const activeTab = (searchParams.get("tab") as TabKey) ?? "new";
   const batchFilter = searchParams.get("batchId") ?? "";
-  const [search, setSearch]   = useState(searchParams.get("search") ?? "");
-  const [page,   setPage]     = useState(1);
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
+  const [page, setPage] = useState(1);
 
-  const [orders,      setOrders]      = useState<AdminOrderRow[]>([]);
-  const [totalPages,  setTotalPages]  = useState(1);
-  const [totalCount,  setTotalCount]  = useState(0);
-  const [loading,     setLoading]     = useState(true);
-  const [batches,     setBatches]     = useState<BatchOption[]>([]);
+  const [orders, setOrders] = useState<AdminOrderRow[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [batches, setBatches] = useState<BatchOption[]>([]);
 
-  const [notice,        setNotice]        = useState("");
-  const [actionError,   setActionError]   = useState("");
+  const [notice, setNotice] = useState("");
+  const [actionError, setActionError] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [clearLoading,  setClearLoading]  = useState(false);
+  const [clearLoading, setClearLoading] = useState(false);
 
   const flash = (msg: string) => {
     setNotice(msg);
@@ -86,8 +115,9 @@ export default function AdminOrdersPage() {
     const params = new URLSearchParams();
     if (batchFilter) params.set("batchId", batchFilter);
     params.set("status", "CONFIRMED");
-    if (currentTab.key === "approved")        params.set("paymentStatus", "PAID");
-    if (currentTab.key === "approved-unpaid") params.set("paymentStatus", "UNPAID");
+    if (currentTab.key === "approved") params.set("paymentStatus", "PAID");
+    if (currentTab.key === "approved-unpaid")
+      params.set("paymentStatus", "UNPAID");
     return `/api/admin/orders/export?${params.toString()}`;
   })();
 
@@ -98,30 +128,31 @@ export default function AdminOrdersPage() {
         if (json?.success && Array.isArray(json.data)) {
           setBatches(
             (json.data as BatchOption[]).map((b) => ({
-              id:     b.id,
-              name:   b.name,
+              id: b.id,
+              name: b.name,
               status: b.status,
-            }))
+            })),
           );
         }
       })
-      .catch(() => {  });
+      .catch(() => {});
   }, []);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        page:  page.toString(),
+        page: page.toString(),
         limit: "20",
         status: currentTab.statusFilter || "",
       });
-      if (currentTab.paymentFilter) params.set("paymentStatus", currentTab.paymentFilter);
+      if (currentTab.paymentFilter)
+        params.set("paymentStatus", currentTab.paymentFilter);
       if (currentTab.key === "cancelled") {
         params.set("status", "CANCELLED");
       }
       if (batchFilter) params.set("batchId", batchFilter);
-      if (search)      params.set("search",  search);
+      if (search) params.set("search", search);
 
       const res = await fetch(`/api/admin/orders?${params}`);
       const { ok, data } = await parseApiResponse(res);
@@ -138,31 +169,39 @@ export default function AdminOrdersPage() {
   }, [page, search, currentTab, batchFilter]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchOrders();
   }, [fetchOrders]);
 
   const handleUpdateStatus = async (
     orderId: string,
     reference: string,
-    newStatus: OrderStatus
+    newStatus: OrderStatus,
   ) => {
     setActionLoading(orderId);
     setActionError("");
     const prev = orders;
-    setOrders((o) => o.map((r) => (r.id === orderId ? { ...r, status: newStatus } : r)));
+    setOrders((o) =>
+      o.map((r) => (r.id === orderId ? { ...r, status: newStatus } : r)),
+    );
     flash(`Order ${reference} marked as ${newStatus}.`);
     try {
       const res = await fetch(`/api/admin/orders/${orderId}`, {
-        method:  "PATCH",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: newStatus }),
       });
-      const { ok, error } = await parseApiResponse(res, "Failed to update order");
+      const { ok, error } = await parseApiResponse(
+        res,
+        "Failed to update order",
+      );
       if (!ok) throw new Error(error || "Failed to update order");
     } catch (err) {
       setOrders(prev);
       setNotice("");
-      setActionError(err instanceof Error ? err.message : "Failed to update order");
+      setActionError(
+        err instanceof Error ? err.message : "Failed to update order",
+      );
     } finally {
       setActionLoading(null);
     }
@@ -171,7 +210,7 @@ export default function AdminOrdersPage() {
   const handleTogglePaid = async (
     orderId: string,
     reference: string,
-    currentlyPaid: boolean
+    currentlyPaid: boolean,
   ) => {
     const nextPaid = !currentlyPaid;
     setActionLoading(orderId);
@@ -179,22 +218,29 @@ export default function AdminOrdersPage() {
     const prev = orders;
     setOrders((o) =>
       o.map((r) =>
-        r.id === orderId ? { ...r, paymentStatus: nextPaid ? "PAID" : "UNPAID" } : r
-      )
+        r.id === orderId
+          ? { ...r, paymentStatus: nextPaid ? "PAID" : "UNPAID" }
+          : r,
+      ),
     );
     flash(`Order ${reference} marked as ${nextPaid ? "PAID" : "UNPAID"}.`);
     try {
       const res = await fetch(`/api/admin/orders/${orderId}/payment`, {
-        method:  "PATCH",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ paid: nextPaid }),
+        body: JSON.stringify({ paid: nextPaid }),
       });
-      const { ok, error } = await parseApiResponse(res, "Failed to update payment");
+      const { ok, error } = await parseApiResponse(
+        res,
+        "Failed to update payment",
+      );
       if (!ok) throw new Error(error || "Failed to update payment");
     } catch (err) {
       setOrders(prev);
       setNotice("");
-      setActionError(err instanceof Error ? err.message : "Failed to update payment");
+      setActionError(
+        err instanceof Error ? err.message : "Failed to update payment",
+      );
     } finally {
       setActionLoading(null);
     }
@@ -203,7 +249,7 @@ export default function AdminOrdersPage() {
   const handleClearCancelled = async () => {
     const scope = batchFilter ? "this batch" : "ALL batches";
     const confirmed = window.confirm(
-      `Permanently delete ALL cancelled orders from ${scope}?\n\nThis cannot be undone.`
+      `Permanently delete ALL cancelled orders from ${scope}?\n\nThis cannot be undone.`,
     );
     if (!confirmed) return;
 
@@ -214,15 +260,22 @@ export default function AdminOrdersPage() {
       if (batchFilter) params.set("batchId", batchFilter);
       const res = await fetch(
         `/api/admin/orders/cancelled?${params.toString()}`,
-        { method: "DELETE" }
+        { method: "DELETE" },
       );
-      const { ok, data, error } = await parseApiResponse(res, "Failed to clear cancelled orders");
+      const { ok, data, error } = await parseApiResponse(
+        res,
+        "Failed to clear cancelled orders",
+      );
       if (!ok) throw new Error(error || "Failed to clear cancelled orders");
-      flash(`Cleared ${(data as { deleted: number }).deleted} cancelled order(s).`);
+      flash(
+        `Cleared ${(data as { deleted: number }).deleted} cancelled order(s).`,
+      );
       setOrders([]);
       setTotalCount(0);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to clear cancelled orders");
+      setActionError(
+        err instanceof Error ? err.message : "Failed to clear cancelled orders",
+      );
     } finally {
       setClearLoading(false);
     }
@@ -230,16 +283,16 @@ export default function AdminOrdersPage() {
 
   const getStatusBadge = (status: string) => {
     const map: Record<string, string> = {
-      PENDING:         "badge-pending",
-      AWAITING_PAYMENT:"badge-pending",
-      PAYMENT_REVIEW:  "badge-coming",
-      CONFIRMED:       "badge-confirmed",
-      PROCESSING:      "badge-confirmed",
-      READY:           "badge-confirmed",
-      SHIPPED:         "badge-confirmed",
-      COMPLETED:       "badge-completed",
-      CANCELLED:       "badge-cancelled",
-      REJECTED:        "badge-cancelled",
+      PENDING: "badge-pending",
+      AWAITING_PAYMENT: "badge-pending",
+      PAYMENT_REVIEW: "badge-coming",
+      CONFIRMED: "badge-confirmed",
+      PROCESSING: "badge-confirmed",
+      READY: "badge-confirmed",
+      SHIPPED: "badge-confirmed",
+      COMPLETED: "badge-completed",
+      CANCELLED: "badge-cancelled",
+      REJECTED: "badge-cancelled",
     };
     return `badge ${map[status] || "badge-closed"}`;
   };
@@ -249,11 +302,23 @@ export default function AdminOrdersPage() {
       {}
       <div
         className="admin-page-title"
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)" }}
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "var(--space-4)",
+        }}
       >
         <span>Orders</span>
-        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
-          {(currentTab.key === "approved" || currentTab.key === "approved-unpaid") && (
+        <div
+          style={{
+            display: "flex",
+            gap: "var(--space-2)",
+            alignItems: "center",
+          }}
+        >
+          {(currentTab.key === "approved" ||
+            currentTab.key === "approved-unpaid") && (
             <a href={exportHref} className="btn btn-secondary btn-sm">
               Export CSV{batchFilter ? " (this batch)" : " (all batches)"}
             </a>
@@ -263,19 +328,55 @@ export default function AdminOrdersPage() {
 
       {}
       {notice && (
-        <div style={{ padding: "var(--space-3) var(--space-4)", background: "rgb(22 163 74 / 0.08)", border: "1px solid rgb(22 163 74 / 0.3)", borderRadius: "var(--radius-lg)", color: "var(--color-success)", fontWeight: 500, marginBottom: "var(--space-4)" }}>
+        <div
+          style={{
+            padding: "var(--space-3) var(--space-4)",
+            background: "rgb(22 163 74 / 0.08)",
+            border: "1px solid rgb(22 163 74 / 0.3)",
+            borderRadius: "var(--radius-lg)",
+            color: "var(--color-success)",
+            fontWeight: 500,
+            marginBottom: "var(--space-4)",
+          }}
+        >
           {notice}
         </div>
       )}
       {actionError && (
-        <div role="alert" style={{ padding: "var(--space-3) var(--space-4)", background: "rgb(220 38 38 / 0.08)", border: "1px solid rgb(220 38 38 / 0.3)", borderRadius: "var(--radius-lg)", color: "var(--color-error)", fontWeight: 500, marginBottom: "var(--space-4)" }}>
+        <div
+          role="alert"
+          style={{
+            padding: "var(--space-3) var(--space-4)",
+            background: "rgb(220 38 38 / 0.08)",
+            border: "1px solid rgb(220 38 38 / 0.3)",
+            borderRadius: "var(--radius-lg)",
+            color: "var(--color-error)",
+            fontWeight: 500,
+            marginBottom: "var(--space-4)",
+          }}
+        >
           {actionError}
         </div>
       )}
 
       {}
-      <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center", marginBottom: "var(--space-4)", flexWrap: "wrap" }}>
-        <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-neutral-700)", whiteSpace: "nowrap" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: "var(--space-3)",
+          alignItems: "center",
+          marginBottom: "var(--space-4)",
+          flexWrap: "wrap",
+        }}
+      >
+        <label
+          style={{
+            fontSize: "var(--text-sm)",
+            fontWeight: 600,
+            color: "var(--color-neutral-700)",
+            whiteSpace: "nowrap",
+          }}
+        >
           Batch / Drop:
         </label>
         <select
@@ -325,7 +426,9 @@ export default function AdminOrdersPage() {
                 padding: "var(--space-3) var(--space-5)",
                 fontWeight: isActive ? 700 : 500,
                 fontSize: "var(--text-sm)",
-                color: isActive ? "var(--color-brand-700)" : "var(--color-neutral-600)",
+                color: isActive
+                  ? "var(--color-brand-700)"
+                  : "var(--color-neutral-600)",
                 background: "none",
                 border: "none",
                 borderBottom: isActive
@@ -344,14 +447,25 @@ export default function AdminOrdersPage() {
       </div>
 
       {}
-      <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-5)", flexWrap: "wrap", alignItems: "center" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: "var(--space-3)",
+          marginBottom: "var(--space-5)",
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
         <input
           type="text"
           placeholder="Search by name, Instagram handle, or reference..."
           className="form-input"
           style={{ flex: "1 1 240px", maxWidth: "420px" }}
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
         />
         {activeTab === "cancelled" && (
           <button
@@ -367,14 +481,22 @@ export default function AdminOrdersPage() {
               whiteSpace: "nowrap",
             }}
           >
-            {clearLoading ? "Clearing..." : `Clear All Cancelled${batchFilter ? " (this batch)" : ""}`}
+            {clearLoading
+              ? "Clearing..."
+              : `Clear All Cancelled${batchFilter ? " (this batch)" : ""}`}
           </button>
         )}
       </div>
 
       {}
       {!loading && (
-        <p style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-500)", marginBottom: "var(--space-3)" }}>
+        <p
+          style={{
+            fontSize: "var(--text-sm)",
+            color: "var(--color-neutral-500)",
+            marginBottom: "var(--space-3)",
+          }}
+        >
           {totalCount === 0
             ? "No orders found."
             : `${totalCount} order${totalCount !== 1 ? "s" : ""} found${batchFilter ? " in this batch" : ""}.`}
@@ -400,11 +522,23 @@ export default function AdminOrdersPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "var(--space-8)" }}>Loading...</td>
+                  <td
+                    colSpan={8}
+                    style={{ textAlign: "center", padding: "var(--space-8)" }}
+                  >
+                    Loading...
+                  </td>
                 </tr>
               ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "var(--space-8)", color: "var(--color-neutral-500)" }}>
+                  <td
+                    colSpan={8}
+                    style={{
+                      textAlign: "center",
+                      padding: "var(--space-8)",
+                      color: "var(--color-neutral-500)",
+                    }}
+                  >
                     {activeTab === "cancelled"
                       ? "No cancelled orders — all clear! ✓"
                       : "No orders found."}
@@ -412,78 +546,167 @@ export default function AdminOrdersPage() {
                 </tr>
               ) : (
                 orders.map((order) => {
-                  const snapshot  = order.customerSnapshot as { fullName?: string; instagramHandle?: unknown };
-                  const itemCount = order.items.reduce((s, i) => s + i.quantity, 0);
-                  const isPaid    = order.paymentStatus === "PAID";
-                  const handle    = typeof snapshot?.instagramHandle === "string" ? snapshot.instagramHandle : null;
+                  const snapshot = order.customerSnapshot as {
+                    fullName?: string;
+                    instagramHandle?: unknown;
+                  };
+                  const itemCount = order.items.reduce(
+                    (s, i) => s + i.quantity,
+                    0,
+                  );
+                  const isPaid = order.paymentStatus === "PAID";
+                  const handle =
+                    typeof snapshot?.instagramHandle === "string"
+                      ? snapshot.instagramHandle
+                      : null;
 
                   return (
                     <tr key={order.id}>
                       {}
                       <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "var(--space-2)",
+                          }}
+                        >
                           <Link
                             href={`/butigadmin/orders/${order.id}`}
-                            style={{ fontSize: "var(--text-lg)", fontWeight: 700, color: "var(--color-neutral-900)", textDecoration: "none", lineHeight: 1.3 }}
+                            style={{
+                              fontSize: "var(--text-lg)",
+                              fontWeight: 700,
+                              color: "var(--color-neutral-900)",
+                              textDecoration: "none",
+                              lineHeight: 1.3,
+                            }}
                           >
                             {snapshot.fullName || "—"}
                           </Link>
                           {order.isNewCustomer && (
-                            <span className="badge" style={{ background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", fontSize: "10px" }}>New</span>
+                            <span
+                              className="badge"
+                              style={{
+                                background: "#eff6ff",
+                                color: "#1d4ed8",
+                                border: "1px solid #bfdbfe",
+                                fontSize: "10px",
+                              }}
+                            >
+                              New
+                            </span>
                           )}
                         </div>
-                        <div style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)", marginTop: "2px" }}>
+                        <div
+                          style={{
+                            fontSize: "var(--text-xs)",
+                            color: "var(--color-neutral-500)",
+                            marginTop: "2px",
+                          }}
+                        >
                           {handle ? `@${handle}` : "no handle"}
                         </div>
                       </td>
 
                       {}
                       <td>
-                        <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "var(--color-neutral-600)", background: "var(--color-neutral-100)", padding: "2px 7px", borderRadius: "var(--radius-sm)", fontWeight: 500 }}>
+                        <span
+                          style={{
+                            fontFamily: "var(--font-mono)",
+                            fontSize: "var(--text-xs)",
+                            color: "var(--color-neutral-600)",
+                            background: "var(--color-neutral-100)",
+                            padding: "2px 7px",
+                            borderRadius: "var(--radius-sm)",
+                            fontWeight: 500,
+                          }}
+                        >
                           {order.reference}
                         </span>
                         {order.isPossibleDuplicate && (
-                          <span style={{ color: "var(--color-warning)", fontSize: "11px", marginLeft: "4px" }} title="Possible duplicate">Duplicate</span>
+                          <span
+                            style={{
+                              color: "var(--color-warning)",
+                              fontSize: "11px",
+                              marginLeft: "4px",
+                            }}
+                            title="Possible duplicate"
+                          >
+                            Duplicate
+                          </span>
                         )}
                       </td>
 
                       {}
                       <td>
-                        <span style={{ fontWeight: 500 }}>{order.batch.name}</span>
+                        <span style={{ fontWeight: 500 }}>
+                          {order.batch.name}
+                        </span>
                       </td>
 
                       {}
-                      <td>{itemCount} item{itemCount !== 1 ? "s" : ""}</td>
+                      <td>
+                        {itemCount} item{itemCount !== 1 ? "s" : ""}
+                      </td>
 
                       {}
-                      <td style={{ fontWeight: 600 }}>₱{Number(order.total).toLocaleString()}</td>
+                      <td style={{ fontWeight: 600 }}>
+                        ₱{Number(order.total).toLocaleString()}
+                      </td>
 
                       {}
                       <td>
                         {order.status === "PENDING" ? (
-                          <span className="badge" style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d", fontWeight: 700 }}>
+                          <span
+                            className="badge"
+                            style={{
+                              background: "#fef3c7",
+                              color: "#92400e",
+                              border: "1px solid #fcd34d",
+                              fontWeight: 700,
+                            }}
+                          >
                             Waiting
                           </span>
                         ) : ["CANCELLED", "REJECTED"].includes(order.status) ? (
                           <span className="badge badge-cancelled">—</span>
                         ) : (
-                          <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", cursor: "pointer" }}>
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "var(--space-2)",
+                              cursor: "pointer",
+                            }}
+                          >
                             <input
                               type="checkbox"
                               checked={isPaid}
                               disabled={actionLoading === order.id}
-                              onChange={() => handleTogglePaid(order.id, order.reference, isPaid)}
-                              style={{ accentColor: "var(--color-brand-600)", width: "16px", height: "16px" }}
+                              onChange={() =>
+                                handleTogglePaid(
+                                  order.id,
+                                  order.reference,
+                                  isPaid,
+                                )
+                              }
+                              style={{
+                                accentColor: "var(--color-brand-600)",
+                                width: "16px",
+                                height: "16px",
+                              }}
                             />
                             <span
                               className="badge"
                               style={{
                                 background: isPaid ? "#dcfce7" : "#fee2e2",
-                                color:      isPaid ? "#14532d" : "#991b1b",
-                                border:     isPaid ? "1px solid #86efac" : "1px solid #fca5a5",
+                                color: isPaid ? "#14532d" : "#991b1b",
+                                border: isPaid
+                                  ? "1px solid #86efac"
+                                  : "1px solid #fca5a5",
                                 fontWeight: 700,
-                                fontSize:   "12px",
-                                padding:    "2px 8px",
+                                fontSize: "12px",
+                                padding: "2px 8px",
                               }}
                             >
                               {isPaid ? "PAID" : "UNPAID"}
@@ -493,13 +716,28 @@ export default function AdminOrdersPage() {
                       </td>
 
                       {}
-                      <td style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)" }}>
-                        {format(new Date(order.createdAt), "MMM d, yyyy h:mm a")}
+                      <td
+                        style={{
+                          fontSize: "var(--text-xs)",
+                          color: "var(--color-neutral-500)",
+                        }}
+                      >
+                        {format(
+                          new Date(order.createdAt),
+                          "MMM d, yyyy h:mm a",
+                        )}
                       </td>
 
                       {}
                       <td>
-                        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", justifyContent: "flex-end" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "var(--space-2)",
+                            alignItems: "center",
+                            justifyContent: "flex-end",
+                          }}
+                        >
                           {order.status === "PENDING" && (
                             <>
                               <button
@@ -507,7 +745,13 @@ export default function AdminOrdersPage() {
                                 className="btn btn-primary btn-sm"
                                 style={{ whiteSpace: "nowrap" }}
                                 disabled={actionLoading === order.id}
-                                onClick={() => handleUpdateStatus(order.id, order.reference, "CONFIRMED")}
+                                onClick={() =>
+                                  handleUpdateStatus(
+                                    order.id,
+                                    order.reference,
+                                    "CONFIRMED",
+                                  )
+                                }
                               >
                                 Approve
                               </button>
@@ -517,8 +761,16 @@ export default function AdminOrdersPage() {
                                 style={{ color: "var(--color-error)" }}
                                 disabled={actionLoading === order.id}
                                 onClick={() => {
-                                  if (window.confirm("Cancel this order? Stock will be returned.")) {
-                                    handleUpdateStatus(order.id, order.reference, "CANCELLED");
+                                  if (
+                                    window.confirm(
+                                      "Cancel this order? Stock will be returned.",
+                                    )
+                                  ) {
+                                    handleUpdateStatus(
+                                      order.id,
+                                      order.reference,
+                                      "CANCELLED",
+                                    );
                                   }
                                 }}
                               >
@@ -526,7 +778,10 @@ export default function AdminOrdersPage() {
                               </button>
                             </>
                           )}
-                          <Link href={`/butigadmin/orders/${order.id}`} className="btn btn-ghost btn-sm">
+                          <Link
+                            href={`/butigadmin/orders/${order.id}`}
+                            className="btn btn-ghost btn-sm"
+                          >
                             View
                           </Link>
                         </div>
@@ -542,7 +797,14 @@ export default function AdminOrdersPage() {
 
       {}
       {totalPages > 1 && (
-        <div style={{ display: "flex", justifyContent: "center", gap: "var(--space-2)", marginTop: "var(--space-6)" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: "var(--space-2)",
+            marginTop: "var(--space-6)",
+          }}
+        >
           <button
             className="btn btn-secondary btn-sm"
             disabled={page === 1}
@@ -550,7 +812,14 @@ export default function AdminOrdersPage() {
           >
             Previous
           </button>
-          <span style={{ display: "flex", alignItems: "center", fontSize: "var(--text-sm)", color: "var(--color-neutral-600)" }}>
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              fontSize: "var(--text-sm)",
+              color: "var(--color-neutral-600)",
+            }}
+          >
             Page {page} of {totalPages}
           </span>
           <button

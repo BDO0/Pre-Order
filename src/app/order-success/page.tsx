@@ -109,6 +109,7 @@ function SuccessContent() {
   const [detailLoading, setDetailLoading] = useState(true);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!token && !reference) { setDetailLoading(false); return; }
     const params = new URLSearchParams();
     if (token)     params.set("token", token);
