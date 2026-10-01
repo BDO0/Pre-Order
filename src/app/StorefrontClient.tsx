@@ -38,15 +38,6 @@ interface Props {
   campaignStatus?: string;
 }
 
-/**
- * Counts down to the moment a drop closes.
- *
- * Starts as `null` and fills in from the effect. This is a client component,
- * but Next still renders it on the server, so computing the remaining time
- * during render made the server markup tick one second out of step with the
- * client and broke hydration. Rendering nothing first, then measuring in the
- * effect, sidesteps that completely.
- */
 function CountdownTimer({ targetDate }: { targetDate: string }) {
   const [label, setLabel] = useState<string | null>(null);
 
@@ -353,11 +344,11 @@ export default function StorefrontClient({
                 {activeProduct.images[safeHeroIndex] ? (
                   <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
                     <>
-                      {/* Blurred copy of the same photo. object-fit: contain can leave bands
-                          top and bottom on a landscape shot and the customer should still see
-                          the whole garment, so this fills those bands with the photo's
-                          own colours instead of empty space. Same URL as the foreground
-                          image, so the browser reuses the single download. */}
+                      {
+
+
+
+}
                       <img
                         src={activeProduct.images[safeHeroIndex]}
                         alt=""

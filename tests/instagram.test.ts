@@ -7,10 +7,6 @@ import {
   normaliseInstagramHandle,
 } from "@/lib/instagram";
 
-// The Instagram handle is the app's identity key: the customer row, the
-// duplicate check, the status lookup and the OG/NEW badge all compare it. These
-// tests pin the normalisation rules, because two spellings of one handle
-// becoming two customers is exactly the bug this module exists to prevent.
 describe("normaliseInstagramHandle", () => {
   it("lowercases and strips the leading @", () => {
     expect(normaliseInstagramHandle("@JuanDC")).toBe("juandc");
@@ -34,10 +30,10 @@ describe("normaliseInstagramHandle", () => {
       "",
       "   ",
       "@",
-      "juan dc", // space
-      "juan-dc", // hyphen is not allowed on Instagram
-      "juan@dc", // stray @
-      "a".repeat(31), // longer than 30 characters
+      "juan dc", 
+      "juan-dc", 
+      "juan@dc", 
+      "a".repeat(31), 
       "juan/dc",
       "🎉",
     ]) {
@@ -88,9 +84,6 @@ describe("display helpers", () => {
   });
 
   it("builds a profile link that cannot escape the path", () => {
-    // The handle is validated before it is stored, but the link is built from a
-    // database value: encoding is what keeps a stray character from turning this
-    // into a redirect somewhere else.
     expect(instagramProfileUrl("juandc")).toBe("https://instagram.com/juandc");
     expect(instagramProfileUrl("a b")).toBe("https://instagram.com/a%20b");
     expect(instagramProfileUrl("a/b")).toBe("https://instagram.com/a%2Fb");

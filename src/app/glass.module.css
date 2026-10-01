@@ -1,23 +1,14 @@
-/* ================================================================
-   SHARED GLASS BACKGROUND & CRYSTAL DESIGN SYSTEM — Customer Pages
-   Royal Velvet Burgundy + Holographic Crystal Glass
-   ================================================================ */
 
-/* --- Root wrapper --- */
 .glassPage {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
   position: relative;
-  /* clip, not hidden: overflow-x:hidden computes overflow-y to auto, which
-     makes this wrapper a scroll container and changes what position: sticky
-     sticks to. clip trims the decorative orbs without that side effect. */
   overflow-x: clip;
   background: #140207;
   color: #fff;
 }
 
-/* --- Animated Velvet Burgundy Layered Background --- */
 .bg {
   position: fixed;
   inset: 0;
@@ -30,7 +21,6 @@
     linear-gradient(165deg, #140207 0%, #220510 35%, #150209 70%, #1e040e 100%);
 }
 
-/* Luminous Ambient Glowing Orbs */
 .orb1 {
   position: fixed;
   top: -15%;
@@ -90,7 +80,6 @@
   70%      { transform: translate(-40px, 30px) scale(0.92); }
 }
 
-/* --- Content layer --- */
 .content {
   position: relative;
   z-index: 1;
@@ -99,9 +88,6 @@
   flex-direction: column;
 }
 
-/* ================================================================
-   GLASS NAVBAR — Editorial Luxury
-   ================================================================ */
 
 .nav {
   position: sticky;
@@ -136,7 +122,6 @@
   transform: translateY(-1px);
 }
 
-/* Tactile Frosted Pill Back Button */
 .navBack {
   display: inline-flex;
   align-items: center;
@@ -269,7 +254,6 @@
   color: #fff;
 }
 
-/* ── Mobile Navbar Fixes (shared glass navbar) ── */
 @media (max-width: 640px) {
   .nav {
     padding-block: 0.55rem;
@@ -328,9 +312,6 @@
   }
 }
 
-/* ================================================================
-   CRYSTAL GLASS CARD — Thick 3D Beveled Specular Highlights
-   ================================================================ */
 
 .glassCard {
   background: rgba(255, 255, 255, 0.07);
@@ -346,9 +327,6 @@
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ================================================================
-   HOLOGRAPHIC PRISMATIC CARD / FRAME
-   ================================================================ */
 
 .holographicCard {
   position: relative;
@@ -386,9 +364,6 @@
   pointer-events: none;
 }
 
-/* ================================================================
-   TACTILE FROSTED PILL CONTROLS
-   ================================================================ */
 
 .pillControl {
   display: inline-flex;
@@ -426,9 +401,6 @@
     inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.7);
 }
 
-/* ================================================================
-   GLASS FORM INPUTS
-   ================================================================ */
 
 .glassPage :global(.form-input),
 .glassPage input:global(.form-input),
@@ -472,9 +444,6 @@
   font-weight: 500;
 }
 
-/* ================================================================
-   GLASS BUTTONS
-   ================================================================ */
 
 .glassPage .btn-primary {
   background: linear-gradient(135deg, #a81038 0%, #800020 50%, #5e0018 100%);
@@ -535,9 +504,6 @@
   border-color: rgba(255, 255, 255, 0.25);
 }
 
-/* ================================================================
-   EDITORIAL HEADINGS & LABELS
-   ================================================================ */
 
 .glassPage .page-title,
 .pageTitleEditorial {
@@ -555,9 +521,6 @@
   font-size: var(--text-base);
 }
 
-/* ================================================================
-   CRYSTAL GLASS BADGES
-   ================================================================ */
 
 .glassPage .badge-open {
   background: rgba(34, 197, 94, 0.18);

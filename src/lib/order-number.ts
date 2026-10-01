@@ -19,28 +19,10 @@ export async function generateOrderReference(): Promise<string> {
   return `${prefix}${seqPart}-${randomReferenceSuffix(REFERENCE_SUFFIX_LENGTH)}`;
 }
 
-// I, O, 0 and 1 are omitted: these references get read aloud and retyped in
-// Instagram DM, and those four are the pairs people transcribe wrongly.
 const REFERENCE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 const REFERENCE_SUFFIX_LENGTH = 4;
 
-/**
- * Appends unpredictable characters to the sequential reference.
- *
- * The sequence on its own is guessable (`PO-20260929-0001`) and
- * `/api/orders/lookup` accepts a reference plus an Instagram handle, so anyone
- * who knows a customer handle could otherwise walk that day orders. This
- * suffix is what makes the walk impractical.
- *
- * `randomBytes` rather than `Math.random()`: the latter is not a CSPRNG and is
- * predictable from a few observed values, which matters because a customer
- * sees their own reference. `node:crypto` already backs access tokens and
- * upload filenames.
- *
- * The alphabet is 32 characters and 256 % 32 === 0, so the modulo is exactly
- * uniform and needs no rejection sampling.
- */
 function randomReferenceSuffix(length: number): string {
   const bytes = randomBytes(length);
   let suffix = "";

@@ -1,20 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-// The function under test is pure, but it lives next to the database helpers in
-// batch-service.ts, and importing that module constructs a Prisma connection pool
-// (which requires DATABASE_URL). The stub keeps this a unit test.
 vi.mock("@/lib/db", () => ({ prisma: {} }));
 
 import { isEmptyBatchWrite, normaliseBatchWrite } from "@/lib/batch-service";
 
-// The bug these tests exist for: both admin route trees wrote every column on
-// every PATCH (`description: description || null`), so a screen that managed a
-// name, a note and a date wiped the description, the start date, the ETA and the
-// cover image simply by not sending them. "Absent" and "cleared" are different
-// things, and this is where that is decided.
 describe("normaliseBatchWrite", () => {
   it("writes only the keys the request actually carried", () => {
-    // A rename from a screen that knows nothing about dates or images.
     const data = normaliseBatchWrite({ name: "Batch 2" }, { name: "Batch 2" });
 
     expect(data).toEqual({ name: "Batch 2" });
@@ -51,8 +42,6 @@ describe("normaliseBatchWrite", () => {
   });
 
   it("treats a cleared date field as no date rather than an Invalid Date", () => {
-    // This is `parseEta` doing its job: a browser sends "" for an emptied
-    // datetime-local input, and Prisma must not be handed an Invalid Date.
     const data = normaliseBatchWrite({ etaAt: "" }, { etaAt: "" });
     expect(data.endAt).toBeNull();
   });

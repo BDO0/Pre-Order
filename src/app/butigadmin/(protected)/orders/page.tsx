@@ -26,9 +26,6 @@ interface BatchOption {
   status: string;
 }
 
-// ------------------------------------------------------------------
-// Tab definitions
-// ------------------------------------------------------------------
 type TabKey = "new" | "approved" | "approved-unpaid" | "cancelled";
 
 const TABS: { key: TabKey; label: string; statusFilter: OrderStatus | ""; paymentFilter: string }[] = [
@@ -38,26 +35,22 @@ const TABS: { key: TabKey; label: string; statusFilter: OrderStatus | ""; paymen
   { key: "cancelled",      label: "Cancelled",        statusFilter: "CANCELLED", paymentFilter: "" },
 ];
 
-// ------------------------------------------------------------------
 export default function AdminOrdersPage() {
   const searchParams = useSearchParams();
   const router       = useRouter();
   const pathname     = usePathname();
 
-  // -- Filters from URL -------------------------------------------------
   const activeTab   = (searchParams.get("tab") as TabKey) ?? "new";
   const batchFilter = searchParams.get("batchId") ?? "";
   const [search, setSearch]   = useState(searchParams.get("search") ?? "");
   const [page,   setPage]     = useState(1);
 
-  // -- Data state -------------------------------------------------------
   const [orders,      setOrders]      = useState<AdminOrderRow[]>([]);
   const [totalPages,  setTotalPages]  = useState(1);
   const [totalCount,  setTotalCount]  = useState(0);
   const [loading,     setLoading]     = useState(true);
   const [batches,     setBatches]     = useState<BatchOption[]>([]);
 
-  // -- Action state -----------------------------------------------------
   const [notice,        setNotice]        = useState("");
   const [actionError,   setActionError]   = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -69,10 +62,8 @@ export default function AdminOrdersPage() {
     setTimeout(() => setNotice(""), 4000);
   };
 
-  // -- Tab helper -------------------------------------------------------
   const currentTab = TABS.find((t) => t.key === activeTab) ?? TABS[0];
 
-  // -- URL helpers ------------------------------------------------------
   const setParam = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
     if (value) params.set(key, value);
@@ -91,18 +82,15 @@ export default function AdminOrdersPage() {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  // -- Export href (always scoped to current batch + approved) ----------
   const exportHref = (() => {
     const params = new URLSearchParams();
     if (batchFilter) params.set("batchId", batchFilter);
-    // Always export approved (CONFIRMED) orders for submission
     params.set("status", "CONFIRMED");
     if (currentTab.key === "approved")        params.set("paymentStatus", "PAID");
     if (currentTab.key === "approved-unpaid") params.set("paymentStatus", "UNPAID");
     return `/api/admin/orders/export?${params.toString()}`;
   })();
 
-  // -- Fetch batches once -----------------------------------------------
   useEffect(() => {
     fetch("/api/admin/batches")
       .then((r) => r.json())
@@ -117,10 +105,9 @@ export default function AdminOrdersPage() {
           );
         }
       })
-      .catch(() => { /* non-fatal */ });
+      .catch(() => {  });
   }, []);
 
-  // -- Fetch orders on tab/batch/search/page change --------------------
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
@@ -130,9 +117,7 @@ export default function AdminOrdersPage() {
         status: currentTab.statusFilter || "",
       });
       if (currentTab.paymentFilter) params.set("paymentStatus", currentTab.paymentFilter);
-      // Cancelled tab also picks up REJECTED
       if (currentTab.key === "cancelled") {
-        // We'll fetch CANCELLED; REJECTED is rarer but shown in detail view
         params.set("status", "CANCELLED");
       }
       if (batchFilter) params.set("batchId", batchFilter);
@@ -156,7 +141,6 @@ export default function AdminOrdersPage() {
     void fetchOrders();
   }, [fetchOrders]);
 
-  // -- Status update (approve / cancel) --------------------------------
   const handleUpdateStatus = async (
     orderId: string,
     reference: string,
@@ -184,7 +168,6 @@ export default function AdminOrdersPage() {
     }
   };
 
-  // -- Payment toggle --------------------------------------------------
   const handleTogglePaid = async (
     orderId: string,
     reference: string,
@@ -217,7 +200,6 @@ export default function AdminOrdersPage() {
     }
   };
 
-  // -- Clear cancelled --------------------------------------------------
   const handleClearCancelled = async () => {
     const scope = batchFilter ? "this batch" : "ALL batches";
     const confirmed = window.confirm(
@@ -246,7 +228,6 @@ export default function AdminOrdersPage() {
     }
   };
 
-  // -- Badge styles ----------------------------------------------------
   const getStatusBadge = (status: string) => {
     const map: Record<string, string> = {
       PENDING:         "badge-pending",
@@ -263,12 +244,9 @@ export default function AdminOrdersPage() {
     return `badge ${map[status] || "badge-closed"}`;
   };
 
-  // ------------------------------------------------------------------
-  // Render
-  // ------------------------------------------------------------------
   return (
     <div>
-      {/* ---- Page header ---- */}
+      {}
       <div
         className="admin-page-title"
         style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)" }}
@@ -283,7 +261,7 @@ export default function AdminOrdersPage() {
         </div>
       </div>
 
-      {/* ---- Notices ---- */}
+      {}
       {notice && (
         <div style={{ padding: "var(--space-3) var(--space-4)", background: "rgb(22 163 74 / 0.08)", border: "1px solid rgb(22 163 74 / 0.3)", borderRadius: "var(--radius-lg)", color: "var(--color-success)", fontWeight: 500, marginBottom: "var(--space-4)" }}>
           {notice}
@@ -295,7 +273,7 @@ export default function AdminOrdersPage() {
         </div>
       )}
 
-      {/* ---- Batch filter ---- */}
+      {}
       <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "center", marginBottom: "var(--space-4)", flexWrap: "wrap" }}>
         <label style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--color-neutral-700)", whiteSpace: "nowrap" }}>
           Batch / Drop:
@@ -326,7 +304,7 @@ export default function AdminOrdersPage() {
         )}
       </div>
 
-      {/* ---- Tabs ---- */}
+      {}
       <div
         style={{
           display: "flex",
@@ -365,7 +343,7 @@ export default function AdminOrdersPage() {
         })}
       </div>
 
-      {/* ---- Search + Cancelled action row ---- */}
+      {}
       <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-5)", flexWrap: "wrap", alignItems: "center" }}>
         <input
           type="text"
@@ -394,7 +372,7 @@ export default function AdminOrdersPage() {
         )}
       </div>
 
-      {/* ---- Count banner ---- */}
+      {}
       {!loading && (
         <p style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-500)", marginBottom: "var(--space-3)" }}>
           {totalCount === 0
@@ -403,7 +381,7 @@ export default function AdminOrdersPage() {
         </p>
       )}
 
-      {/* ---- Table ---- */}
+      {}
       <div className="table-wrapper">
         <div className="table-scroll">
           <table className="data-table">
@@ -441,7 +419,7 @@ export default function AdminOrdersPage() {
 
                   return (
                     <tr key={order.id}>
-                      {/* Customer */}
+                      {}
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
                           <Link
@@ -459,7 +437,7 @@ export default function AdminOrdersPage() {
                         </div>
                       </td>
 
-                      {/* Reference */}
+                      {}
                       <td>
                         <span style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)", color: "var(--color-neutral-600)", background: "var(--color-neutral-100)", padding: "2px 7px", borderRadius: "var(--radius-sm)", fontWeight: 500 }}>
                           {order.reference}
@@ -469,18 +447,18 @@ export default function AdminOrdersPage() {
                         )}
                       </td>
 
-                      {/* Batch */}
+                      {}
                       <td>
                         <span style={{ fontWeight: 500 }}>{order.batch.name}</span>
                       </td>
 
-                      {/* Items */}
+                      {}
                       <td>{itemCount} item{itemCount !== 1 ? "s" : ""}</td>
 
-                      {/* Total */}
+                      {}
                       <td style={{ fontWeight: 600 }}>₱{Number(order.total).toLocaleString()}</td>
 
-                      {/* Payment */}
+                      {}
                       <td>
                         {order.status === "PENDING" ? (
                           <span className="badge" style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d", fontWeight: 700 }}>
@@ -514,12 +492,12 @@ export default function AdminOrdersPage() {
                         )}
                       </td>
 
-                      {/* Date */}
+                      {}
                       <td style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)" }}>
                         {format(new Date(order.createdAt), "MMM d, yyyy h:mm a")}
                       </td>
 
-                      {/* Actions */}
+                      {}
                       <td>
                         <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", justifyContent: "flex-end" }}>
                           {order.status === "PENDING" && (
@@ -562,7 +540,7 @@ export default function AdminOrdersPage() {
         </div>
       </div>
 
-      {/* ---- Pagination ---- */}
+      {}
       {totalPages > 1 && (
         <div style={{ display: "flex", justifyContent: "center", gap: "var(--space-2)", marginTop: "var(--space-6)" }}>
           <button

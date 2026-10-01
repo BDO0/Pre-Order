@@ -1,28 +1,3 @@
-/**
- * Creates the one account you need before the admin panel is reachable, and
- * nothing else.
- *
- *   npm run db:seed
- *
- * This is what `db:seed` and `prisma db seed` run, because a migrated database
- * with no admin is a dead end: `/admin/login` has nobody to log in as, and the
- * only other way in is a shell with database credentials. The demo shop — fake
- * products, a live batch, a published password — is a separate, local-only
- * script (`npm run db:seed:demo`, `prisma/seed.ts`).
- *
- * Three properties this script is careful about, because it runs both on a
- * laptop and on the production database:
- *
- *   • **Idempotent in the safe direction.** An existing account is reported and
- *     left exactly as it is: no password reset, no role change, no re-activation.
- *     Re-running setup must never be able to lock the operator out, nor silently
- *     restore access to an account somebody deliberately disabled.
- *   • **The password is either yours or newly random.** `ADMIN_PASSWORD` when it
- *     passes the same policy the app enforces, otherwise one is generated and
- *     printed once. There is no built-in default for anyone to guess.
- *   • **It never prints a password it does not know.** "Password: (unchanged)"
- *     is the truth; a plausible-looking placeholder would be worse than nothing.
- */
 import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
@@ -41,8 +16,6 @@ if (!connectionString) {
   );
 }
 
-// The same pool and TLS settings as the app, the demo seed and `db:check`, so a
-// connection that works there cannot fail here for its own reasons.
 const pool = new Pool(createPoolConfig(connectionString));
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
@@ -50,7 +23,6 @@ const DEFAULT_EMAIL = "admin@anaclothing.com";
 const DEFAULT_NAME = "Admin";
 const DEFAULT_ROLE = "SUPER_ADMIN";
 
-/** Trimmed environment value, or `undefined` when unset/blank. */
 function env(name: string): string | undefined {
   const value = process.env[name]?.trim();
   return value === "" ? undefined : value;
@@ -65,8 +37,6 @@ async function main() {
     throw new Error(`ADMIN_EMAIL is not an email address: "${email}".`);
   }
 
-  // Checked before `prisma.admin.create`, because the column is an enum: Prisma
-  // would reject it with a raw database error rather than a sentence.
   if (!isKnownRole(role)) {
     throw new Error(
       `ADMIN_ROLE is not a role this app knows: "${role}". ` +

@@ -11,10 +11,6 @@ import {
   imageUrlAtWidth,
 } from "@/lib/image-geometry";
 
-// The storefront derives every image URL from the single URL stored on the
-// product record. If these conventions drift, the <img> srcset points at files
-// the upload route never wrote, and the browser silently falls back to a 404 or
-// the full-size master. That failure is invisible in review, so it is pinned.
 describe("hero geometry", () => {
   it("is a 4:5 portrait frame", () => {
     expect(HERO_WIDTH / HERO_HEIGHT).toBeCloseTo(0.8, 5);
@@ -27,9 +23,6 @@ describe("hero geometry", () => {
   });
 
   it("contains the canonical width, so the widest rung is what gets stored", () => {
-    // The upload route stores imageFilename(base, HERO_WIDTH) and derives the
-    // rest from it. If HERO_WIDTH were ever dropped from the ladder, every other
-    // rung would be unreachable.
     expect(IMAGE_WIDTHS).toContain(HERO_WIDTH);
     expect(Math.max(...IMAGE_WIDTHS)).toBe(HERO_WIDTH);
   });
@@ -59,8 +52,6 @@ describe("imageSrcSet", () => {
   });
 
   it("returns undefined for anything that is not a ladder", () => {
-    // An image stored before the ladder existed has no siblings on disk, so a
-    // srcset for it would make the browser choose a file that is not there.
     for (const value of ["/uploads/9f3c.webp", "/api/og/site", "", null, undefined]) {
       expect(imageSrcSet(value)).toBeUndefined();
     }
@@ -71,8 +62,6 @@ describe("imageSrcSet", () => {
   });
 
   it("fails closed when the suffix is not the end of the URL", () => {
-    // A cache-buster would break derivation; falling back to `src` alone is the
-    // safe direction, never a srcset pointing at a URL that does not exist.
     expect(imageSrcSet("/uploads/9f3c-1320.webp?v=2")).toBeUndefined();
   });
 });

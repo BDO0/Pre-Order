@@ -1,28 +1,3 @@
-/**
- * The **demo shop**, for a local database only.
- *
- *   npm run db:seed:demo
- *
- * Fake products, a live batch, and form-field-free defaults so the storefront and
- * the admin screens have something to render on a fresh laptop. Creating the
- * first *real* account is `npm run db:seed` (`prisma/seed-admin.ts`), which is
- * also what `prisma db seed` runs — this file is no longer wired to that, because
- * it used to be the only documented way to get an admin and the shortest path to
- * demo products in a live shop.
- *
- * Two things that make it safer to have around:
- *
- *   • **It refuses to run against a remote database** unless
- *     `ALLOW_DEMO_SEED_REMOTE=1` is set. The previous version happily re-opened
- *     the `september-drop-2026` batch and re-dated its end date on whatever
- *     database `DATABASE_URL` pointed at — on a live shop that silently reopens
- *     ordering on a finished drop. A Supabase dev branch is the reason the escape
- *     hatch exists.
- *   • **It only creates.** Every write is an upsert with an empty `update`, so
- *     re-running it never edits what an operator has since changed: no reopened
- *     batch, no re-dated deadline, no resurrected product. Delete a demo product
- *     and it comes back; activate it and it stays as you left it.
- */
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import pg from "pg";
@@ -38,7 +13,6 @@ if (!connectionString) {
   );
 }
 
-// ── Guard: demo data belongs on a laptop ──────────────────────
 if (!isLocalDatabaseHost(connectionString) && process.env.ALLOW_DEMO_SEED_REMOTE !== "1") {
   const host = (() => {
     try {
@@ -60,7 +34,6 @@ if (!isLocalDatabaseHost(connectionString) && process.env.ALLOW_DEMO_SEED_REMOTE
   process.exit(1);
 }
 
-// Shared with the Next.js runtime so TLS and timeouts cannot drift apart.
 const pool = new Pool(createPoolConfig(connectionString));
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
@@ -68,12 +41,7 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log("🌱 Seeding demo data...");
 
-  // No admin here on purpose. This script used to create
-  // `admin@anaclothing.com` / `admin123` in plain text, which meant the
-  // documented path to a first login was also a documented password. Use
-  // `npm run db:seed` for an account (it generates one and prints it once).
 
-  // ── Sample Products ───────────────────────────────────────
   const shirt = await prisma.product.upsert({
     where: { slug: "oversized-cotton-shirt" },
     update: {},
@@ -93,7 +61,6 @@ async function main() {
     },
   });
 
-  // Variants for shirt
   const shirtVariants = [
     { size: "S", color: "Black", capacity: 20, remainingCapacity: 20 },
     { size: "M", color: "Black", capacity: 25, remainingCapacity: 25 },
@@ -181,13 +148,9 @@ async function main() {
 
   console.log(`✅ Products: ${shirt.name}, ${pants.name}, ${tee.name}`);
 
-  // ── Sample Batch ───────────────────────────────────────
   const batchEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   const batch = await prisma.batch.upsert({
     where: { slug: "september-drop-2026" },
-    // Empty on purpose. This used to force `status: "OPEN"` and push `endAt` a
-    // month out on every run, which silently reopened a closed drop on any
-    // database it was pointed at — including a live one.
     update: {},
     create: {
       name: "September Drop 2026",
@@ -199,7 +162,6 @@ async function main() {
     },
   });
 
-  // Assign products to batch
   for (const productId of [shirt.id, pants.id, tee.id]) {
     await prisma.batchProduct.upsert({
       where: { batchId_productId: { batchId: batch.id, productId } },

@@ -22,7 +22,6 @@ export default function CheckoutPage() {
   const [questions, setQuestions] = useState<PublicFormField[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [questionsFailed, setQuestionsFailed] = useState(false);
-  // Holds placed order info to show the success popup
   const [successData, setSuccessData] = useState<{
     reference: string;
     accessToken: string | null;
@@ -114,8 +113,6 @@ export default function CheckoutPage() {
           orderErr || "We could not place your order. Please try again."
         );
       }
-      // Don't clear cart yet — we still need items to display in the success popup.
-      // Cart will be cleared when the customer navigates away from the success modal.
       setShowConfirmModal(false);
       setSuccessData({
         reference: orderData.reference,
@@ -127,8 +124,6 @@ export default function CheckoutPage() {
       setError(
         err instanceof Error ? err.message : "Something went wrong. Please try again."
       );
-      // Do NOT close the modal on error — the error slot is inside the modal (line 422).
-      // Closing it here would destroy the error slot before the customer can read it.
     } finally {
       setLoading(false);
     }
@@ -470,9 +465,9 @@ export default function CheckoutPage() {
             </div>
           )}
 
-          {/* ══════════════════════════════════════════════════════════════
-              SUCCESS POPUP — appears after the order is placed
-          ══════════════════════════════════════════════════════════════ */}
+          {
+
+}
           {successData && (
             <div
               className={styles.modalOverlay}
@@ -482,7 +477,7 @@ export default function CheckoutPage() {
             >
               <div className={styles.modalCard} style={{ maxWidth: "540px" }}>
 
-                {/* ── Screenshot banner ── */}
+                {}
                 <div style={{
                   display: "flex", alignItems: "center", gap: "12px",
                   padding: "var(--space-4) var(--space-5)",
@@ -500,7 +495,7 @@ export default function CheckoutPage() {
                   </p>
                 </div>
 
-                {/* ── Title ── */}
+                {}
                 <div className={styles.modalHeader} style={{ textAlign: "center", paddingBottom: "var(--space-3)", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
                   <h2 id="success-modal-title" className={styles.modalTitle}>
                     Order Placed Successfully!
@@ -510,7 +505,7 @@ export default function CheckoutPage() {
                   </p>
                 </div>
 
-                {/* ── Order reference (big, prominent) ── */}
+                {}
                 <div style={{
                   textAlign: "center",
                   padding: "var(--space-4)",
@@ -526,7 +521,7 @@ export default function CheckoutPage() {
                   </p>
                 </div>
 
-                {/* ── Summary details ── */}
+                {}
                 <div className={styles.modalSection}>
                   <div className={styles.modalRow}>
                     <span className={styles.modalRowLabel}>Name</span>
@@ -540,7 +535,7 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* ── Items ── */}
+                {}
                 <div className={styles.modalSection}>
                   <div className={styles.modalRow}>
                     <span className={styles.modalRowLabel}>Pre-Order Items</span>
@@ -565,7 +560,7 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* ── Copy All button ── */}
+                {}
                 <button
                   type="button"
                   id="copy-all-order-info-btn"
@@ -590,7 +585,7 @@ export default function CheckoutPage() {
                       await navigator.clipboard.writeText(text);
                       setSuccessData((prev) => prev ? { ...prev, copiedAll: true } : prev);
                       setTimeout(() => setSuccessData((prev) => prev ? { ...prev, copiedAll: false } : prev), 2500);
-                    } catch { /* ignore */ }
+                    } catch {  }
                   }}
                   style={{
                     width: "100%",
@@ -622,7 +617,7 @@ export default function CheckoutPage() {
                   )}
                 </button>
 
-                {/* ── Instagram DM button ── */}
+                {}
                 <div style={{ textAlign: "center" }}>
                   <p style={{ margin: "0 0 var(--space-2) 0", fontSize: "var(--text-xs)", color: "rgba(255,255,255,0.6)", lineHeight: 1.5 }}>
                     Copy your order info above, then tap below to DM us on Instagram and paste it.
@@ -655,7 +650,7 @@ export default function CheckoutPage() {
                   </a>
                 </div>
 
-                {/* ── Navigation ── */}
+                {}
                 <div style={{ display: "flex", gap: "var(--space-3)", marginTop: "var(--space-1)" }}>
                   <Link
                     href="/"

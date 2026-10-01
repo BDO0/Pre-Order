@@ -8,10 +8,6 @@ import {
 } from "@/lib/permissions";
 import type { AdminRole } from "@prisma/client";
 
-// These are the roles the Prisma schema defines. If a role is added to the
-// database but not to the matrix, hasPermission denies everything for it — which
-// is safe, but it should be a deliberate decision rather than a surprise, hence
-// the explicit list here.
 const SCHEMA_ROLES: AdminRole[] = [
   "SUPER_ADMIN",
   "ADMIN",
@@ -81,7 +77,6 @@ describe("permission matrix", () => {
     expect(hasPermission("PRODUCT_MANAGER", "products.write")).toBe(true);
     expect(hasPermission("PRODUCT_MANAGER", "batches.write")).toBe(true);
     expect(hasPermission("PRODUCT_MANAGER", "customers.read")).toBe(false);
-    // Not being able to read PII must not imply not being able to see the queue.
     expect(hasPermission("PRODUCT_MANAGER", "orders.read")).toBe(true);
     expect(hasPermission("PRODUCT_MANAGER", "orders.update")).toBe(false);
   });

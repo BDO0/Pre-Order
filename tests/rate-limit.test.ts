@@ -1,19 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RATE_LIMITS } from "@/lib/rate-limit";
 
-// rate-limit.ts imports the Prisma client at module scope, and that client
-// throws when DATABASE_URL is unset (src/lib/db.ts). Everything here exercises
-// the pure helpers, so the client is stubbed and the file runs anywhere. The
-// behaviour that genuinely needs a database lives in
-// tests/rate-limit-store.test.ts, behind TEST_DATABASE_URL.
 vi.mock("@/lib/db", () => ({ prisma: {} }));
 
-/**
- * Loads a fresh copy of the module with the Vercel flag set as desired.
- *
- * `IS_VERCEL` is computed once at module load, so the platform branch can only
- * be exercised by resetting the registry and importing again.
- */
 async function loadClientIp(vercel: boolean) {
   vi.resetModules();
   vi.stubEnv("VERCEL", vercel ? "1" : "");
@@ -31,8 +20,6 @@ describe("clientIp", () => {
 
   it("takes the last hop of x-forwarded-for, not the client-supplied first", async () => {
     const clientIp = await loadClientIp(false);
-    // A caller who prepends their own address used to choose their own bucket,
-    // which defeated every limit including the one guarding sign-in.
     expect(clientIp(request({ "x-forwarded-for": "1.2.3.4, 203.0.113.7" }))).toBe(
       "203.0.113.7"
     );
@@ -83,8 +70,6 @@ describe("named budgets", () => {
   });
 
   it("keeps browsing open when the limiter store is down", () => {
-    // Refusing reads would take the storefront and /api/health down alongside
-    // the database, and no credential is at stake on a browse.
     expect(RATE_LIMITS.publicRead.failClosed).toBe(false);
   });
 });

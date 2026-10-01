@@ -249,14 +249,14 @@ export default async function PreorderPage({ params }: Props) {
               </div>
             </div>
           </nav>
-          {/* The outline on this page also started at h2. */}
+          {}
           <h1 className="visually-hidden">
             {batchData.batch.name} — {SITE_NAME} pre-order
           </h1>
-          {/* campaignStatus was never passed from here, so StorefrontClient could
-              only learn a batch was closed from the product status. A batch set to
-              CLOSED whose products are still OPEN therefore rendered an orderable
-              Add button, and checkout refused it with BATCH_NOT_OPEN. */}
+          {
+
+
+}
           <StorefrontClient
             products={batchData.products}
             campaignStatus={batchData.batch.status}

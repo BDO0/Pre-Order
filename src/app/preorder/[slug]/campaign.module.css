@@ -1,12 +1,7 @@
-/* ============================================================
-   CAMPAIGN / PRODUCT DETAIL — Royal Velvet Burgundy & Holographic Glass
-   ============================================================ */
 
 .page {
   min-height: 100dvh;
   position: relative;
-  /* clip, not hidden: the sticky nav inside this wrapper needs a non-scroll
-     container to stick to the viewport instead of to this element. */
   overflow-x: clip;
 }
 
@@ -52,7 +47,6 @@
   box-shadow: 0 6px 20px rgba(220, 40, 85, 0.3);
 }
 
-/* Two-column layout */
 .productGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -67,7 +61,6 @@
   }
 }
 
-/* ── Holographic Product Image Frame ── */
 .imageCard {
   position: relative;
   border-radius: var(--radius-2xl);
@@ -95,11 +88,6 @@
 }
 
 .mediaFrame {
-  /* A fixed 4:5 frame. Fixing the RATIO is what stops the box resizing after the
-     photo loads, so nothing below it reflows (that jump was the old --ar JavaScript).
-     Fixing the ratio is not the same as fixing the SIZE: the width below is still
-     fluid - the full column, capped at 62dvh - so it adapts to every screen on its
-     own without measuring anything. */
   --max-h: min(62dvh, 560px);
   aspect-ratio: 4 / 5;
   width: min(100%, calc(var(--max-h) * 0.8));
@@ -113,10 +101,6 @@
   padding: 0;
 }
 
-/* Blurred copy of the same photo, sitting behind the foreground one. It fills the
-   bands that object-fit: contain leaves when a photo is not 4:5, using the photo's
-   own colours, so the frame reads as deliberate rather than empty. This element was
-   already declared here but had display: none and no markup behind it. */
 .productImgBackdrop {
   position: absolute;
   inset: 0;
@@ -171,7 +155,6 @@
   z-index: 1;
 }
 
-/* ── Product Info & Actions Panel ── */
 .infoCol {
   display: flex;
   flex-direction: column;
@@ -226,7 +209,6 @@
   white-space: pre-wrap;
 }
 
-/* Glass Form Container with Crystal Bevel */
 .formCard {
   background: rgba(255, 255, 255, 0.07);
   backdrop-filter: blur(32px) saturate(190%);
@@ -262,7 +244,6 @@
   justify-content: space-between;
 }
 
-/* Tactile Frosted Option Pills */
 .variantOptions {
   display: flex;
   flex-wrap: wrap;
@@ -326,7 +307,6 @@
   font-weight: 800;
 }
 
-/* Quantity Control Stepper Capsule */
 .qtyControl {
   display: inline-flex;
   align-items: center;
@@ -371,7 +351,6 @@
   color: #fff;
 }
 
-/* Primary Order Button */
 .submitBtn {
   width: 100%;
   height: 54px;
@@ -424,7 +403,6 @@
   font-weight: 600;
 }
 
-/* Floating Cart on Mobile */
 .floatingCart {
   position: fixed;
   bottom: var(--space-4);

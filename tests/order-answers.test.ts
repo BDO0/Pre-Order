@@ -37,7 +37,6 @@ const SIZE = withSensitivity({
   options: ["Small", "Medium", "Large"],
 });
 
-/** Asserts that `fn` throws an OrderError carrying `code`. */
 function expectCode(fn: () => unknown, code: string) {
   try {
     fn();
@@ -66,8 +65,6 @@ describe("buildSnapshotAnswers", () => {
   });
 
   it("records sensitivity at the time of writing", () => {
-    // The flag travels with the answer so that unmarking a field later cannot
-    // retroactively expose what was already collected.
     const answers = buildSnapshotAnswers([PHONE], [
       { fieldId: "mobile_number", value: "0917 123 4567" },
     ]);
@@ -75,7 +72,6 @@ describe("buildSnapshotAnswers", () => {
   });
 
   it("leaves unanswered optional fields out entirely", () => {
-    // An empty string in the snapshot would render as "answered with nothing".
     expect(buildSnapshotAnswers([SIZE], [{ fieldId: "size", value: "   " }])).toEqual([]);
     expect(buildSnapshotAnswers([SIZE], [])).toEqual([]);
   });
@@ -85,12 +81,10 @@ describe("buildSnapshotAnswers", () => {
       () => buildSnapshotAnswers([PHONE], [{ fieldId: "mobile_number", value: "  " }]),
       "FORM_FIELD_REQUIRED"
     );
-    // Not sending the field at all is the same failure.
     expectCode(() => buildSnapshotAnswers([PHONE], []), "FORM_FIELD_REQUIRED");
   });
 
   it("refuses a field that is not on the form", () => {
-    // Otherwise a crafted payload could write arbitrary keys into the snapshot.
     expectCode(
       () => buildSnapshotAnswers([SIZE], [{ fieldId: "is_admin", value: "yes" }]),
       "INVALID_FORM_FIELD"
@@ -128,14 +122,9 @@ describe("buildSnapshotAnswers", () => {
   });
 
   it("accepts a dropdown choice regardless of capitalisation, storing the offered spelling", () => {
-    // The dropdown offers one spelling, so the answer recorded is that one: the
-    // order screen renders this value, and "medium" under a field offering
-    // "Medium" would be the shop's own data disagreeing with itself.
     const answers = buildSnapshotAnswers([SIZE], [{ fieldId: "size", value: "medium" }]);
     expect(answers[0].value).toBe("Medium");
 
-    // Anything else in the answer is kept as typed - only a dropdown has a list
-    // to canonicalise against.
     const phone = buildSnapshotAnswers([PHONE], [{ fieldId: "mobile_number", value: "0917 123 4567" }]);
     expect(phone[0].value).toBe("0917 123 4567");
 
@@ -165,8 +154,6 @@ describe("readSnapshotAnswers", () => {
   });
 
   it("survives every shape a JSON column can hold", () => {
-    // The column is not typed, so this has to tolerate a legacy or hand-edited
-    // row instead of throwing inside a page render.
     for (const value of [null, undefined, {}, [], "answers", 42, { answers: "nope" }]) {
       expect(readSnapshotAnswers(value)).toEqual([]);
     }
@@ -176,8 +163,8 @@ describe("readSnapshotAnswers", () => {
         answers: [
           null,
           "string",
-          { key: "a" }, // no label
-          { label: "b" }, // no key
+          { key: "a" }, 
+          { label: "b" }, 
           { key: "ok", label: "Ok", value: "v" },
         ],
       })
@@ -211,8 +198,6 @@ describe("redactCustomerSnapshot", () => {
     const redacted = redactCustomerSnapshot(snapshot, new Set());
 
     expect(redacted.instagramHandle).toBe(REDACTED_FIELD);
-    // The name survives: without it the order queue is unreadable, and a name on
-    // its own does not let anyone contact the customer.
     expect(redacted.fullName).toBe("Juan");
 
     const answers = readSnapshotAnswers(redacted);

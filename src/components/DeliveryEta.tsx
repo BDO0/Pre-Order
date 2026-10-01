@@ -1,19 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 
-/**
- * The answer to "when will it arrive?", placed where the customer asks it.
- *
- * For a made-to-order pre-order that question is the main reason people leave,
- * and the answer already existed — in TrustFooter, at the bottom of the page,
- * below the very decision it is meant to help. This is the same promise with the
- * same lead time, moved next to the Add button.
- *
- * The dated branch is resolved in an effect rather than during render. The
- * formatted date depends on the viewer's timezone and on the current time, so
- * rendering it on the server as well would guarantee a hydration mismatch.
- * TrustFooter already reads the date this way.
- */
 const LEAD_TIME = "2–3 weeks";
 
 export function DeliveryEta({ batchEndAt }: { batchEndAt?: string | null }) {

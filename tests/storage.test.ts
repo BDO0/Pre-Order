@@ -6,9 +6,6 @@ import {
   isReadOnlyFilesystemError,
 } from "@/lib/storage";
 
-// The storage driver is what decides whether an operator can publish a drop at
-// all: `public/` is read-only on a serverless host, so the wrong choice fails
-// only in production. These tests pin the selection rules.
 const MANAGED = [
   "STORAGE_PROVIDER",
   "SUPABASE_URL",
@@ -42,8 +39,6 @@ describe("storage driver selection", () => {
   });
 
   it("uses Supabase automatically once its credentials exist", () => {
-    // An operator who configured object storage wants it used; making them set a
-    // second variable to say so is a foot-gun, not a safeguard.
     process.env.SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_KEY = "service-key";
 
@@ -72,8 +67,6 @@ describe("storage driver selection", () => {
 
     const driver = getStorageDriver();
     expect(driver.name).toBe("supabase");
-    // Selected explicitly, but not usable — the health check must say so rather
-    // than report a healthy deployment that cannot accept an image.
     expect(driver.isConfigured()).toBe(false);
   });
 

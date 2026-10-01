@@ -7,7 +7,6 @@ import { CustomCheckSealIcon } from "@/components/CustomerIcons";
 import { BrandLogo } from "@/components/BrandLogo";
 import glass from "../glass.module.css";
 
-// ─── Types from the lookup API ───────────────────────────────────────────────
 interface OrderItem {
   productName: string;
   variant: string;
@@ -24,7 +23,6 @@ interface OrderDetail {
   items: OrderItem[];
 }
 
-// ─── Copy button (single field) ───────────────────────────────────────────────
 function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
@@ -33,7 +31,6 @@ function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) 
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // fallback: select the text manually
     }
   };
   return (
@@ -71,7 +68,6 @@ function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) 
   );
 }
 
-// ─── Summary row ─────────────────────────────────────────────────────────────
 function SummaryRow({ label, value, copyValue }: { label: string; value: string; copyValue?: string }) {
   return (
     <div
@@ -97,13 +93,11 @@ function SummaryRow({ label, value, copyValue }: { label: string; value: string;
   );
 }
 
-// ─── Main success content ─────────────────────────────────────────────────────
 function SuccessContent() {
   const searchParams = useSearchParams();
   const reference    = searchParams.get("ref");
   const token        = searchParams.get("token");
 
-  // Track-URL (private link)
   const trackUrl =
     token && typeof window !== "undefined"
       ? `${window.location.origin}/order-status?token=${encodeURIComponent(token)}`
@@ -111,7 +105,6 @@ function SuccessContent() {
         ? `/order-status?ref=${encodeURIComponent(reference)}`
         : "/order-status";
 
-  // Fetch full order details to power the summary
   const [orderDetail, setOrderDetail] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(true);
 
@@ -126,11 +119,10 @@ function SuccessContent() {
       .then((json) => {
         if (json?.success && json.data) setOrderDetail(json.data as OrderDetail);
       })
-      .catch(() => { /* non-fatal — summary is optional */ })
+      .catch(() => {  })
       .finally(() => setDetailLoading(false));
   }, [token, reference]);
 
-  // Build the full copy text for the one-click "copy all" feature
   const buildCopyText = () => {
     if (!orderDetail && !reference) return "";
     const ref   = orderDetail?.reference ?? reference ?? "";
@@ -161,7 +153,7 @@ function SuccessContent() {
       await navigator.clipboard.writeText(buildCopyText());
       setCopiedAll(true);
       setTimeout(() => setCopiedAll(false), 2500);
-    } catch { /* ignore */ }
+    } catch {  }
   };
 
   const [copiedLink, setCopiedLink] = useState(false);
@@ -170,12 +162,11 @@ function SuccessContent() {
       await navigator.clipboard.writeText(trackUrl);
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2500);
-    } catch { /* ignore */ }
+    } catch {  }
   };
 
   const instagramDmUrl = `https://ig.me/m/${SHOP_INSTAGRAM_HANDLE.replace(/^@/, "").replace(/\s+/g, "")}`;
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div
       style={{
@@ -197,14 +188,14 @@ function SuccessContent() {
         textAlign: "center",
       }}
     >
-      {/* ── Back link ── */}
+      {}
       <div style={{ display: "flex", justifyContent: "flex-start", width: "100%" }}>
         <Link href="/" className={glass.navBack} style={{ fontSize: "var(--text-sm)" }}>
           ← Back to Shop
         </Link>
       </div>
 
-      {/* ── Check icon ── */}
+      {}
       <div
         style={{
           width: "76px",
@@ -222,7 +213,7 @@ function SuccessContent() {
         <CustomCheckSealIcon size={46} style={{ color: "#ffffff" }} />
       </div>
 
-      {/* ── Title ── */}
+      {}
       <h1
         style={{
           fontFamily: "var(--font-serif)",
@@ -244,9 +235,9 @@ function SuccessContent() {
         sizing, shipping and payment.
       </p>
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          SUMMARY CARD — screenshot evidence + copy-all
-      ══════════════════════════════════════════════════════════════════════ */}
+      {
+
+}
       {(reference || orderDetail) && (
         <div
           id="order-summary-card"
@@ -259,7 +250,7 @@ function SuccessContent() {
             overflow: "hidden",
           }}
         >
-          {/* ── Screenshot notice banner ── */}
+          {}
           <div
             style={{
               display: "flex",
@@ -276,10 +267,10 @@ function SuccessContent() {
             </p>
           </div>
 
-          {/* ── Order details ── */}
+          {}
           <div style={{ padding: "var(--space-4) var(--space-5)" }}>
 
-            {/* Header row: title + copy-all button */}
+            {}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-3)" }}>
               <p style={{ margin: 0, fontSize: "var(--text-xs)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.6)" }}>
                 Order Summary
@@ -317,24 +308,24 @@ function SuccessContent() {
               </button>
             </div>
 
-            {/* Loading state */}
+            {}
             {detailLoading && (
               <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "var(--text-sm)", textAlign: "center", padding: "var(--space-4) 0" }}>
                 Loading order details…
               </p>
             )}
 
-            {/* Order details rows */}
+            {}
             {!detailLoading && (
               <div style={{ display: "flex", flexDirection: "column" }}>
-                {/* Reference */}
+                {}
                 <SummaryRow
                   label="Order Ref"
                   value={orderDetail?.reference ?? reference ?? "—"}
                   copyValue={orderDetail?.reference ?? reference ?? ""}
                 />
 
-                {/* Name */}
+                {}
                 {orderDetail?.customerName && (
                   <SummaryRow
                     label="Name"
@@ -343,7 +334,7 @@ function SuccessContent() {
                   />
                 )}
 
-                {/* Drop / Batch */}
+                {}
                 {orderDetail?.dropName && (
                   <SummaryRow
                     label="Drop"
@@ -351,7 +342,7 @@ function SuccessContent() {
                   />
                 )}
 
-                {/* Items */}
+                {}
                 {orderDetail && orderDetail.items.length > 0 && (
                   <div style={{ padding: "var(--space-2) 0", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
                     <p style={{ margin: "0 0 var(--space-2) 0", fontSize: "var(--text-xs)", color: "rgba(255,255,255,0.55)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -384,7 +375,7 @@ function SuccessContent() {
                   </div>
                 )}
 
-                {/* Total */}
+                {}
                 {orderDetail && (
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "var(--space-3) 0 var(--space-1) 0" }}>
                     <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "rgba(255,255,255,0.7)" }}>Total</span>
@@ -396,7 +387,7 @@ function SuccessContent() {
               </div>
             )}
 
-            {/* ── DM button ── */}
+            {}
             <div
               style={{
                 marginTop: "var(--space-4)",
@@ -432,7 +423,7 @@ function SuccessContent() {
                 onMouseOver={(e) => (e.currentTarget.style.opacity = "0.88")}
                 onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
               >
-                {/* Instagram icon */}
+                {}
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
                 </svg>
@@ -443,7 +434,7 @@ function SuccessContent() {
         </div>
       )}
 
-      {/* ── Track link ── */}
+      {}
       <p style={{ fontSize: "var(--text-sm)", color: "rgba(255, 255, 255, 0.85)", maxWidth: "440px", margin: 0, lineHeight: 1.6 }}>
         Save the link below to track your order status anytime. Keep it private.
       </p>
@@ -467,7 +458,7 @@ function SuccessContent() {
         </button>
       </div>
 
-      {/* ── CTA buttons ── */}
+      {}
       <div style={{ display: "flex", gap: "var(--space-3)", marginTop: "var(--space-2)", flexWrap: "wrap", justifyContent: "center" }}>
         <Link href="/" className="btn btn-secondary btn-lg" style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-2)" }}>
           ← Back to Shop
@@ -483,7 +474,6 @@ function SuccessContent() {
   );
 }
 
-// ─── Page wrapper ─────────────────────────────────────────────────────────────
 export default function OrderSuccessPage() {
   return (
     <div className={glass.glassPage}>

@@ -24,8 +24,6 @@ import {
 } from "@/lib/image-ladder";
 import { getStorageDriver, isReadOnlyFilesystemError } from "@/lib/storage";
 export const dynamic = "force-dynamic";
-// Cropping, encoding quality and the decompression-bomb guard all live with the
-// ladder itself, in image-ladder.ts, so there is one definition of each.
 const PURPOSE_PERMISSION = {
   PRODUCT_IMAGE: "products.write",
   BATCH_IMAGE: "batches.write",
@@ -40,11 +38,6 @@ export async function POST(request: NextRequest) {
     if (!isSameOrigin(request)) {
       return failure(403, "CROSS_ORIGIN_BLOCKED", "This request did not come from this site.");
     }
-    // Reject on the declared length BEFORE parsing. request.formData() buffers the
-    // entire body into memory, so the per-file check further down runs far too late
-    // to protect this process from a large upload. The margin covers multipart
-    // boundary and header overhead. Chunked requests have no content-length, so this
-    // is a cheap first gate rather than a replacement for the check below.
     const declaredLength = Number(request.headers.get("content-length") ?? 0);
     if (Number.isFinite(declaredLength) && declaredLength > MAX_UPLOAD_BYTES + 64 * 1024) {
       return failure(413, "FILE_TOO_LARGE", "File must be less than 25MB.");
@@ -99,16 +92,8 @@ export async function POST(request: NextRequest) {
     const driver = getStorageDriver();
     const base = randomBytes(16).toString("hex");
     try {
-      // Product imagery is cropped to one fixed 4:5 frame and emitted as a small
-      // responsive ladder. See image-ladder.ts for the crop strategy. Fixing the
-      // ratio at upload is what lets the storefront reserve a correct box on
-      // first paint from plain width/height attributes instead of measuring
-      // every image in JavaScript once it has loaded.
       if (purpose === "PRODUCT_IMAGE") {
         const rungs = await renderProductLadder(input);
-        // The widest rung is the canonical URL. The smaller rungs are found from
-        // it by swapping the -1320 suffix, so the stored URL is enough to
-        // reconstruct the whole ladder and it needs no column of its own.
         const [canonicalRung, ...smallerRungs] = rungs;
         const canonical = await driver.save({
           filename: imageFilename(base, canonicalRung.width),
@@ -142,8 +127,6 @@ export async function POST(request: NextRequest) {
           },
         });
       }
-      // Drop banners keep their original framing. A wide cover squeezed into a
-      // 4:5 box would lose the part of the picture the banner exists to show.
       const normalised = await sharp(input, {
         failOn: "error",
         limitInputPixels: MAX_INPUT_PIXELS,

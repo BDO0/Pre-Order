@@ -1,31 +1,21 @@
-/* ============================================================
-   DESIGN TOKENS — TudungPeople PH Pre-Order System
-   Maroon + Dirty White theme, beginner-friendly UI
-   ============================================================ */
 
-/* Web fonts are linked from src/app/layout.tsx. They used to be pulled in here
-   with an @import, which the browser cannot discover until this file has been
-   fetched and parsed - one serial round trip in front of first paint. */
 
 :root {
-  /* ── Brand Colors (Maroon) ── */
   --color-brand-50:  #fdf2f2;
   --color-brand-100: #fde8e8;
   --color-brand-200: #fbd5d5;
   --color-brand-300: #f8a4a4;
   --color-brand-400: #f16868;
-  --color-brand-500: #800020; /* True maroon */
+  --color-brand-500: #800020; 
   --color-brand-600: #6b0019;
   --color-brand-700: #570014;
   --color-brand-800: #43000f;
   --color-brand-900: #2e000a;
 
-  /* ── Dirty White Background ── */
-  --color-bg-main:   #f5f0eb;  /* warm dirty white */
-  --color-bg-card:   #faf7f4;  /* slightly lighter */
+  --color-bg-main:   #f5f0eb;  
+  --color-bg-card:   #faf7f4;  
   --color-bg-white:  #ffffff;
 
-  /* ── Neutrals ── */
   --color-neutral-0:   #ffffff;
   --color-neutral-50:  #f5f0eb;
   --color-neutral-100: #ede8e1;
@@ -39,18 +29,15 @@
   --color-neutral-900: #1a1715;
   --color-neutral-950: #0d0b0a;
 
-  /* ── Semantic ── */
   --color-success:  #16a34a;
   --color-warning:  #d97706;
   --color-error:    #dc2626;
   --color-info:     #2563eb;
 
-  /* ── Typography ── */
   --font-serif:   'Playfair Display', Georgia, serif;
   --font-display: 'Outfit', system-ui, sans-serif;
   --font-body:    'Inter', system-ui, sans-serif;
 
-  /* ── Crystal Glass & Holographic Tokens (Customer Storefront) ── */
   --glass-burgundy-base: #140307;
   --glass-burgundy-surface: rgba(255, 255, 255, 0.07);
   --glass-bevel-highlight: inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.45), inset 0 -1px 1px 0 rgba(255, 255, 255, 0.08);
@@ -66,7 +53,6 @@
   --text-3xl:  1.875rem;
   --text-4xl:  2.25rem;
 
-  /* ── Spacing ── */
   --space-1:  0.25rem;
   --space-2:  0.5rem;
   --space-3:  0.75rem;
@@ -80,7 +66,6 @@
   --space-20: 5rem;
   --space-24: 6rem;
 
-  /* ── Border Radius ── */
   --radius-sm:   0.375rem;
   --radius-md:   0.5rem;
   --radius-lg:   0.75rem;
@@ -88,18 +73,15 @@
   --radius-2xl:  1.5rem;
   --radius-full: 9999px;
 
-  /* ── Shadows ── */
   --shadow-sm:  0 1px 3px 0 rgb(128 0 32 / 0.08);
   --shadow-md:  0 4px 12px -1px rgb(128 0 32 / 0.12);
   --shadow-lg:  0 10px 25px -3px rgb(128 0 32 / 0.15);
   --shadow-xl:  0 20px 40px -5px rgb(128 0 32 / 0.15);
 
-  /* ── Transitions ── */
   --transition-fast:   150ms ease;
   --transition-normal: 250ms ease;
   --transition-slow:   400ms ease;
 
-  /* ── Max widths ── */
   --max-w-sm:  24rem;
   --max-w-md:  28rem;
   --max-w-lg:  32rem;
@@ -109,16 +91,12 @@
   --max-w-6xl: 72rem;
   --max-w-7xl: 80rem;
 
-  /* ── Z-index ── */
   --z-dropdown: 100;
   --z-sticky:   200;
   --z-modal:    300;
   --z-toast:    400;
 }
 
-/* ============================================================
-   RESET & BASE
-   ============================================================ */
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -172,9 +150,6 @@ h1, h2, h3, h4, h5, h6 {
   line-height: 1.2;
 }
 
-/* ============================================================
-   UTILITY CLASSES
-   ============================================================ */
 
 .visually-hidden {
   position: absolute;
@@ -203,9 +178,6 @@ h1, h2, h3, h4, h5, h6 {
   .container { padding-inline: var(--space-8); }
 }
 
-/* ============================================================
-   COMPONENTS — BUTTONS
-   ============================================================ */
 
 .btn {
   display: inline-flex;
@@ -309,9 +281,6 @@ h1, h2, h3, h4, h5, h6 {
 
 .btn-full { width: 100%; }
 
-/* ============================================================
-   COMPONENTS — FORM
-   ============================================================ */
 
 .form-group {
   display: flex;
@@ -372,9 +341,6 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--color-neutral-600);
 }
 
-/* ============================================================
-   COMPONENTS — CARDS
-   ============================================================ */
 
 .card {
   background: var(--color-bg-white);
@@ -388,9 +354,6 @@ h1, h2, h3, h4, h5, h6 {
   padding: var(--space-5);
 }
 
-/* ============================================================
-   COMPONENTS — BADGES
-   ============================================================ */
 
 .badge {
   display: inline-flex;
@@ -414,8 +377,6 @@ h1, h2, h3, h4, h5, h6 {
 .badge-completed  { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
 .badge-cancelled  { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
 
-/* The quantity on the cart pill. Sits on the maroon gradient button, so it
-   inverts to a white chip with brand text for contrast. */
 .cart-count-badge {
   display: inline-flex;
   align-items: center;
@@ -433,9 +394,6 @@ h1, h2, h3, h4, h5, h6 {
   font-variant-numeric: tabular-nums;
 }
 
-/* ============================================================
-   COMPONENTS — SKELETON LOADER
-   ============================================================ */
 
 .skeleton {
   background: linear-gradient(
@@ -454,9 +412,6 @@ h1, h2, h3, h4, h5, h6 {
   100% { background-position: -200% 0; }
 }
 
-/* ============================================================
-   COMPONENTS — NAVIGATION
-   ============================================================ */
 
 .navbar {
   position: sticky;
@@ -484,9 +439,6 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.02em;
 }
 
-/* ============================================================
-   COMPONENTS — TOAST
-   ============================================================ */
 
 .toast-container {
   position: fixed;
@@ -518,26 +470,11 @@ h1, h2, h3, h4, h5, h6 {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/*
-   Used by src/app/loading.tsx. Defined here because this project has no
-   Tailwind: referencing its `pulse` keyframe compiles fine and then silently
-   animates nothing, which is how a static logo passed for a loading state.
-*/
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.45; }
 }
 
-/* ============================================================
-   MOTION PREFERENCE
-   ------------------------------------------------------------
-   Three orbs animate on a 14s/18s/22s loop, the hero pulses on
-   selection, skeletons shimmer and every control transitions. For
-   someone with a vestibular disorder that is not decorative, it is
-   hostile - and it costs battery on the phones most customers use.
-   Collapsing the durations keeps every end state and removes the
-   movement, so nothing needs a separate reduced-motion branch.
-   ============================================================ */
 
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -550,9 +487,6 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* ============================================================
-   PAGE LAYOUT
-   ============================================================ */
 
 .page-header {
   padding-block: var(--space-10) var(--space-6);
@@ -571,9 +505,6 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--color-neutral-500);
 }
 
-/* ============================================================
-   PRODUCT GRID
-   ============================================================ */
 
 .product-grid {
   display: grid;
@@ -593,9 +524,6 @@ h1, h2, h3, h4, h5, h6 {
   .product-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
-/* ============================================================
-   ADMIN LAYOUT
-   ============================================================ */
 
 .admin-layout {
   display: flex;
@@ -683,7 +611,6 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: var(--space-6);
 }
 
-/* ── Stat Cards ── */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -724,7 +651,6 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--color-neutral-900);
 }
 
-/* ── Data Table ── */
 .table-wrapper {
   background: var(--color-bg-white);
   border: 1px solid var(--color-neutral-200);
@@ -768,7 +694,6 @@ h1, h2, h3, h4, h5, h6 {
 
 .data-table tr:hover td { background: var(--color-neutral-50); }
 
-/* ── Admin High-Contrast Overrides ── */
 .admin-layout .data-table th {
   color: #334155;
   font-weight: 700;
@@ -804,9 +729,6 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid #fca5a5 !important;
 }
 
-/* ============================================================
-   EMPTY STATE
-   ============================================================ */
 
 .empty-state {
   display: flex;
@@ -835,22 +757,12 @@ h1, h2, h3, h4, h5, h6 {
   max-width: 280px;
 }
 
-/* ============================================================
-   ADMIN MOBILE BAR
-   ------------------------------------------------------------
-   The sidebar is a fixed 240px column, so below 768px it is
-   removed outright. This bar replaces it with the same
-   destinations — and with the Sign Out button, which used to
-   live only inside the sidebar and was therefore unreachable on
-   a phone. Hidden again on desktop, where the sidebar is nicer.
-   ============================================================ */
 
 .admin-mobilebar {
   display: none;
 }
 
 @media (max-width: 767px) {
-  /* Stack the bar above the content instead of beside it. */
   .admin-layout { flex-direction: column; }
 
   .admin-mobilebar {
@@ -891,8 +803,6 @@ h1, h2, h3, h4, h5, h6 {
     cursor: pointer;
   }
 
-  /* A horizontal strip, because six destinations do not fit as tiles on a
-     390px screen. Each one is a full-height tap target, never a bare label. */
   .admin-mobilebar-nav {
     display: flex;
     gap: var(--space-2);
@@ -933,9 +843,6 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* ============================================================
-   RESPONSIVE UTILITIES
-   ============================================================ */
 
 @media (max-width: 767px) {
   .hide-mobile { display: none !important; }
@@ -957,11 +864,6 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* ============================================================
-   GLASSMORPHISM STOREFRONT — Badge Dark Overrides
-   Only apply inside the glass storefront layout; admin keeps
-   its original light-mode badge colors unchanged.
-   ============================================================ */
 
 .glass-storefront .badge-open {
   background: rgba(22, 163, 74, 0.18);
@@ -982,7 +884,6 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Storefront empty state on dark bg */
 .glass-storefront .empty-state-title {
   color: rgba(255, 255, 255, 0.9);
 }
@@ -991,11 +892,6 @@ h1, h2, h3, h4, h5, h6 {
   color: rgba(255, 255, 255, 0.5);
 }
 
-/* ============================================================
-   BRAND LOGO — MOBILE RESPONSIVE
-   Ensure the logo adapts gracefully to phones without forcing
-   navbar actions out of view.
-   ============================================================ */
 
 @media (max-width: 640px) {
   .brand-logo-title {

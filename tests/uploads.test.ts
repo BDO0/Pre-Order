@@ -9,9 +9,6 @@ import {
   publicUrlForFile,
 } from "@/lib/uploads";
 
-// Storage keys are accepted from the database and from request bodies, and they
-// end up in a filesystem call. These tests are the guard rail: a traversal that
-// slips through here is an arbitrary file read.
 describe("isSafeStorageKey", () => {
   it("accepts the shapes this app writes", () => {
     expect(isSafeStorageKey("/uploads/2f8c9a.webp")).toBe(true);
@@ -51,8 +48,6 @@ describe("mimeTypeForKey", () => {
   });
 
   it("falls back to a non-renderable type for anything unexpected", () => {
-    // Never "text/html": serving an unrecognised file as HTML is how an upload
-    // becomes stored XSS.
     expect(mimeTypeForKey("x.html")).toBe("application/octet-stream");
     expect(mimeTypeForKey("x")).toBe("application/octet-stream");
   });
@@ -65,8 +60,6 @@ describe("upload purposes", () => {
     }
     expect(isUploadPurpose("PRODUCT_IMAGE")).toBe(true);
     expect(isUploadPurpose("BATCH_IMAGE")).toBe(true);
-    // Removed with the payment workflow: nothing a signed-out visitor sends is
-    // stored any more, so this must not be recognised.
     expect(isUploadPurpose("PAYMENT_PROOF")).toBe(false);
     expect(isUploadPurpose("AVATAR")).toBe(false);
     expect(isUploadPurpose("")).toBe(false);
@@ -80,8 +73,6 @@ describe("upload destinations", () => {
   });
 
   it("returns a root-relative URL, never an absolute path", () => {
-    // An absolute filesystem path in an <img src> would leak the deployment
-    // layout, and would not be fetchable by the browser anyway.
     const url = publicUrlForFile("2f8c9a.webp");
     expect(url).toBe("/uploads/2f8c9a.webp");
     expect(url.includes(process.cwd())).toBe(false);

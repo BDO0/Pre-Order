@@ -1,6 +1,3 @@
-/* ============================================================
-   STOREFRONT — Royal Velvet Burgundy & Holographic Crystal Glass
-   ============================================================ */
 
 .storefrontWrap {
   padding-block: var(--space-4) var(--space-20);
@@ -16,7 +13,6 @@
   }
 }
 
-/* ── Campaign Banner ── */
 .campaignHeader {
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(28px) saturate(190%);
@@ -109,7 +105,6 @@
   line-height: 1.6;
 }
 
-/* ── Main Two-Column Split Layout ── */
 .splitLayout {
   display: grid;
   grid-template-columns: 1.15fr 1fr;
@@ -124,7 +119,6 @@
   }
 }
 
-/* ── LEFT COLUMN: Highlighted Showcase ── */
 .highlightCol {
   position: sticky;
   top: calc(var(--space-6) + 68px);
@@ -136,7 +130,6 @@
   }
 }
 
-/* Glass Showcase Card with Holographic Bevel Frame */
 .showcaseCard {
   position: relative;
   background: rgba(255, 255, 255, 0.08);
@@ -165,7 +158,6 @@
   transform: translateY(-2px);
 }
 
-/* Instant visual glow response when user selects any product */
 .showcasePulse {
   animation: showcaseGlow 0.8s ease-out;
 }
@@ -186,11 +178,6 @@
 }
 
 .mediaFrame {
-  /* A fixed 4:5 frame. Fixing the RATIO is what stops the box resizing after the
-     photo loads, so nothing below it reflows (that jump was the old --ar JavaScript).
-     Fixing the ratio is not the same as fixing the SIZE: the width below is still
-     fluid - the full column, capped at 62dvh - so it adapts to every screen on its
-     own without measuring anything. */
   --max-h: min(62dvh, 560px);
   aspect-ratio: 4 / 5;
   width: min(100%, calc(var(--max-h) * 0.8));
@@ -205,11 +192,6 @@
   padding: 0;
 }
 
-/* Deliberately no blanket `.mediaFrame img` rule here. One used to sit in this
-   spot with object-fit: cover, and at specificity (0,1,1) it outranked
-   .showcaseImgBackdrop (0,1,0) - clipping the blur layer to 100% x 100% and
-   overriding its object-position. Sizing now lives only on the two explicit
-   classes below, so the backdrop and the foreground cannot fight each other. */
 
 .viewer {
   position: fixed;
@@ -232,15 +214,11 @@
   object-fit: contain;
 }
 
-/* ── Showcase Carousel Navigation Arrows ── */
 .showcaseNavBtnLeft,
 .showcaseNavBtnRight {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  /* 44px is the WCAG 2.5.5 minimum target size; these sit over a hero image
-     with nothing behind them, so a near-miss tap would otherwise hit the
-     image and do nothing at all. */
   width: 44px;
   height: 44px;
   border-radius: var(--radius-full);
@@ -286,8 +264,6 @@
 @media (max-width: 640px) {
   .showcaseNavBtnLeft,
   .showcaseNavBtnRight {
-    /* Shrinking these below 44px on the small screen is backwards: that is where
-     they are operated by thumb. */
     width: 44px;
     height: 44px;
   }
@@ -299,7 +275,6 @@
   }
 }
 
-/* ── Clickable Instagram DM Pill Link in Banner ── */
 .campaignDmLink {
   display: inline-flex;
   align-items: center;
@@ -348,7 +323,6 @@
   transform: translate(2px, -2px);
 }
 
-/* Atmospheric blurred reflection behind the foreground product */
 .showcaseImgBackdrop {
   position: absolute;
   inset: -15%;
@@ -362,12 +336,6 @@
   z-index: 0;
 }
 
-/* Foreground pristine photo filling the showcase box */
-/* The foreground photo. contain, not cover: the owner uploads a mix of portrait
-   and landscape shots and the frame is a fixed 4:5, so cover would crop whatever
-   does not match - a tall dress losing its hem, a wide shot losing its edges.
-   contain guarantees the customer always sees the whole garment. The bands that
-   leaves are filled by .showcaseImgBackdrop behind it. */
 .mediaFrame .showcaseImg {
   position: relative;
   z-index: 1;
@@ -381,12 +349,10 @@
   transition: opacity 0.3s ease;
 }
 
-/* Preserves the image's original framing; does not zoom on hover */
 .showcaseCard:hover .showcaseImg {
   transform: none;
 }
 
-/* Subtle, non-obscuring bottom edge blend */
 .mediaFrame::after {
   content: '';
   position: absolute;
@@ -540,7 +506,6 @@
   margin: 0;
 }
 
-/* ── Interactive Selectors ── */
 .variantSection {
   display: flex;
   flex-direction: column;
@@ -574,7 +539,6 @@
   gap: var(--space-2);
 }
 
-/* Tactile Frosted Option Pill */
 .optionPill {
   padding: 7px 16px;
   border-radius: var(--radius-full);
@@ -599,7 +563,6 @@
   transform: translateY(-1px);
 }
 
-/* Selected Pill with Holographic Glow Halo */
 .selectedPill {
   border-color: rgba(255, 210, 225, 0.85) !important;
   background: linear-gradient(135deg, #a81038 0%, #800020 100%) !important;
@@ -620,7 +583,6 @@
   text-decoration: line-through;
 }
 
-/* Quantity & CTA */
 .actionRow {
   display: flex;
   gap: var(--space-3);
@@ -634,7 +596,6 @@
   }
 }
 
-/* Frosted Capsule Stepper */
 .qtyBox {
   display: flex;
   align-items: center;
@@ -652,7 +613,6 @@
 
 @media (max-width: 640px) {
   .qtyBox {
-    /* Two 44px buttons plus the readout no longer fit in 48px. */
     height: 52px;
   }
 }
@@ -674,8 +634,6 @@
 
 @media (max-width: 640px) {
   .qtyBtn {
-    /* 32px is easy to miss, and a missed minus tap that lands on the stepper
-     background silently does nothing. The box grows to match. */
     width: 44px;
     font-size: var(--text-base);
   }
@@ -701,7 +659,6 @@
   }
 }
 
-/* High-Fashion Primary Add to Order Pill Button */
 .addToOrderBtn {
   flex: 1;
   height: 52px;
@@ -783,7 +740,6 @@
   text-decoration: underline;
 }
 
-/* ── RIGHT COLUMN: Catalogue Grid ── */
 .catalogueCol {
   display: flex;
   flex-direction: column;
@@ -812,15 +768,12 @@
   color: rgba(255, 255, 255, 0.82);
 }
 
-/* On mobile the showcase is ABOVE the catalogue, not to the left */
 @media (max-width: 599px) {
   .catalogueCount {
     display: none;
   }
-  /* Show a mobile-appropriate hint instead via data attr fallback */
 }
 
-/* Mobile-only hint, hidden on desktop */
 .catalogueCountMobile {
   display: none;
   font-size: var(--text-xs);
@@ -834,7 +787,6 @@
   }
 }
 
-/* Category Filter Pills */
 .filterPills {
   display: flex;
   gap: var(--space-2);
@@ -884,7 +836,6 @@
     inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.6) !important;
 }
 
-/* Grid of Small Icons */
 .iconGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
@@ -897,7 +848,6 @@
   }
 }
 
-/* Mobile: sleek 2-column luxury grid with fast touch response */
 @media (max-width: 640px) {
   .iconGrid {
     display: grid;
@@ -927,7 +877,6 @@
   }
 }
 
-/* Glass Product Cards */
 .smallProductCard {
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(20px) saturate(180%);
@@ -993,7 +942,7 @@
 }
 
 .smallProductCard:hover .smallThumbImg {
-  transform: none; /* Keep original look, no zooming */
+  transform: none; 
 }
 
 .smallPlaceholder {
@@ -1062,7 +1011,6 @@
   font-weight: 700;
 }
 
-/* ── View More Collection Toggle ── */
 .viewMoreBtn {
   display: inline-flex;
   align-items: center;
@@ -1098,7 +1046,6 @@
   transform: translateY(0);
 }
 
-/* ── Floating Mobile Cart Link ── */
 .mobileFloatingCart {
   position: fixed;
   bottom: var(--space-4);

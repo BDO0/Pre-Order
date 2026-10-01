@@ -104,10 +104,10 @@ export default async function HomePage() {
           </div>
         </nav>
         <main style={{ flex: 1 }}>
-          {/* The document outline used to start at h2: there was no h1 anywhere on
-              the shop home, which left search engines and screen readers without a
-              page subject. This is the real title of the page, hidden because the
-              showcase art already names the drop. */}
+          {
+
+
+}
           <h1 className="visually-hidden">
             {SITE_NAME} — limited pre-order drops
           </h1>

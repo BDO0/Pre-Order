@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { csvCell, escapeCsvFormula, toCsv } from "@/lib/csv";
 
-// A spreadsheet is an interpreter, not a text file. These tests cover the two
-// ways a customer-supplied value can break the operator's export: shifting the
-// columns, and being executed as a formula.
 describe("escapeCsvFormula", () => {
   it("neutralises values a spreadsheet would evaluate", () => {
-    // An Instagram handle starts with "@", which Excel reads as a function.
     expect(escapeCsvFormula("@juandc")).toBe("'@juandc");
     expect(escapeCsvFormula("=1+1")).toBe("'=1+1");
     expect(escapeCsvFormula("+63 917")).toBe("'+63 917");
@@ -41,7 +37,6 @@ describe("csvCell", () => {
   });
 
   it("applies formula-escaping and quoting together", () => {
-    // A free-text answer that is both dangerous and has a comma.
     expect(csvCell("=SUM(A1,B1)")).toBe('"\'=SUM(A1,B1)"');
   });
 });
@@ -58,8 +53,6 @@ describe("toCsv", () => {
   });
 
   it("keeps a row the same width even when a value needs quoting", () => {
-    // The failure this guards against is silent: an unquoted comma shifts every
-    // later column left, and the operator reads the wrong address.
     const csv = toCsv([["Name", "Address"], ["Cruz, Juan", "12 Mabini St"]]);
     const lines = csv.trim().split("\r\n");
     expect(lines[1]).toBe('"Cruz, Juan",12 Mabini St');

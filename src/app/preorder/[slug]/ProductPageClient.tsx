@@ -40,18 +40,6 @@ export interface Batch {
   status: string;
   endAt: string | null;
 }
-/**
- * Counts down to the moment a drop closes, as its own badge.
- *
- * Starts as `null` and fills in from the effect. This is a client component,
- * but Next still renders it on the server, so computing the remaining time
- * during render made the server markup tick one second out of step with the
- * client and broke hydration. Rendering nothing first, then measuring in the
- * effect, sidesteps that completely.
- *
- * It renders the badge itself rather than being nested in one, and renders
- * nothing once the window closes instead of a green pill reading "Closed".
- */
 function CountdownTimer({ targetDate }: { targetDate: string }) {
   const [label, setLabel] = useState<string | null>(null);
 
@@ -97,9 +85,6 @@ export default function ProductPageClient({ product, batch }: { product: Product
   const [showClearCartModal, setShowClearCartModal] = useState(false);
   const safeHeroIndex = Math.min(heroImageIndex, Math.max(0, product.images.length - 1));
 
-  // Lock the page behind the dialog and let Escape close it. This effect used to
-  // cover the image viewer as well; that viewer is gone, so the cart dialog is
-  // the only thing left that needs it.
   useEffect(() => {
     if (showClearCartModal) {
       document.body.style.overflow = "hidden";
@@ -147,9 +132,6 @@ export default function ProductPageClient({ product, batch }: { product: Product
       batch.id,
       batch.slug
     );
-    // The store refuses when the cart already holds pieces from another drop and
-    // returns false rather than clearing them. Without this branch the button
-    // would claim success while nothing was added.
     if (!success) {
       setShowClearCartModal(true);
       return;
@@ -209,10 +191,10 @@ export default function ProductPageClient({ product, batch }: { product: Product
                 {product.images[safeHeroIndex] ? (
                   <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
                     <>
-                      {/* Blurred copy of the same photo. object-fit: contain never crops a
-                          mixed set of portrait and landscape uploads, and this fills the
-                          bands that leaves using the photo's own colours. Same URL as the
-                          foreground image, so the browser reuses one download. */}
+                      {
+
+
+}
                       <img
                         src={product.images[safeHeroIndex]}
                         alt=""

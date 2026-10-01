@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { activeVariantCount, stockSummary, variantCountLabel } from "@/lib/variant-stock";
 
-/**
- * The number an operator decides by: whether to close a drop, whether to reorder.
- *
- * It has to survive three shapes the database genuinely produces — retired
- * variants, unlimited capacity, and a mix of both — because a wrong number here
- * is acted on rather than questioned.
- */
 describe("stockSummary", () => {
   it("adds up the capped variants", () => {
     expect(
@@ -19,8 +12,6 @@ describe("stockSummary", () => {
   });
 
   it("leaves retired variants out, because nobody can buy them", () => {
-    // A variant is retired with `active: false` rather than deleted, which is why
-    // the row count and the sellable count are different numbers.
     expect(
       stockSummary([
         { capacity: 10, remainingCapacity: 4, active: true },
@@ -46,8 +37,6 @@ describe("stockSummary", () => {
   });
 
   it("treats a missing active flag as active", () => {
-    // The JSON a browser receives always carries `active`, but a caller that
-    // builds these objects by hand should not have to remember to.
     expect(stockSummary([{ capacity: 2, remainingCapacity: 2 }])).toBe("2 / 2");
   });
 });

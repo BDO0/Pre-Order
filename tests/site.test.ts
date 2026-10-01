@@ -26,11 +26,10 @@ describe("site configuration", () => {
   describe("siteUrl", () => {
     const originalAppUrl = process.env.APP_URL;
 
-    // vitest automatically resets mocks, but we change env directly
     it("respects APP_URL when set", () => {
       process.env.APP_URL = "https://custom.example.com";
       expect(siteUrl().origin).toBe("https://custom.example.com");
-      process.env.APP_URL = originalAppUrl; // Reset inline
+      process.env.APP_URL = originalAppUrl; 
     });
   });
 });

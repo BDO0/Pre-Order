@@ -1,6 +1,3 @@
-/* ================================================================
-   CHECKOUT PAGE — Royal Velvet Burgundy & Holographic Crystal Glass
-   ================================================================ */
 
 .page {
   min-height: 100dvh;
@@ -24,7 +21,6 @@
   .summarySidebar  { width: 390px; flex-shrink: 0; }
 }
 
-/* ── Section Cards (Form Blocks) with Crystal Beveled Glass ── */
 .sectionCard {
   background: rgba(255, 255, 255, 0.07);
   backdrop-filter: blur(28px) saturate(190%);
@@ -69,7 +65,6 @@
   .grid { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* ── Payment Note ── */
 .paymentInstructions {
   margin-top: var(--space-4);
   padding: var(--space-5);
@@ -84,7 +79,6 @@
   line-height: 1.6;
 }
 
-/* ── Summary Sidebar Card with Holographic Glow ── */
 .summaryCard {
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(32px) saturate(200%);
@@ -176,7 +170,6 @@
   -webkit-text-fill-color: transparent;
 }
 
-/* ── Confirmation Modal ── */
 .modalOverlay {
   position: fixed;
   inset: 0;

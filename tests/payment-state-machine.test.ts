@@ -10,10 +10,6 @@ import type { PaymentStatus } from "@prisma/client";
 
 const ALL_STATUSES: PaymentStatus[] = ["UNPAID", "PAID"];
 
-// The payment model is one boolean owned by the operator. These tests pin the
-// two properties that matter: the mapping is total (a `paid` value always lands
-// on a real status), and asking for the state an order is already in is never a
-// state change — so a double-tap cannot write a fake audit entry.
 describe("payment toggle", () => {
   it("maps a boolean onto the only two statuses that exist", () => {
     expect(statusForPaid(true)).toBe("PAID");
@@ -44,8 +40,6 @@ describe("payment toggle", () => {
   });
 
   it("treats an un-verifying toggle as a legal correction", () => {
-    // Marking a paid order unpaid again is how a mistake or a returned payment
-    // is recorded. The old action model required an explicit REFUND for this.
     expect(statusForPaid(false)).toBe("UNPAID");
     expect(isPaid("PAID")).toBe(true);
     expect(isPaid("UNPAID")).toBe(false);
@@ -54,9 +48,7 @@ describe("payment toggle", () => {
   it("agrees with itself for every status", () => {
     for (const status of ALL_STATUSES) {
       const targetIsPaid = isPaid(status);
-      // Requesting exactly what the order already is must never count as change.
       expect(isPaymentChange(status, targetIsPaid)).toBe(false);
-      // Requesting the opposite must always count as change.
       expect(isPaymentChange(status, !targetIsPaid)).toBe(true);
     }
   });

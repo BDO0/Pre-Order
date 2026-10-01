@@ -3,13 +3,7 @@ import sharp from "sharp";
 import { HERO_HEIGHT, HERO_WIDTH, IMAGE_WIDTHS } from "@/lib/image-geometry";
 import { renderProductLadder } from "@/lib/image-ladder";
 
-// The upload pipeline is the one place a mistake stays silent: the route answers
-// 200, the product record looks complete, and only the storefront shows the
-// damage — as a photo cropped through the model's head, or four times heavier
-// than the screen needs. These tests run the real sharp chain over real bytes so
-// the geometry is proven rather than assumed.
 
-/** A photo-shaped fixture: a dark field with an off-centre bright subject. */
 async function makePhoto(width: number, height: number): Promise<Buffer> {
   const subject = await sharp({
     create: {
@@ -61,16 +55,11 @@ describe("renderProductLadder", () => {
       expect(meta.format).toBe("webp");
       expect(meta.width).toBe(rung.width);
       expect(meta.height).toBe(rung.height);
-      // Every rung has to share the frame, or the storefront's fixed 4:5 box
-      // would fill at one breakpoint and letterbox at another.
       expect(rung.height / rung.width).toBeCloseTo(HERO_HEIGHT / HERO_WIDTH, 3);
     }
   });
 
   it("reshapes a landscape photo instead of padding it with empty bands", async () => {
-    // This is the case the crop exists for. object-fit: contain would leave a
-    // wide shot floating in a portrait frame, so the pipeline must actually
-    // reshape the pixels.
     const rungs = await renderProductLadder(await makePhoto(3000, 1500));
     const meta = await sharp(rungs[0].bytes).metadata();
     expect(meta.width).toBe(HERO_WIDTH);

@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CUSTOMER_STATUS_COPY, customerStatusCopy } from "@/lib/order-status-copy";
 
-// Every status in the OrderStatus enum, written out here rather than imported.
-// Prisma's generated enum is not a runtime value in every client generation, and
-// a hand-written list is the stronger test anyway: if someone adds a status to
-// the schema without adding copy for it, this list is what fails.
 const ALL_ORDER_STATUSES = [
   "PENDING",
   "AWAITING_PAYMENT",
@@ -29,9 +25,6 @@ describe("CUSTOMER_STATUS_COPY", () => {
   });
 
   it("never shows the customer an enum name", () => {
-    // The admin panel speaks in enums because the operator moves orders through
-    // them. A customer must not: an underscore in customer-facing copy is the
-    // visible edge of an unfinished feature.
     for (const status of ALL_ORDER_STATUSES) {
       const copy = CUSTOMER_STATUS_COPY[status];
       expect(copy.label).not.toContain("_");
@@ -45,8 +38,6 @@ describe("CUSTOMER_STATUS_COPY", () => {
   });
 
   it("marks exactly the statuses where the customer owes an action", () => {
-    // These are the two where a reply in DM or a payment moves the order along.
-    // Getting this wrong is not cosmetic: the copy is what nudges the customer.
     const awaiting = ALL_ORDER_STATUSES.filter(
       (status) => CUSTOMER_STATUS_COPY[status].awaitingCustomer
     );
@@ -66,9 +57,6 @@ describe("customerStatusCopy", () => {
   });
 
   it("degrades rather than throwing on a status this build does not know", () => {
-    // A database can be ahead of the code serving it: a migration that adds a
-    // status can ship before the deploy that renders it. Worse copy, still
-    // correct — never a blank badge and never a crash on the tracking page.
     const copy = customerStatusCopy("AWAITING_COURIER");
 
     expect(copy.label).toBe("awaiting courier");
