@@ -68,10 +68,12 @@ export const useCartStore = create<CartState>()(
         }
         const existing = items.find((i) => i.variantId === variant.id);
         if (existing) {
+          const max = variant.remainingCapacity ?? Infinity;
+          const newQuantity = Math.min(existing.quantity + quantity, max);
           set({
             items: items.map((i) =>
               i.variantId === variant.id
-                ? { ...i, quantity: i.quantity + quantity }
+                ? { ...i, quantity: newQuantity }
                 : i
             ),
           });
@@ -101,9 +103,13 @@ export const useCartStore = create<CartState>()(
           return;
         }
         set({
-          items: get().items.map((i) =>
-            i.id === cartItemId ? { ...i, quantity } : i
-          ),
+          items: get().items.map((i) => {
+            if (i.id === cartItemId) {
+              const max = i.variant.remainingCapacity ?? Infinity;
+              return { ...i, quantity: Math.min(quantity, max) };
+            }
+            return i;
+          }),
         });
       },
       removeItem: (cartItemId) => {

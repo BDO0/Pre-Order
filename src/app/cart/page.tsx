@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { useCartStore } from "@/store/cart";
 import Link from "next/link";
 import { SITE_NAME } from "@/lib/site";
@@ -8,6 +9,7 @@ import styles from "./cart.module.css";
 import glass from "../glass.module.css";
 export default function CartPage() {
   const { items, updateQuantity, removeItem, clearCart, getSubtotal, batchSlug } = useCartStore();
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const subtotal = getSubtotal();
   const total = subtotal;
   const EmptyState = () => (
@@ -188,7 +190,7 @@ export default function CartPage() {
               ))}
               <button
                 className="btn btn-ghost btn-sm"
-                onClick={clearCart}
+                onClick={() => setShowClearConfirm(true)}
                 style={{ marginTop: "var(--space-2)" }}
               >
                 Clear Cart
@@ -240,6 +242,18 @@ export default function CartPage() {
           </div>
         </main>
       </div>
+      {showClearConfirm && (
+        <div className={glass.glassPage} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", alignItems: "center", justifyContent: "center", zIndex: 100, display: "flex" }}>
+          <div style={{ background: "rgba(255, 255, 255, 0.08)", backdropFilter: "blur(32px) saturate(200%)", borderRadius: "var(--radius-2xl)", border: "1px solid rgba(255, 255, 255, 0.16)", padding: "var(--space-6)", maxWidth: "400px", margin: "var(--space-4)", textAlign: "center", zIndex: 101 }}>
+            <h3 style={{ marginBottom: "var(--space-4)", fontSize: "1.25rem", fontWeight: 700, color: "#fff" }}>Clear your cart?</h3>
+            <p style={{ marginBottom: "var(--space-6)", color: "rgba(255,255,255,0.8)" }}>Are you sure you want to remove all items from your cart?</p>
+            <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "center" }}>
+              <button className="btn btn-ghost" onClick={() => setShowClearConfirm(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => { clearCart(); setShowClearConfirm(false); }}>Clear Cart</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

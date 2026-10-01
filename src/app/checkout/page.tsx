@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useCartStore } from "@/store/cart";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { INSTAGRAM_HANDLE_HINT } from "@/lib/instagram";
+import { INSTAGRAM_HANDLE_HINT, normaliseInstagramHandle } from "@/lib/instagram";
 import { SHOP_INSTAGRAM_HANDLE, SHOP_INSTAGRAM_URL, SITE_NAME } from "@/lib/site";
 import { BrandLogo } from "@/components/BrandLogo";
 import { MAX_ANSWER_LENGTH, type PublicFormField } from "@/lib/order-answers";
@@ -92,7 +92,7 @@ export default function CheckoutPage() {
         })),
         customerInfo: {
           fullName,
-          instagramHandle,
+          instagramHandle: normaliseInstagramHandle(instagramHandle) ?? instagramHandle.trim(),
         },
         answers: questions.map((question) => ({
           fieldId: question.key,
@@ -266,6 +266,11 @@ export default function CheckoutPage() {
           <h1 className={glass.pageTitleEditorial} style={{ fontSize: "clamp(2rem, 4vw, 2.75rem)", textAlign: "left", marginBottom: "var(--space-6)" }}>
             Checkout
           </h1>
+          {questionsFailed && (
+            <div style={{ marginBottom: "var(--space-6)", padding: "var(--space-4)", background: "rgba(220,38,38,.15)", border: "1px solid rgba(248,113,113,.3)", borderRadius: "var(--radius-lg)", color: "#f87171", fontWeight: 500, display: "flex", alignItems: "center", gap: "8px" }}>
+              <CustomAlertIcon size={20} /> We could not load the order details questions. Please reload the page to try again.
+            </div>
+          )}
           <form onSubmit={handleOpenConfirmation} className={styles.layout}>
             <div className={styles.formSections}>
               <section className={styles.sectionCard}>
@@ -344,7 +349,7 @@ export default function CheckoutPage() {
                     <span>Total</span><span>₱{subtotal.toLocaleString('en-US')}</span>
                   </div>
                 </div>
-                <button type="submit" disabled={loading}
+                <button type="submit" disabled={loading || questionsFailed}
                   className="btn btn-primary btn-full btn-lg" style={{ marginTop: "var(--space-5)" }}>
                   Review &amp; Place Pre-Order →
                 </button>

@@ -42,8 +42,10 @@ export interface Batch {
 }
 function CountdownTimer({ targetDate }: { targetDate: string }) {
   const [label, setLabel] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const describe = (): string | null => {
       const remaining = new Date(targetDate).getTime() - Date.now();
       if (remaining <= 0) return null;
@@ -62,6 +64,9 @@ function CountdownTimer({ targetDate }: { targetDate: string }) {
     return () => clearInterval(timer);
   }, [targetDate]);
 
+  if (!mounted) {
+    return <span className="badge badge-open" style={{ visibility: "hidden" }}>Closes in 00h 00m 00s</span>;
+  }
   if (!label) return null;
   return <span className="badge badge-open">{label}</span>;
 }
