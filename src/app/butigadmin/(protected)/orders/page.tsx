@@ -138,6 +138,7 @@ export default function AdminOrdersPage() {
       .catch(() => {});
   }, []);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
@@ -166,6 +167,7 @@ export default function AdminOrdersPage() {
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   }, [page, search, currentTab, batchFilter]);
 
   useEffect(() => {

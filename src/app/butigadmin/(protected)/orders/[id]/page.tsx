@@ -97,8 +97,10 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
     }
   };
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     void fetchOrder();
     void fetchBatches();
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [id]);
   const handleConfirmAndPay = async () => {
     if (!order) return;

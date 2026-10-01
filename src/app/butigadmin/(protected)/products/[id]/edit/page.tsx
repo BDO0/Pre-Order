@@ -241,7 +241,7 @@ export default function EditProductPage({
         error: updateErr,
       } = await parseApiResponse(res, "Failed to update product");
       if (!ok) throw new Error(updateErr || "Failed to update product");
-      const changes = (updateData as { meta?: { variantChanges?: { created: number; updated: number; retired: number } } })?.meta?.variantChanges;
+      const changes = (updateData as { meta?: { variantChanges?: { created: number; updated: number; retired: number } } } | null)?.meta?.variantChanges;
       const added = changes?.created ?? 0;
       const retired = changes?.retired ?? 0;
       const did: string[] = [];
