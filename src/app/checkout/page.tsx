@@ -339,14 +339,14 @@ export default function CheckoutPage() {
                         </span>
                       </div>
                       <div className={styles.summaryItemPrice}>
-                        ₱{(item.unitPrice * item.quantity).toLocaleString()}
+                        ₱{(item.unitPrice * item.quantity).toLocaleString('en-US')}
                       </div>
                     </div>
                   ))}
                 </div>
                 <div className={styles.summaryTotals}>
                   <div className={`${styles.summaryRow} ${styles.summaryGrandTotal}`}>
-                    <span>Total</span><span>₱{subtotal.toLocaleString()}</span>
+                    <span>Total</span><span>₱{subtotal.toLocaleString('en-US')}</span>
                   </div>
                 </div>
                 <button type="submit" disabled={loading}
@@ -411,14 +411,14 @@ export default function CheckoutPage() {
                           </span>
                         </span>
                         <span style={{ fontWeight: 600 }}>
-                          ₱{(item.unitPrice * item.quantity).toLocaleString()}
+                          ₱{(item.unitPrice * item.quantity).toLocaleString('en-US')}
                         </span>
                       </div>
                     ))}
                   </div>
                   <div className={styles.modalTotalRow}>
                     <span>Total Amount</span>
-                    <span className={styles.modalTotalAmount}>₱{subtotal.toLocaleString()}</span>
+                    <span className={styles.modalTotalAmount}>₱{subtotal.toLocaleString('en-US')}</span>
                   </div>
                 </div>
                 <div className={styles.modalNotice}>
@@ -486,17 +486,16 @@ export default function CheckoutPage() {
                 <div style={{
                   display: "flex", alignItems: "center", gap: "12px",
                   padding: "var(--space-4) var(--space-5)",
-                  background: "linear-gradient(135deg, rgba(234, 179, 8, 0.3) 0%, rgba(220, 38, 38, 0.3) 100%)",
-                  border: "2px solid rgba(234, 179, 8, 0.6)",
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.18)",
                   borderRadius: "var(--radius-xl)",
                   marginBottom: "var(--space-3)",
-                  boxShadow: "0 0 20px rgba(234, 179, 8, 0.2)",
                 }}>
                   <span style={{ fontSize: "2rem" }}>📸</span>
-                  <p style={{ margin: 0, fontSize: "var(--text-base)", fontWeight: 800, color: "#fef08a", lineHeight: 1.3, letterSpacing: "0.02em" }}>
-                    PLEASE SCREENSHOT THIS SCREEN NOW!
-                    <span style={{ display: "block", fontSize: "var(--text-xs)", fontWeight: 600, color: "rgba(254, 240, 138, 0.8)", marginTop: "4px" }}>
-                      This is your proof of order. Do not close without screenshotting.
+                  <p style={{ margin: 0, fontSize: "var(--text-base)", fontWeight: 700, color: "#fff", lineHeight: 1.3 }}>
+                    Save your order details
+                    <span style={{ display: "block", fontSize: "var(--text-sm)", fontWeight: 400, color: "rgba(255,255,255,0.8)", marginTop: "4px" }}>
+                      Please take a screenshot or copy the info below before closing this page.
                     </span>
                   </p>
                 </div>
@@ -556,13 +555,13 @@ export default function CheckoutPage() {
                             ({[item.variant.color, item.variant.size].filter(Boolean).join(" / ")})
                           </span>
                         </span>
-                        <span style={{ fontWeight: 600 }}>₱{(item.unitPrice * item.quantity).toLocaleString()}</span>
+                        <span style={{ fontWeight: 600 }}>₱{(item.unitPrice * item.quantity).toLocaleString('en-US')}</span>
                       </div>
                     ))}
                   </div>
                   <div className={styles.modalTotalRow}>
                     <span>Total</span>
-                    <span className={styles.modalTotalAmount}>₱{successData.total.toLocaleString()}</span>
+                    <span className={styles.modalTotalAmount}>₱{successData.total.toLocaleString('en-US')}</span>
                   </div>
                 </div>
 
@@ -573,7 +572,7 @@ export default function CheckoutPage() {
                   onClick={async () => {
                     const handle = instagramHandle.trim().startsWith("@") ? instagramHandle.trim() : `@${instagramHandle.trim()}`;
                     const itemLines = items
-                      .map((i) => `  • ${i.quantity}× ${i.product.name}${[i.variant.color, i.variant.size].filter(Boolean).length > 0 ? ` (${[i.variant.color, i.variant.size].filter(Boolean).join(" / ")})` : ""} — ₱${(i.unitPrice * i.quantity).toLocaleString()}`)
+                      .map((i) => `  • ${i.quantity}× ${i.product.name}${[i.variant.color, i.variant.size].filter(Boolean).length > 0 ? ` (${[i.variant.color, i.variant.size].filter(Boolean).join(" / ")})` : ""} — ₱${(i.unitPrice * i.quantity).toLocaleString('en-US')}`)
                       .join("\n");
                     const text = [
                       "📦 Pre-Order Confirmation",
@@ -583,7 +582,7 @@ export default function CheckoutPage() {
                       "",
                       `Items:\n${itemLines}`,
                       "",
-                      `Total: ₱${successData.total.toLocaleString()}`,
+                      `Total: ₱${successData.total.toLocaleString('en-US')}`,
                       "",
                       "Please send this as proof of your pre-order.",
                     ].join("\n");

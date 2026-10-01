@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useCartStore } from "@/store/cart";
 import { SHOP_INSTAGRAM_HANDLE, SHOP_INSTAGRAM_URL, SITE_NAME } from "@/lib/site";
 import { CustomBagIcon, CustomHangerIcon, GarmentSilhouette } from "@/components/CustomerIcons";
+import { DeliveryEta } from "@/components/DeliveryEta";
 import styles from "./storefront.module.css";
+import { CARD_SIZES, HERO_HEIGHT, HERO_SIZES, HERO_WIDTH, imageSrcSet, imageUrlAtWidth } from "@/lib/image-geometry";
 export interface Variant {
   id: string;
   size: string | null;
@@ -35,11 +37,47 @@ interface Props {
   products: StorefrontProduct[];
   campaignStatus?: string;
 }
+
+/**
+ * Counts down to the moment a drop closes.
+ *
+ * Starts as `null` and fills in from the effect. This is a client component,
+ * but Next still renders it on the server, so computing the remaining time
+ * during render made the server markup tick one second out of step with the
+ * client and broke hydration. Rendering nothing first, then measuring in the
+ * effect, sidesteps that completely.
+ */
+function CountdownTimer({ targetDate }: { targetDate: string }) {
+  const [label, setLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    const describe = (): string | null => {
+      const remaining = new Date(targetDate).getTime() - Date.now();
+      if (remaining <= 0) return null;
+      const days = Math.floor(remaining / 86_400_000);
+      const hours = Math.floor((remaining / 3_600_000) % 24);
+      const minutes = Math.floor((remaining / 60_000) % 60);
+      const seconds = Math.floor((remaining / 1000) % 60);
+      return days > 0
+        ? `Closes in ${days}d ${hours}h ${minutes}m`
+        : `Closes in ${hours}h ${minutes}m ${seconds}s`;
+    };
+
+    const tick = () => setLabel(describe());
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [targetDate]);
+
+  if (!label) return null;
+  return <span className="badge badge-open">{label}</span>;
+}
+
 export default function StorefrontClient({
   products,
   campaignStatus,
 }: Props) {
-  const { addItem, getItemCount } = useCartStore();
+  const { addItem, getItemCount, clearCart, items } = useCartStore();
   const [mounted, setMounted] = useState(false);
   const showcaseRef = useRef<HTMLDivElement>(null);
   const [highlightPulse, setHighlightPulse] = useState(false);
@@ -53,8 +91,10 @@ export default function StorefrontClient({
   );
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const activeProduct = useMemo(() => {
-    return products.find((p) => p.id === selectedProductId) || products[0];
-  }, [products, selectedProductId]);
+    const p = products.find((p) => p.id === selectedProductId);
+    if (p && (selectedCategory === "ALL" || p.category === selectedCategory)) return p;
+    return products.find(p => selectedCategory === "ALL" || p.category === selectedCategory) || products[0];
+  }, [products, selectedProductId, selectedCategory]);
   const colors = useMemo(() => {
     if (!activeProduct?.variants) return [];
     return [...new Set(activeProduct.variants.filter((v) => v.color).map((v) => v.color!))];
@@ -67,11 +107,26 @@ export default function StorefrontClient({
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
-  const [imgZoom, setImgZoom] = useState(1);
-  const [imgFit, setImgFit] = useState<"cover" | "contain">("cover");
-  const MIN_ZOOM = 0.25;
-  const MAX_ZOOM = 3;
-  const ZOOM_STEP = 0.25;
+  const [heroImageIndex, setHeroImageIndex] = useState(0);
+  const [showClearCartModal, setShowClearCartModal] = useState(false);
+
+  useEffect(() => {
+    if (showClearCartModal) {
+      document.body.style.overflow = "hidden";
+      const handleEsc = (e: KeyboardEvent) => {
+        if (e.key === "Escape") {
+          setShowClearCartModal(false);
+        }
+      };
+      window.addEventListener("keydown", handleEsc);
+      return () => {
+        document.body.style.overflow = "";
+        window.removeEventListener("keydown", handleEsc);
+      };
+    }
+  }, [showClearCartModal]);
+
+  const safeHeroIndex = Math.min(heroImageIndex, Math.max(0, (activeProduct?.images?.length || 1) - 1));
 
   const handleSelectProduct = (product: StorefrontProduct, autoScroll = true) => {
     setSelectedProductId(product.id);
@@ -80,8 +135,7 @@ export default function StorefrontClient({
     setSelectedSize(null);
     setQty(1);
     setAdded(false);
-    setImgZoom(1);
-    setImgFit("cover");
+    setHeroImageIndex(0);
     setHighlightPulse(true);
     setTimeout(() => setHighlightPulse(false), 800);
     if (autoScroll && typeof window !== "undefined" && window.innerWidth <= 960) {
@@ -135,6 +189,29 @@ export default function StorefrontClient({
     (selectedVariant?.remainingCapacity === null || (selectedVariant?.remainingCapacity ?? 0) >= qty);
   const handleAdd = () => {
     if (!activeProduct || !selectedVariant || !canAdd) return;
+    const success = addItem(
+      {
+        id: activeProduct.id,
+        name: activeProduct.name,
+        images: activeProduct.images,
+        price: activeProduct.price,
+      },
+      selectedVariant,
+      qty,
+      activeProduct.batchId,
+      activeProduct.batchSlug
+    );
+    if (!success) {
+      setShowClearCartModal(true);
+      return;
+    }
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
+  };
+
+  const confirmClearCart = () => {
+    if (!activeProduct || !selectedVariant) return;
+    clearCart();
     addItem(
       {
         id: activeProduct.id,
@@ -147,6 +224,7 @@ export default function StorefrontClient({
       activeProduct.batchId,
       activeProduct.batchSlug
     );
+    setShowClearCartModal(false);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
   };
@@ -161,6 +239,9 @@ export default function StorefrontClient({
     if (selectedCategory === "ALL") return products;
     return products.filter((p) => p.category === selectedCategory);
   }, [products, selectedCategory]);
+
+
+
   const currentIndex = useMemo(() => {
     return filteredProducts.findIndex((p) => p.id === activeProduct?.id);
   }, [filteredProducts, activeProduct]);
@@ -242,7 +323,7 @@ export default function StorefrontClient({
               ref={showcaseRef}
               className={`${styles.showcaseCard} ${highlightPulse ? styles.showcasePulse : ""}`}
             >
-              <div className={styles.imageFrame}>
+              <div className={styles.mediaFrame}>
                 {filteredProducts.length > 1 && (
                   <>
                     <button
@@ -269,96 +350,67 @@ export default function StorefrontClient({
                     </button>
                   </>
                 )}
-                {activeProduct.images[0] ? (
+                {activeProduct.images[safeHeroIndex] ? (
                   <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
-                    <img
-                      src={activeProduct.images[0]}
-                      alt={activeProduct.name}
-                      className={styles.showcaseImg}
-                      style={{
-                        transform: `scale(${imgZoom})`,
-                        transformOrigin: "center center",
-                        transition: "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-                        objectFit: imgFit,
-                      }}
-                    />
-                    {activeProduct.images[0] && (
+                    <>
+                      {/* Blurred copy of the same photo. object-fit: contain can leave bands
+                          top and bottom on a landscape shot and the customer should still see
+                          the whole garment, so this fills those bands with the photo's
+                          own colours instead of empty space. Same URL as the foreground
+                          image, so the browser reuses the single download. */}
+                      <img
+                        src={activeProduct.images[safeHeroIndex]}
+                        alt=""
+                        aria-hidden="true"
+                        className={styles.showcaseImgBackdrop}
+                      />
+                      <img
+                        src={activeProduct.images[safeHeroIndex]}
+                        alt={activeProduct.name}
+                        className={styles.showcaseImg}
+                        srcSet={imageSrcSet(activeProduct.images[safeHeroIndex])}
+                        sizes={HERO_SIZES}
+                        width={HERO_WIDTH}
+                        height={HERO_HEIGHT}
+                        decoding="async"
+                        fetchPriority="high"
+                      />
+                    </>
+                    {activeProduct.images.length > 1 && (
                       <div style={{
                         position: "absolute",
                         bottom: "var(--space-3)",
-                        right: "var(--space-3)",
+                        left: "50%",
+                        transform: "translateX(-50%)",
                         display: "flex",
-                        gap: "6px",
+                        gap: "8px",
                         zIndex: 10,
+                        maxWidth: "90%",
+                        overflowX: "auto",
+                        padding: "4px"
                       }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (imgFit === "cover") {
-                              // First zoom-out: switch to contain at scale 1 (full image, touching edges)
-                              setImgFit("contain");
-                            } else {
-                              // Already in contain mode: scale down
-                              setImgZoom((z) => Math.max(MIN_ZOOM, +(z - ZOOM_STEP).toFixed(2)));
-                            }
-                          }}
-                          disabled={imgFit === "contain" && imgZoom <= MIN_ZOOM}
-                          aria-label="Zoom out"
-                          style={{
-                            width: "32px",
-                            height: "32px",
-                            borderRadius: "50%",
-                            border: "1px solid rgba(255,255,255,0.3)",
-                            background: "rgba(20, 2, 7, 0.75)",
-                            backdropFilter: "blur(12px)",
-                            color: "white",
-                            fontSize: "18px",
-                            fontWeight: 700,
-                            lineHeight: 1,
-                            cursor: (imgFit === "contain" && imgZoom <= MIN_ZOOM) ? "not-allowed" : "pointer",
-                            opacity: (imgFit === "contain" && imgZoom <= MIN_ZOOM) ? 0.35 : 1,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            transition: "opacity 0.2s",
-                            boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-                          }}
-                        >−</button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (imgFit === "contain" && imgZoom <= 1) {
-                              // Going back to cover from the first zoom-out step
-                              setImgFit("cover");
-                              setImgZoom(1);
-                            } else if (imgFit === "contain") {
-                              setImgZoom((z) => Math.min(1, +(z + ZOOM_STEP).toFixed(2)));
-                            } else {
-                              setImgZoom((z) => Math.min(MAX_ZOOM, +(z + ZOOM_STEP).toFixed(2)));
-                            }
-                          }}
-                          disabled={imgFit === "cover" && imgZoom >= MAX_ZOOM}
-                          aria-label="Zoom in"
-                          style={{
-                            width: "32px",
-                            height: "32px",
-                            borderRadius: "50%",
-                            border: "1px solid rgba(255,255,255,0.3)",
-                            background: "rgba(20, 2, 7, 0.75)",
-                            backdropFilter: "blur(12px)",
-                            color: "white",
-                            fontSize: "18px",
-                            fontWeight: 700,
-                            lineHeight: 1,
-                            cursor: (imgFit === "cover" && imgZoom >= MAX_ZOOM) ? "not-allowed" : "pointer",
-                            opacity: (imgFit === "cover" && imgZoom >= MAX_ZOOM) ? 0.35 : 1,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            transition: "opacity 0.2s",
-                            boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-                          }}
-                        >+</button>
+                        {activeProduct.images.map((img, idx) => (
+                           <button
+                             key={idx}
+                             type="button"
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               setHeroImageIndex(idx);
+                             }}
+                             style={{
+                               width: "48px",
+                               height: "48px",
+                               borderRadius: "8px",
+                               border: idx === safeHeroIndex ? "2px solid #fff" : "2px solid rgba(255,255,255,0.4)",
+                               overflow: "hidden",
+                               flexShrink: 0,
+                               cursor: "pointer",
+                               background: "#000"
+                             }}
+                           >
+                             <img src={imageUrlAtWidth(img, 400)} alt="" loading="lazy" decoding="async" style={{width: "100%", height: "100%", objectFit: "cover"}} />
+                           </button>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -391,14 +443,19 @@ export default function StorefrontClient({
                 <div className={styles.headerRow}>
                   <div>
                     <h2 className={styles.productName}>{activeProduct.name}</h2>
-                    {activeProduct.category && (
-                      <div className={styles.metaRow}>
+                    <div className={styles.metaRow}>
+                      {activeProduct.category && (
                         <span className={styles.categoryPill}>{activeProduct.category}</span>
-                      </div>
-                    )}
+                      )}
+                      {activeProduct.batchEndAt && (
+                        <div style={activeProduct.category ? { marginLeft: "8px" } : {}}>
+                          <CountdownTimer targetDate={activeProduct.batchEndAt} />
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className={styles.priceTag}>
-                    ₱{effectivePrice.toLocaleString()}
+                    ₱{effectivePrice.toLocaleString("en-US")}
                   </div>
                 </div>
                 <p className={styles.descText}>
@@ -515,9 +572,10 @@ export default function StorefrontClient({
                           ? "Select a Size to Pre-order"
                           : colors.length > 0 && !selectedColor
                           ? "Select a Color to Pre-order"
-                          : `Add to Pre-Order — ₱${(effectivePrice * qty).toLocaleString()}`}
+                          : `Add to Pre-Order — ₱${(effectivePrice * qty).toLocaleString("en-US")}`}
                       </button>
                     </div>
+                    <DeliveryEta batchEndAt={activeProduct.batchEndAt} />
                     {activeProduct.preorderRemaining !== null && (
                       <p
                         style={{
@@ -529,7 +587,7 @@ export default function StorefrontClient({
                           textShadow: "0 0 10px rgba(255, 143, 160, 0.4)",
                         }}
                       >
-                        Only {activeProduct.preorderRemaining} slots left in this drop!
+                        Only {activeProduct.preorderRemaining} left in this drop
                       </p>
                     )}
                   </div>
@@ -586,7 +644,15 @@ export default function StorefrontClient({
                 >
                   <div className={styles.smallThumbWrap}>
                     {p.images[0] ? (
-                      <img src={p.images[0]} alt={p.name} className={styles.smallThumbImg} />
+                      <img
+                        src={imageUrlAtWidth(p.images[0], 400)}
+                        srcSet={imageSrcSet(p.images[0])}
+                        sizes={CARD_SIZES}
+                        alt={p.name}
+                        className={styles.smallThumbImg}
+                        loading="lazy"
+                        decoding="async"
+                      />
                     ) : (
                       <span className={styles.smallPlaceholder}>
                         <GarmentSilhouette category={p.category} name={p.name} size={28} />
@@ -597,7 +663,7 @@ export default function StorefrontClient({
                     <h4 className={styles.smallProductName}>{p.name}</h4>
                     <div className={styles.smallPriceRow}>
                       <span className={styles.smallProductPrice}>
-                        ₱{p.price.toLocaleString()}
+                        ₱{p.price.toLocaleString("en-US")}
                       </span>
                       {p.preorderStatus !== "OPEN" && (
                         <span className={styles.smallStatusDot}>
@@ -634,6 +700,27 @@ export default function StorefrontClient({
           <Link href="/cart" className="btn btn-primary btn-full btn-lg" style={{ boxShadow: "var(--shadow-xl)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "var(--space-2)" }}>
             <CustomBagIcon size={18} /> View Order ({itemCount} item{itemCount !== 1 ? "s" : ""}) →
           </Link>
+        </div>
+      )}
+      {showClearCartModal && (
+        <div className={styles.viewer} style={{ background: "rgba(0,0,0,0.8)", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "rgba(255, 255, 255, 0.08)", backdropFilter: "blur(32px) saturate(200%)", borderRadius: "var(--radius-2xl)", border: "1px solid rgba(255, 255, 255, 0.16)", padding: "var(--space-6)", maxWidth: "400px", margin: "var(--space-4)", textAlign: "center", zIndex: 100 }}>
+            <h3 style={{ marginBottom: "var(--space-4)", fontSize: "1.25rem", fontWeight: 700, color: "#fff" }}>This is a separate pre-order</h3>
+            <p style={{ marginBottom: "var(--space-3)", color: "rgba(255,255,255,0.8)" }}>Each drop is its own pre-order, so ordering this piece will remove what you already have:</p>
+            <ul style={{ marginBottom: "var(--space-6)", listStyle: "none", padding: 0, color: "#fff", fontSize: "var(--text-sm)", display: "grid", gap: "var(--space-1)" }}>
+              {items.map((cartLine) => (
+                <li key={cartLine.id}>
+                  {cartLine.quantity} x {cartLine.product.name}
+                  {cartLine.variant.size ? ` / ${cartLine.variant.size}` : ""}
+                  {cartLine.variant.color ? ` / ${cartLine.variant.color}` : ""}
+                </li>
+              ))}
+            </ul>
+            <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "center" }}>
+              <button className="btn btn-ghost" onClick={() => setShowClearCartModal(false)}>Keep my cart</button>
+              <button className="btn btn-primary" onClick={confirmClearCart}>Clear and add this</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

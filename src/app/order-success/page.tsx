@@ -136,9 +136,9 @@ function SuccessContent() {
     const ref   = orderDetail?.reference ?? reference ?? "";
     const name  = orderDetail?.customerName ?? "—";
     const items = (orderDetail?.items ?? [])
-      .map((i) => `  • ${i.quantity}× ${i.productName}${i.variant ? ` (${i.variant})` : ""} — ₱${i.lineTotal.toLocaleString()}`)
+      .map((i) => `  • ${i.quantity}× ${i.productName}${i.variant ? ` (${i.variant})` : ""} — ₱${i.lineTotal.toLocaleString("en-US")}`)
       .join("\n");
-    const total = orderDetail ? `₱${orderDetail.total.toLocaleString()}` : "";
+    const total = orderDetail ? `₱${orderDetail.total.toLocaleString("en-US")}` : "";
     const drop  = orderDetail?.dropName ? `Drop: ${orderDetail.dropName}\n` : "";
 
     return [
@@ -377,7 +377,7 @@ function SuccessContent() {
                           )}
                         </span>
                         <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "#fff", whiteSpace: "nowrap" }}>
-                          ₱{item.lineTotal.toLocaleString()}
+                          ₱{item.lineTotal.toLocaleString("en-US")}
                         </span>
                       </div>
                     ))}
@@ -389,7 +389,7 @@ function SuccessContent() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "var(--space-3) 0 var(--space-1) 0" }}>
                     <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "rgba(255,255,255,0.7)" }}>Total</span>
                     <span style={{ fontSize: "var(--text-xl)", fontWeight: 800, color: "#ffffff", letterSpacing: "-0.01em" }}>
-                      ₱{orderDetail.total.toLocaleString()}
+                      ₱{orderDetail.total.toLocaleString("en-US")}
                     </span>
                   </div>
                 )}

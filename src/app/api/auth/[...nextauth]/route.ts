@@ -5,7 +5,7 @@ export const { GET } = handlers;
 export async function POST(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (pathname.endsWith("/callback/credentials")) {
-    const limited = enforceRateLimit(request, RATE_LIMITS.login);
+    const limited = await enforceRateLimit(request, RATE_LIMITS.login);
     if (limited) return limited;
   }
   return handlers.POST(request);

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 export async function GET(request: NextRequest) {
   try {
-    const limited = enforceRateLimit(request, RATE_LIMITS.publicRead);
+    const limited = await enforceRateLimit(request, RATE_LIMITS.publicRead);
     if (limited) return limited;
     const now = new Date();
     const batches = await prisma.batch.findMany({
@@ -23,6 +23,11 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
     const openBatches = batches.filter((b) => {
+      // A SCHEDULED batch with no startAt has never been announced, and the two
+      // guards below would both pass it through: the date checks only fire when
+      // startAt or endAt is set. That leaked unreleased drops, with their name,
+      // description and cover image, to anyone hitting this public route.
+      if (b.status === "SCHEDULED" && !b.startAt) return false;
       if (b.endAt && now > b.endAt) return false;
       if (b.startAt && now < b.startAt) return false;
       return true;

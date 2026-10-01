@@ -10,8 +10,10 @@ import {
 } from "@/lib/site";
 import { CustomBagIcon } from "@/components/CustomerIcons";
 import { BrandLogo } from "@/components/BrandLogo";
+import { CartCountBadge } from "@/components/CartCountBadge";
 import ProductPageClient from "./ProductPageClient";
 import StorefrontClient, { StorefrontProduct } from "@/app/StorefrontClient";
+import { TrustFooter } from "@/components/TrustFooter";
 import { prisma } from "@/lib/db";
 import glass from "@/app/glass.module.css";
 interface Props {
@@ -242,12 +244,22 @@ export default async function PreorderPage({ params }: Props) {
                   id="nav-cart-link"
                 >
                   <CustomBagIcon size={16} /> View Cart
+                  <CartCountBadge />
                 </Link>
               </div>
             </div>
           </nav>
+          {/* The outline on this page also started at h2. */}
+          <h1 className="visually-hidden">
+            {batchData.batch.name} — {SITE_NAME} pre-order
+          </h1>
+          {/* campaignStatus was never passed from here, so StorefrontClient could
+              only learn a batch was closed from the product status. A batch set to
+              CLOSED whose products are still OPEN therefore rendered an orderable
+              Add button, and checkout refused it with BATCH_NOT_OPEN. */}
           <StorefrontClient
             products={batchData.products}
+            campaignStatus={batchData.batch.status}
           />
           <section style={{ maxWidth: "760px", margin: "var(--space-8) auto var(--space-16)", paddingInline: "var(--space-4)" }}>
             <div
@@ -304,6 +316,7 @@ export default async function PreorderPage({ params }: Props) {
               </a>
             </div>
           </section>
+          <TrustFooter batchEndAt={batchData.batch.endAt} />
         </div>
       </div>
     );

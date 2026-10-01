@@ -1,9 +1,11 @@
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface ParsedApiResponse<T = any> {
   ok: boolean;
   data: T | null;
   error: string | null;
   status: number;
 }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function parseApiResponse<T = any>(
   res: Response,
   defaultErrorMessage = "Request failed"
@@ -18,7 +20,8 @@ export async function parseApiResponse<T = any>(
     };
   }
   const contentType = res.headers.get("content-type") || "";
-  let json: any = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let json: Record<string, any> | null = null;
   if (contentType.includes("application/json")) {
     try {
       json = await res.json();
@@ -26,7 +29,7 @@ export async function parseApiResponse<T = any>(
       json = null;
     }
   } else {
-    const text = await res.text().catch(() => "");
+    await res.text().catch(() => "");
     if (!res.ok) {
       if (status === 401) {
         return {

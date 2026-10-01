@@ -9,7 +9,10 @@
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow-x: hidden;
+  /* clip, not hidden: overflow-x:hidden computes overflow-y to auto, which
+     makes this wrapper a scroll container and changes what position: sticky
+     sticks to. clip trims the decorative orbs without that side effect. */
+  overflow-x: clip;
   background: #140207;
   color: #fff;
 }

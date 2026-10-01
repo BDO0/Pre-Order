@@ -1,3 +1,5 @@
+import { HERO_HEIGHT } from "@/lib/image-geometry";
+
 export interface CompressionResult {
   file: File;
   originalBytes: number;
@@ -25,8 +27,11 @@ export async function compressImageClient(
       previewUrl: URL.createObjectURL(file),
     };
   }
-  const maxDimension = options.maxDimension ?? 1600; 
-  const quality = options.quality ?? 0.80; 
+  // Sized to the hero frame's longest edge, not a round number. The server
+  // crops to 4:5 at 1320x1650 with `fit: "cover"`, so a portrait photo needs at
+  // least 1650px of height on its way up or the crop would have to enlarge it.
+  const maxDimension = options.maxDimension ?? HERO_HEIGHT;
+  const quality = options.quality ?? 0.82;
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Failed to read image file"));

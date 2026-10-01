@@ -144,7 +144,7 @@ export default function CartPage() {
                 <div key={item.id} className={styles.item}>
                   <div className={styles.itemImage}>
                     {item.product.images[0] ? (
-                      <img src={item.product.images[0]} alt={item.product.name} />
+                      <img src={item.product.images[0]} loading="lazy" decoding="async" alt={item.product.name} />
                     ) : (
                       <GarmentSilhouette category={item.product.name} name={item.product.name} size={32} />
                     )}
@@ -155,7 +155,7 @@ export default function CartPage() {
                       {[item.variant.color, item.variant.size].filter(Boolean).join(" • ")}
                     </p>
                     <p className={styles.itemPrice}>
-                      ₱{(item.unitPrice * item.quantity).toLocaleString()}
+                      ₱{(item.unitPrice * item.quantity).toLocaleString("en-US")}
                     </p>
                   </div>
                   <div className={styles.itemActions}>
@@ -199,7 +199,7 @@ export default function CartPage() {
                 <h2 className={styles.summaryTitle}>Order Summary</h2>
                 <div className={styles.summaryRow}>
                   <span>Subtotal</span>
-                  <span style={{ fontWeight: 600, color: "#fff" }}>₱{subtotal.toLocaleString()}</span>
+                  <span style={{ fontWeight: 600, color: "#fff" }}>₱{subtotal.toLocaleString("en-US")}</span>
                 </div>
                 <div className={styles.summaryRow}>
                   <span>Shipping</span>
@@ -209,7 +209,7 @@ export default function CartPage() {
                 </div>
                 <div className={`${styles.summaryRow} ${styles.summaryTotal}`}>
                   <span>Total</span>
-                  <span>₱{total.toLocaleString()}</span>
+                  <span>₱{total.toLocaleString("en-US")}</span>
                 </div>
                 <Link
                   href="/checkout"

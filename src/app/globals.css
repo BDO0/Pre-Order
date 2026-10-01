@@ -3,7 +3,9 @@
    Maroon + Dirty White theme, beginner-friendly UI
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;1,400;1,600&family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap');
+/* Web fonts are linked from src/app/layout.tsx. They used to be pulled in here
+   with an @import, which the browser cannot discover until this file has been
+   fetched and parsed - one serial round trip in front of first paint. */
 
 :root {
   /* ── Brand Colors (Maroon) ── */
@@ -44,7 +46,7 @@
   --color-info:     #2563eb;
 
   /* ── Typography ── */
-  --font-serif:   'Playfair Display', 'Cormorant Garamond', 'Georgia', serif;
+  --font-serif:   'Playfair Display', Georgia, serif;
   --font-display: 'Outfit', system-ui, sans-serif;
   --font-body:    'Inter', system-ui, sans-serif;
 
@@ -412,6 +414,25 @@ h1, h2, h3, h4, h5, h6 {
 .badge-completed  { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
 .badge-cancelled  { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
 
+/* The quantity on the cart pill. Sits on the maroon gradient button, so it
+   inverts to a white chip with brand text for contrast. */
+.cart-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding-inline: 6px;
+  border-radius: var(--radius-full);
+  background: rgb(255 255 255 / 0.94);
+  color: var(--color-brand-600);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ============================================================
    COMPONENTS — SKELETON LOADER
    ============================================================ */
@@ -495,6 +516,38 @@ h1, h2, h3, h4, h5, h6 {
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/*
+   Used by src/app/loading.tsx. Defined here because this project has no
+   Tailwind: referencing its `pulse` keyframe compiles fine and then silently
+   animates nothing, which is how a static logo passed for a loading state.
+*/
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+/* ============================================================
+   MOTION PREFERENCE
+   ------------------------------------------------------------
+   Three orbs animate on a 14s/18s/22s loop, the hero pulses on
+   selection, skeletons shimmer and every control transitions. For
+   someone with a vestibular disorder that is not decorative, it is
+   hostile - and it costs battery on the phones most customers use.
+   Collapsing the durations keeps every end state and removes the
+   movement, so nothing needs a separate reduced-motion branch.
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ============================================================

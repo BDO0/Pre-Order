@@ -364,5 +364,15 @@ model OrderFormField {
   @@map("order_form_fields")
 }
 
+model RateLimitBucket {
+  key       String   @id
+  count     Int      @default(1)
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
+  @@map("rate_limit_buckets")
+}
+
 
 

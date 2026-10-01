@@ -6,7 +6,7 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const limited = enforceRateLimit(request, RATE_LIMITS.publicRead);
+    const limited = await enforceRateLimit(request, RATE_LIMITS.publicRead);
     if (limited) return limited;
     const { slug } = await params;
     const now = new Date();

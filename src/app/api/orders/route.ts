@@ -5,7 +5,7 @@ import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { isSameOrigin } from "@/lib/api-guard";
 export async function POST(request: NextRequest) {
   try {
-    const limited = enforceRateLimit(request, RATE_LIMITS.checkout);
+    const limited = await enforceRateLimit(request, RATE_LIMITS.checkout);
     if (limited) return limited;
     if (!isSameOrigin(request)) {
       return NextResponse.json(

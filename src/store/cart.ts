@@ -26,14 +26,14 @@ interface CartState {
   batchId: string | null;
   batchSlug: string | null;
   items: CartItem[];
-  setBatch: (id: string, slug: string) => void;
+  setBatch: (id: string, slug: string) => boolean;
   addItem: (
     product: CartProduct,
     variant: CartVariant,
     quantity: number,
     batchId: string,
     batchSlug: string
-  ) => void;
+  ) => boolean;
   updateQuantity: (cartItemId: string, quantity: number) => void;
   removeItem: (cartItemId: string) => void;
   clearCart: () => void;
@@ -46,13 +46,25 @@ export const useCartStore = create<CartState>()(
       batchId: null,
       batchSlug: null,
       items: [],
-      setBatch: (id, slug) =>
-        set({ batchId: id, batchSlug: slug }),
+      setBatch: (id, slug) => {
+        const state = get();
+        if (state.batchId !== id && state.items.length > 0) {
+          return false;
+        }
+        if (state.batchId !== id) {
+          set({ batchId: id, batchSlug: slug });
+        }
+        return true;
+      },
       addItem: (product, variant, quantity, batchId, batchSlug) => {
         const state = get();
-        const items = state.batchId === batchId ? state.items : [];
+        if (state.batchId && state.batchId !== batchId && state.items.length > 0) {
+          return false;
+        }
+        let items = state.items;
         if (state.batchId !== batchId) {
           set({ batchId, batchSlug, items: [] });
+          items = [];
         }
         const existing = items.find((i) => i.variantId === variant.id);
         if (existing) {
@@ -81,6 +93,7 @@ export const useCartStore = create<CartState>()(
             ],
           });
         }
+        return true;
       },
       updateQuantity: (cartItemId, quantity) => {
         if (quantity < 1) {

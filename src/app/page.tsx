@@ -2,9 +2,11 @@ import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { SITE_NAME } from "@/lib/site";
 import { BrandLogo } from "@/components/BrandLogo";
+import { CartCountBadge } from "@/components/CartCountBadge";
 import { CustomBagIcon } from "@/components/CustomerIcons";
 import styles from "./page.module.css";
 import StorefrontClient, { StorefrontProduct } from "./StorefrontClient";
+import { TrustFooter } from "@/components/TrustFooter";
 export const revalidate = 60; 
 async function getAvailableProducts(): Promise<{
   products: StorefrontProduct[];
@@ -65,49 +67,7 @@ async function getAvailableProducts(): Promise<{
       });
     }
   }
-  if (defaultBatch) {
-    const allActive = await prisma.product.findMany({
-      where: { active: true, preorderEnabled: true },
-      include: {
-        variants: {
-          where: { active: true },
-          orderBy: [{ color: "asc" }, { size: "asc" }],
-        },
-      },
-    });
-    for (const p of allActive) {
-      if (!productsMap.has(p.id)) {
-        productsMap.set(p.id, {
-          id: p.id,
-          name: p.name,
-          slug: p.slug,
-          price: Number(p.price),
-          category: p.category,
-          description: p.description,
-          images: Array.isArray(p.images) ? p.images : [],
-          batchId: defaultBatch.id,
-          batchName: defaultBatch.name,
-          batchSlug: defaultBatch.slug,
-          batchEndAt: defaultBatch.endAt ? defaultBatch.endAt.toISOString() : null,
-          preorderStatus: p.preorderStatus,
-          preorderRemaining:
-            p.preorderLimit !== null
-              ? Math.max(0, p.preorderLimit - p.preorderReserved)
-              : null,
-          variants: p.variants.map((v) => ({
-            id: v.id,
-            size: v.size,
-            color: v.color,
-            sku: v.sku,
-            priceOverride: v.priceOverride ? Number(v.priceOverride) : null,
-            capacity: v.capacity,
-            remainingCapacity: v.remainingCapacity,
-            active: v.active,
-          })),
-        });
-      }
-    }
-  }
+
   return {
     products: Array.from(productsMap.values()),
     activeBatch: defaultBatch
@@ -138,13 +98,22 @@ export default async function HomePage() {
               <Link href="/cart" className={styles.navCartBtn} id="nav-cart-link" aria-label="View Cart" title="View Cart">
                 <CustomBagIcon size={16} />
                 <span className={styles.navCartLabel}>Cart</span>
+                <CartCountBadge />
               </Link>
             </div>
           </div>
         </nav>
         <main style={{ flex: 1 }}>
+          {/* The document outline used to start at h2: there was no h1 anywhere on
+              the shop home, which left search engines and screen readers without a
+              page subject. This is the real title of the page, hidden because the
+              showcase art already names the drop. */}
+          <h1 className="visually-hidden">
+            {SITE_NAME} — limited pre-order drops
+          </h1>
           <StorefrontClient products={products} />
         </main>
+        <TrustFooter batchEndAt={activeBatch?.endAt} />
       </div>
     </div>
   );

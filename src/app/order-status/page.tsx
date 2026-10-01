@@ -52,7 +52,7 @@ function badgeClass(status: string): string {
   }
 }
 function peso(amount: number): string {
-  return `₱${amount.toLocaleString()}`;
+  return `₱${amount.toLocaleString("en-US")}`;
 }
 type LookupOutcome =
   | { ok: true; order: PublicOrder }
