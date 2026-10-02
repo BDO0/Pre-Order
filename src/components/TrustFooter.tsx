@@ -1,5 +1,5 @@
 "use client";
-import { SHOP_INSTAGRAM_HANDLE, SHOP_INSTAGRAM_URL, SITE_NAME } from "@/lib/site";
+import { SITE_NAME } from "@/lib/site";
 import React from "react";
 
 export function TrustFooter({
@@ -48,8 +48,42 @@ export function TrustFooter({
           <p style={{ lineHeight: 1.6 }}>Add items to your cart and check out. No payment is collected upfront. We&apos;ll reach out on Instagram to arrange payment when your order is secured.</p>
         </div>
         <div>
-          <h4 style={{ color: "white", fontWeight: 700, marginBottom: "var(--space-3)", fontSize: "var(--text-base)" }}>Who are you?</h4>
-          <p style={{ lineHeight: 1.6 }}>{SITE_NAME} creates highly limited handcrafted clothing. Follow us <a href={SHOP_INSTAGRAM_URL} target="_blank" rel="noreferrer" style={{ color: "#ffb4c8", textDecoration: "none" }}>@{SHOP_INSTAGRAM_HANDLE}</a>.</p>
+          <h4 style={{ color: "white", fontWeight: 700, marginBottom: "var(--space-3)", fontSize: "var(--text-base)" }}>Follow Us</h4>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", lineHeight: 1.6 }}>
+            <div>
+              Instagram:{" "}
+              <a
+                href="https://www.instagram.com/tudungpeopleph"
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: "#ffb4c8", textDecoration: "none" }}
+              >
+                @tudungpeopleph
+              </a>
+            </div>
+            <div>
+              Facebook:{" "}
+              <a
+                href="https://www.facebook.com/p/TudungPeople-PH-100087529293348/"
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: "#ffb4c8", textDecoration: "none" }}
+              >
+                TudungPeople PH
+              </a>
+            </div>
+            <div>
+              Tiktok:{" "}
+              <a
+                href="https://www.tiktok.com/@tudungpeopleph"
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: "#ffb4c8", textDecoration: "none" }}
+              >
+                @TudungPeoplePH
+              </a>
+            </div>
+          </div>
         </div>
       </div>
       <div style={{ textAlign: "center", fontSize: "var(--text-xs)", opacity: 0.7 }}>
