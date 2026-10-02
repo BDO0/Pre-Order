@@ -15,8 +15,8 @@ export function TrustFooter({
   }, [batchEndAt]);
 
   const etaText = isEta
-    ? `Production starts on ${new Date(batchEndAt!).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. Expect delivery within 2-3 weeks from that date.`
-    : "Items are produced in limited batches and shipped within 2-3 weeks of drop closure.";
+    ? `Production starts on ${new Date(batchEndAt!).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. Less than 1 day within Metro Manila and 5–7 days to Mindanao.`
+    : "Items are produced in limited batches. Delivery takes less than 1 day within Metro Manila and 5–7 days to Mindanao.";
 
   return (
     <footer style={{
