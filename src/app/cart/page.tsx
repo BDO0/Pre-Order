@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useCartStore } from "@/store/cart";
 import Link from "next/link";
 import { SITE_NAME } from "@/lib/site";
+import { formatMoney } from "@/lib/format";
 import { BrandLogo } from "@/components/BrandLogo";
 import { CustomBagIcon, GarmentSilhouette } from "@/components/CustomerIcons";
 import styles from "./cart.module.css";
@@ -158,7 +159,7 @@ export default function CartPage() {
                       {[item.variant.color, item.variant.size].filter(Boolean).join(" • ")}
                     </p>
                     <p className={styles.itemPrice}>
-                      ₱{(item.unitPrice * item.quantity).toLocaleString("en-US")}
+                      {formatMoney(item.unitPrice * item.quantity)}
                     </p>
                   </div>
                   <div className={styles.itemActions}>
@@ -202,7 +203,7 @@ export default function CartPage() {
                 <h2 className={styles.summaryTitle}>Order Summary</h2>
                 <div className={styles.summaryRow}>
                   <span>Subtotal</span>
-                  <span style={{ fontWeight: 600, color: "#fff" }}>₱{subtotal.toLocaleString("en-US")}</span>
+                  <span style={{ fontWeight: 600, color: "#fff" }}>{formatMoney(subtotal)}</span>
                 </div>
                 <div className={styles.summaryRow}>
                   <span>Shipping</span>
@@ -212,7 +213,7 @@ export default function CartPage() {
                 </div>
                 <div className={`${styles.summaryRow} ${styles.summaryTotal}`}>
                   <span>Total</span>
-                  <span>₱{total.toLocaleString("en-US")}</span>
+                  <span>{formatMoney(total)}</span>
                 </div>
                 <Link
                   href="/checkout"

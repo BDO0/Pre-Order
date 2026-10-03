@@ -9,6 +9,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { MAX_ANSWER_LENGTH, type PublicFormField } from "@/lib/order-answers";
 import { CustomBagIcon, CustomCardIcon, CustomAlertIcon } from "@/components/CustomerIcons";
 import { parseApiResponse } from "@/lib/api-client";
+import { formatMoney } from "@/lib/format";
 import styles from "./checkout.module.css";
 import glass from "../glass.module.css";
 export default function CheckoutPage() {
@@ -339,14 +340,14 @@ export default function CheckoutPage() {
                         </span>
                       </div>
                       <div className={styles.summaryItemPrice}>
-                        ₱{(item.unitPrice * item.quantity).toLocaleString('en-US')}
+                        {formatMoney((item.unitPrice * item.quantity))}
                       </div>
                     </div>
                   ))}
                 </div>
                 <div className={styles.summaryTotals}>
                   <div className={`${styles.summaryRow} ${styles.summaryGrandTotal}`}>
-                    <span>Total</span><span>₱{subtotal.toLocaleString('en-US')}</span>
+                    <span>Total</span><span>{formatMoney(subtotal)}</span>
                   </div>
                 </div>
                 <button type="submit" disabled={loading || questionsFailed}
@@ -411,14 +412,14 @@ export default function CheckoutPage() {
                           </span>
                         </span>
                         <span style={{ fontWeight: 600 }}>
-                          ₱{(item.unitPrice * item.quantity).toLocaleString('en-US')}
+                          {formatMoney((item.unitPrice * item.quantity))}
                         </span>
                       </div>
                     ))}
                   </div>
                   <div className={styles.modalTotalRow}>
                     <span>Total Amount</span>
-                    <span className={styles.modalTotalAmount}>₱{subtotal.toLocaleString('en-US')}</span>
+                    <span className={styles.modalTotalAmount}>{formatMoney(subtotal)}</span>
                   </div>
                 </div>
                 <div className={styles.modalNotice}>
@@ -555,13 +556,13 @@ export default function CheckoutPage() {
                             ({[item.variant.color, item.variant.size].filter(Boolean).join(" / ")})
                           </span>
                         </span>
-                        <span style={{ fontWeight: 600 }}>₱{(item.unitPrice * item.quantity).toLocaleString('en-US')}</span>
+                        <span style={{ fontWeight: 600 }}>{formatMoney((item.unitPrice * item.quantity))}</span>
                       </div>
                     ))}
                   </div>
                   <div className={styles.modalTotalRow}>
                     <span>Total</span>
-                    <span className={styles.modalTotalAmount}>₱{successData.total.toLocaleString('en-US')}</span>
+                    <span className={styles.modalTotalAmount}>{formatMoney(successData.total)}</span>
                   </div>
                 </div>
 
@@ -572,7 +573,7 @@ export default function CheckoutPage() {
                   onClick={async () => {
                     const handle = instagramHandle.trim().startsWith("@") ? instagramHandle.trim() : `@${instagramHandle.trim()}`;
                     const itemLines = items
-                      .map((i) => `  • ${i.quantity}× ${i.product.name}${[i.variant.color, i.variant.size].filter(Boolean).length > 0 ? ` (${[i.variant.color, i.variant.size].filter(Boolean).join(" / ")})` : ""} — ₱${(i.unitPrice * i.quantity).toLocaleString('en-US')}`)
+                      .map((i) => `  • ${i.quantity}× ${i.product.name}${[i.variant.color, i.variant.size].filter(Boolean).length > 0 ? ` (${[i.variant.color, i.variant.size].filter(Boolean).join(" / ")})` : ""} — ${formatMoney(i.unitPrice * i.quantity)}`)
                       .join("\n");
                     const text = [
                       "📦 Pre-Order Confirmation",
@@ -582,7 +583,7 @@ export default function CheckoutPage() {
                       "",
                       `Items:\n${itemLines}`,
                       "",
-                      `Total: ₱${successData.total.toLocaleString('en-US')}`,
+                      `Total: ${formatMoney(successData.total)}`,
                       "",
                       "Please send this as proof of your pre-order.",
                     ].join("\n");

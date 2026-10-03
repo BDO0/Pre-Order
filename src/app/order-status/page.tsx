@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import styles from "./status.module.css";
 import glass from "../glass.module.css";
 import { customerStatusCopy } from "@/lib/order-status-copy";
+import { formatMoney } from "@/lib/format";
 import { SHOP_INSTAGRAM_HANDLE, SHOP_INSTAGRAM_URL, SITE_NAME } from "@/lib/site";
 import { BrandLogo } from "@/components/BrandLogo";
 import { CustomAlertIcon } from "@/components/CustomerIcons";
@@ -50,9 +51,6 @@ function badgeClass(status: string): string {
     default:
       return "badge badge-closed";
   }
-}
-function peso(amount: number): string {
-  return `₱${amount.toLocaleString("en-US")}`;
 }
 type LookupOutcome =
   | { ok: true; order: PublicOrder }
@@ -286,12 +284,12 @@ function ResultCard({
               <p className={styles.itemName}>{item.productName}</p>
               {item.variant && <p className={styles.itemVariant}>{item.variant}</p>}
             </div>
-            <div style={{ fontWeight: 600, color: "white" }}>{peso(item.lineTotal)}</div>
+            <div style={{ fontWeight: 600, color: "white" }}>{formatMoney(item.lineTotal)}</div>
           </div>
         ))}
         <div className={styles.totalRow}>
           <span>Total</span>
-          <span>{peso(order.total)}</span>
+          <span>{formatMoney(order.total)}</span>
         </div>
       </div>
       <div className={styles.timeline}>

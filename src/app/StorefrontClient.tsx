@@ -5,6 +5,8 @@ import { useCartStore } from "@/store/cart";
 import { SHOP_INSTAGRAM_HANDLE, SHOP_INSTAGRAM_URL, SITE_NAME } from "@/lib/site";
 import { CustomBagIcon, CustomHangerIcon, GarmentSilhouette } from "@/components/CustomerIcons";
 import { DeliveryEta } from "@/components/DeliveryEta";
+import { Countdown } from "@/components/Countdown";
+import { formatMoney } from "@/lib/format";
 import styles from "./storefront.module.css";
 import { CARD_SIZES, HERO_HEIGHT, HERO_SIZES, HERO_WIDTH, imageSrcSet, imageUrlAtWidth } from "@/lib/image-geometry";
 export interface Variant {
@@ -36,38 +38,6 @@ export interface StorefrontProduct {
 interface Props {
   products: StorefrontProduct[];
   campaignStatus?: string;
-}
-
-function CountdownTimer({ targetDate }: { targetDate: string }) {
-  const [label, setLabel] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(true);
-    const describe = (): string | null => {
-      const remaining = new Date(targetDate).getTime() - Date.now();
-      if (remaining <= 0) return null;
-      const days = Math.floor(remaining / 86_400_000);
-      const hours = Math.floor((remaining / 3_600_000) % 24);
-      const minutes = Math.floor((remaining / 60_000) % 60);
-      const seconds = Math.floor((remaining / 1000) % 60);
-      return days > 0
-        ? `Closes in ${days}d ${hours}h ${minutes}m`
-        : `Closes in ${hours}h ${minutes}m ${seconds}s`;
-    };
-
-    const tick = () => setLabel(describe());
-    tick();
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, [targetDate]);
-
-  if (!mounted) {
-    return <span className="badge badge-open" style={{ visibility: "hidden" }}>Closes in 00h 00m 00s</span>;
-  }
-  if (!label) return null;
-  return <span className="badge badge-open">{label}</span>;
 }
 
 export default function StorefrontClient({
@@ -447,13 +417,13 @@ export default function StorefrontClient({
                       )}
                       {activeProduct.batchEndAt && (
                         <div style={activeProduct.category ? { marginLeft: "8px" } : {}}>
-                          <CountdownTimer targetDate={activeProduct.batchEndAt} />
+                          <Countdown targetDate={activeProduct.batchEndAt} />
                         </div>
                       )}
                     </div>
                   </div>
                   <div className={styles.priceTag}>
-                    ₱{effectivePrice.toLocaleString("en-US")}
+                    {formatMoney(effectivePrice)}
                   </div>
                 </div>
                 <p className={styles.descText}>
@@ -570,7 +540,7 @@ export default function StorefrontClient({
                           ? "Select a Size to Pre-order"
                           : colors.length > 0 && !selectedColor
                           ? "Select a Color to Pre-order"
-                          : `Add to Pre-Order — ₱${(effectivePrice * qty).toLocaleString("en-US")}`}
+                          : `Add to Pre-Order — ${formatMoney(effectivePrice * qty)}`}
                       </button>
                     </div>
                     <DeliveryEta batchEndAt={activeProduct.batchEndAt} />
@@ -661,7 +631,7 @@ export default function StorefrontClient({
                     <h4 className={styles.smallProductName}>{p.name}</h4>
                     <div className={styles.smallPriceRow}>
                       <span className={styles.smallProductPrice}>
-                        ₱{p.price.toLocaleString("en-US")}
+                        {formatMoney(p.price)}
                       </span>
                       {p.preorderStatus !== "OPEN" && (
                         <span className={styles.smallStatusDot}>

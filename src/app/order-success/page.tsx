@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState, useEffect } from "react";
 import { SITE_NAME, SHOP_INSTAGRAM_HANDLE, SHOP_INSTAGRAM_URL } from "@/lib/site";
+import { formatMoney } from "@/lib/format";
 import { CustomCheckSealIcon } from "@/components/CustomerIcons";
 import { BrandLogo } from "@/components/BrandLogo";
 import glass from "../glass.module.css";
@@ -129,9 +130,9 @@ function SuccessContent() {
     const ref   = orderDetail?.reference ?? reference ?? "";
     const name  = orderDetail?.customerName ?? "—";
     const items = (orderDetail?.items ?? [])
-      .map((i) => `  • ${i.quantity}× ${i.productName}${i.variant ? ` (${i.variant})` : ""} — ₱${i.lineTotal.toLocaleString("en-US")}`)
+      .map((i) => `  • ${i.quantity}× ${i.productName}${i.variant ? ` (${i.variant})` : ""} — ${formatMoney(i.lineTotal)}`)
       .join("\n");
-    const total = orderDetail ? `₱${orderDetail.total.toLocaleString("en-US")}` : "";
+    const total = orderDetail ? formatMoney(orderDetail.total) : "";
     const drop  = orderDetail?.dropName ? `Drop: ${orderDetail.dropName}\n` : "";
 
     return [
@@ -369,7 +370,7 @@ function SuccessContent() {
                           )}
                         </span>
                         <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "#fff", whiteSpace: "nowrap" }}>
-                          ₱{item.lineTotal.toLocaleString("en-US")}
+                          {formatMoney(item.lineTotal)}
                         </span>
                       </div>
                     ))}
@@ -381,7 +382,7 @@ function SuccessContent() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "var(--space-3) 0 var(--space-1) 0" }}>
                     <span style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "rgba(255,255,255,0.7)" }}>Total</span>
                     <span style={{ fontSize: "var(--text-xl)", fontWeight: 800, color: "#ffffff", letterSpacing: "-0.01em" }}>
-                      ₱{orderDetail.total.toLocaleString("en-US")}
+                      {formatMoney(orderDetail.total)}
                     </span>
                   </div>
                 )}

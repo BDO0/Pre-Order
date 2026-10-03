@@ -64,4 +64,5 @@ next-env.d.ts
 /.purge-backups
 
 # local tooling scratch
+/_tmp
 /.cline-*

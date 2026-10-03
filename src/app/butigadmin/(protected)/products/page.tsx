@@ -1,4 +1,5 @@
 "use client";
+import { formatMoney } from "@/lib/format";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { variantCountLabel, stockSummary } from "@/lib/variant-stock";
@@ -82,7 +83,7 @@ export default function AdminProductsPage() {
                     <div style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)" }}>{product.slug}</div>
                   </td>
                   <td>{product.category || "—"}</td>
-                  <td>₱{Number(product.price).toLocaleString()}</td>
+                  <td>{formatMoney(Number(product.price))}</td>
                   <td>
                     {}
                     {variantCountLabel(product.variants)}

@@ -1,4 +1,5 @@
 "use client";
+import { formatMoney } from "@/lib/format";
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -653,7 +654,7 @@ export default function AdminOrdersPage() {
 
                       {}
                       <td style={{ fontWeight: 600 }}>
-                        ₱{Number(order.total).toLocaleString()}
+                        {formatMoney(Number(order.total))}
                       </td>
 
                       {}

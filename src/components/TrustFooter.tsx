@@ -1,5 +1,6 @@
 "use client";
-import { SITE_NAME } from "@/lib/site";
+import { SHOP_SOCIALS, SITE_NAME } from "@/lib/site";
+import { formatShortDate } from "@/lib/format";
 import React from "react";
 
 export function TrustFooter({
@@ -14,9 +15,11 @@ export function TrustFooter({
     setIsEta(batchEndAt ? new Date(batchEndAt).getTime() > Date.now() : false);
   }, [batchEndAt]);
 
-  const etaText = isEta
-    ? `Production starts on ${new Date(batchEndAt!).toLocaleDateString("en-US", { month: "short", day: "numeric" })}. Less than 1 day within Metro Manila and 5–7 days to Mindanao.`
-    : "Items are produced in limited batches. Delivery takes less than 1 day within Metro Manila and 5–7 days to Mindanao.";
+  const productionStart = formatShortDate(batchEndAt);
+  const etaText =
+    isEta && productionStart
+      ? `Production starts on ${productionStart}. Less than 1 day within Metro Manila and 5–7 days to Mindanao.`
+      : "Items are produced in limited batches. Delivery takes less than 1 day within Metro Manila and 5–7 days to Mindanao.";
 
   return (
     <footer style={{
@@ -50,39 +53,19 @@ export function TrustFooter({
         <div>
           <h4 style={{ color: "white", fontWeight: 700, marginBottom: "var(--space-3)", fontSize: "var(--text-base)" }}>Follow Us</h4>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", lineHeight: 1.6 }}>
-            <div>
-              Instagram:{" "}
-              <a
-                href="https://www.instagram.com/tudungpeopleph"
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: "#ffb4c8", textDecoration: "none" }}
-              >
-                @tudungpeopleph
-              </a>
-            </div>
-            <div>
-              Facebook:{" "}
-              <a
-                href="https://www.facebook.com/p/TudungPeople-PH-100087529293348/"
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: "#ffb4c8", textDecoration: "none" }}
-              >
-                TudungPeople PH
-              </a>
-            </div>
-            <div>
-              Tiktok:{" "}
-              <a
-                href="https://www.tiktok.com/@tudungpeopleph"
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: "#ffb4c8", textDecoration: "none" }}
-              >
-                @TudungPeoplePH
-              </a>
-            </div>
+            {SHOP_SOCIALS.map((social) => (
+              <div key={social.label}>
+                {social.label}:{" "}
+                <a
+                  href={social.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: "#ffb4c8", textDecoration: "none" }}
+                >
+                  {social.handle}
+                </a>
+              </div>
+            ))}
           </div>
         </div>
       </div>

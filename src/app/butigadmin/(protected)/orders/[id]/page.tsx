@@ -1,4 +1,5 @@
 "use client";
+import { formatMoney } from "@/lib/format";
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -401,9 +402,9 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
                             {variantLabel(item.variantSnapshot)}
                           </div>
                         </td>
-                        <td style={{ textAlign: "right" }}>₱{Number(item.unitPriceAtPurchase).toLocaleString()}</td>
+                        <td style={{ textAlign: "right" }}>{formatMoney(Number(item.unitPriceAtPurchase))}</td>
                         <td style={{ textAlign: "center" }}>{item.quantity}</td>
-                        <td style={{ textAlign: "right", fontWeight: 600 }}>₱{(Number(item.unitPriceAtPurchase) * item.quantity).toLocaleString()}</td>
+                        <td style={{ textAlign: "right", fontWeight: 600 }}>{formatMoney((Number(item.unitPriceAtPurchase) * item.quantity))}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -411,11 +412,11 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
                 <div style={{ marginTop: "var(--space-4)", paddingTop: "var(--space-3)", borderTop: "1px solid var(--color-neutral-200)", display: "flex", flexDirection: "column", gap: "var(--space-1)", alignItems: "flex-end" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", width: "220px", color: "var(--color-neutral-600)", fontSize: "var(--text-sm)" }}>
                     <span>Subtotal</span>
-                    <span>₱{Number(order.subtotal).toLocaleString()}</span>
+                    <span>{formatMoney(Number(order.subtotal))}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", width: "220px", fontSize: "var(--text-lg)", fontWeight: 700, color: "var(--color-neutral-900)", marginTop: "var(--space-1)" }}>
                     <span>Total</span>
-                    <span>₱{Number(order.total).toLocaleString()}</span>
+                    <span>{formatMoney(Number(order.total))}</span>
                   </div>
                 </div>
               </div>

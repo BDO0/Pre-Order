@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { formatShortDate } from "@/lib/format";
 
 const LEAD_TIME = "2–3 weeks";
 
@@ -14,12 +15,10 @@ export function DeliveryEta({ batchEndAt }: { batchEndAt?: string | null }) {
     }
     const closes = new Date(batchEndAt);
     if (Number.isNaN(closes.getTime()) || closes.getTime() <= Date.now()) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setClosesOn(null);
       return;
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setClosesOn(closes.toLocaleDateString("en-US", { month: "short", day: "numeric" }));
+    setClosesOn(formatShortDate(closes));
   }, [batchEndAt]);
 
   return (

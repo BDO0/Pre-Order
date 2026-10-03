@@ -1,4 +1,5 @@
 "use client";
+import { formatMoney } from "@/lib/format";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -508,7 +509,7 @@ export default function AdminBatchesPage() {
                       color: "var(--color-neutral-500)",
                     }}
                   >
-                    ₱{Number(product.price).toLocaleString()} ·{" "}
+                    {formatMoney(Number(product.price))} ·{" "}
                     {product.category || "no category"} ·{" "}
                     {product.variants?.length || 0} variant(s)
                   </span>
@@ -654,7 +655,7 @@ export default function AdminBatchesPage() {
                       )}
                     </td>
                     <td style={{ fontWeight: 600 }}>{batch.orderCount}</td>
-                    <td>₱{Number(batch.totalValue).toLocaleString()}</td>
+                    <td>{formatMoney(Number(batch.totalValue))}</td>
                     <td>
                       {batch.unpaidCount > 0 ? (
                         <span

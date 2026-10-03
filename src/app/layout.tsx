@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, Outfit, Playfair_Display } from "next/font/google";
 import {
   SITE_DESCRIPTION,
   SITE_NAME,
@@ -8,6 +9,28 @@ import {
   siteUrl,
 } from "@/lib/site";
 import "./globals.css";
+
+const playfairDisplay = Playfair_Display({
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
+  variable: "--font-playfair",
+  display: "swap",
+});
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-outfit",
+  display: "swap",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   metadataBase: siteUrl(),
   title: {
@@ -48,27 +71,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      {
-
-
-
-
-
-
-
-
-
-
-}
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap"
-        />
-      </head>
+    <html
+      lang="en"
+      className={`${playfairDisplay.variable} ${outfit.variable} ${inter.variable}`}
+    >
       <body>{children}</body>
     </html>
   );

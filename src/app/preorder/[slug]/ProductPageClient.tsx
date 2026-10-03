@@ -8,6 +8,8 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { CartCountBadge } from "@/components/CartCountBadge";
 import { TrustFooter } from "@/components/TrustFooter";
 import { DeliveryEta } from "@/components/DeliveryEta";
+import { Countdown } from "@/components/Countdown";
+import { formatMoney } from "@/lib/format";
 import glass from "@/app/glass.module.css";
 import { HERO_HEIGHT, HERO_SIZES, HERO_WIDTH, imageSrcSet, imageUrlAtWidth } from "@/lib/image-geometry";
 import styles from "./campaign.module.css";
@@ -40,38 +42,6 @@ export interface Batch {
   status: string;
   endAt: string | null;
 }
-function CountdownTimer({ targetDate }: { targetDate: string }) {
-  const [label, setLabel] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(true);
-    const describe = (): string | null => {
-      const remaining = new Date(targetDate).getTime() - Date.now();
-      if (remaining <= 0) return null;
-      const days = Math.floor(remaining / 86_400_000);
-      const hours = Math.floor((remaining / 3_600_000) % 24);
-      const minutes = Math.floor((remaining / 60_000) % 60);
-      const seconds = Math.floor((remaining / 1000) % 60);
-      return days > 0
-        ? `Closes in ${days}d ${hours}h ${minutes}m`
-        : `Closes in ${hours}h ${minutes}m ${seconds}s`;
-    };
-
-    const tick = () => setLabel(describe());
-    tick();
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, [targetDate]);
-
-  if (!mounted) {
-    return <span className="badge badge-open" style={{ visibility: "hidden" }}>Closes in 00h 00m 00s</span>;
-  }
-  if (!label) return null;
-  return <span className="badge badge-open">{label}</span>;
-}
-
 export default function ProductPageClient({ product, batch }: { product: Product; batch: Batch }) {
   const { addItem, getItemCount, clearCart, items } = useCartStore();
   const [mounted, setMounted] = useState(false);
@@ -268,7 +238,7 @@ export default function ProductPageClient({ product, batch }: { product: Product
               <div>
                 <div className={styles.badgeRow} style={{ marginBottom: "var(--space-3)" }}>
                   <span className={styles.batchBadge}>{batch.name}</span>
-                  {batch.endAt && <CountdownTimer targetDate={batch.endAt} />}
+                  {batch.endAt && <Countdown targetDate={batch.endAt} />}
                   {batch.status === "CLOSED" && (
                     <span className="badge badge-closed">Batch Closed</span>
                   )}
@@ -278,7 +248,7 @@ export default function ProductPageClient({ product, batch }: { product: Product
                 </div>
                 <h1 className={styles.productTitle}>{product.name}</h1>
                 <p className={styles.productPrice}>
-                  ₱{effectivePrice.toLocaleString("en-US")}
+                  {formatMoney(effectivePrice, product.currency)}
                 </p>
               </div>
               {product.description && (
@@ -389,7 +359,7 @@ export default function ProductPageClient({ product, batch }: { product: Product
                       ? "Select a Size to Pre-order"
                       : colors.length > 0 && !selectedColor
                       ? "Select a Color to Pre-order"
-                      : `Add to Order — ₱${(effectivePrice * qty).toLocaleString("en-US")}`}
+                      : `Add to Order — ${formatMoney(effectivePrice * qty, product.currency)}`}
                   </button>
                   <DeliveryEta batchEndAt={batch.endAt} />
                   {product.preorderRemaining !== null && (

@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/format";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import styles from "./dashboard.module.css";
@@ -226,13 +227,13 @@ export default async function DashboardPage() {
         <div className="stat-card">
           <p className="stat-label">Confirmed Revenue</p>
           <p className="stat-value" style={{ fontSize: "var(--text-xl)" }}>
-            ₱{Number(stats.confirmedRevenue).toLocaleString()}
+            {formatMoney(Number(stats.confirmedRevenue))}
           </p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Gross Order Value</p>
           <p className="stat-value" style={{ fontSize: "var(--text-xl)", color: "var(--color-neutral-500)" }}>
-            ₱{Number(stats.grossValue).toLocaleString()}
+            {formatMoney(Number(stats.grossValue))}
           </p>
         </div>
       </div>
@@ -304,7 +305,7 @@ export default async function DashboardPage() {
                         {}
                         {order.batch.name}
                       </td>
-                      <td style={{ fontWeight: 600 }}>₱{Number(order.total).toLocaleString()}</td>
+                      <td style={{ fontWeight: 600 }}>{formatMoney(Number(order.total))}</td>
                       <td>
                         <span
                           className="badge"
