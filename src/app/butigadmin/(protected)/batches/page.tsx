@@ -14,6 +14,7 @@ import {
   formatFileSize,
 } from "@/lib/client-image-compression";
 import { parseApiResponse } from "@/lib/api-client";
+import { copyTextToClipboard } from "@/lib/clipboard";
 interface BatchRow {
   id: string;
   name: string;
@@ -82,6 +83,34 @@ export default function AdminBatchesPage() {
   const [creating, setCreating] = useState(false);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [copiedBatchId, setCopiedBatchId] = useState<string | null>(null);
+
+  const handleCopyLink = async (batch: BatchRow) => {
+    const url = `${window.location.origin}/preorder/${batch.slug}`;
+    const success = await copyTextToClipboard(url);
+    if (success) {
+      setCopiedBatchId(batch.id);
+      setTimeout(() => {
+        setCopiedBatchId((curr) => (curr === batch.id ? null : curr));
+      }, 2500);
+
+      if (batch.status === "DRAFT") {
+        showMsg(
+          "success",
+          `Copied ${url} — ⚠️ Notice: Batch is currently in DRAFT. Change status to OPEN before sharing with customers so they can checkout.`
+        );
+      } else if (batch.status === "CLOSED" || batch.status === "ARCHIVED") {
+        showMsg(
+          "success",
+          `Copied ${url} — ℹ️ Notice: Batch is ${batch.status}. Customers cannot place new orders.`
+        );
+      } else {
+        showMsg("success", `Copied customer link: ${url}`);
+      }
+    } else {
+      showMsg("error", `Could not automatically copy to clipboard. URL: ${url}`);
+    }
+  };
   const showMsg = (type: "success" | "error", text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 4000);
@@ -704,15 +733,24 @@ export default function AdminBatchesPage() {
                         </Link>
                         <button
                           className="btn btn-ghost btn-sm"
-                          title="Copy the customer pre-order link"
-                          onClick={() => {
-                            const url = `${window.location.origin}/preorder/${batch.slug}`;
-                            void navigator.clipboard
-                              .writeText(url)
-                              .then(() => showMsg("success", `Copied ${url}`));
-                          }}
+                          style={
+                            copiedBatchId === batch.id
+                              ? {
+                                  color: "var(--color-success, #86efac)",
+                                  fontWeight: 700,
+                                }
+                              : undefined
+                          }
+                          title={
+                            batch.status === "DRAFT"
+                              ? "Copy customer link (Warning: Batch is in DRAFT)"
+                              : batch.status === "CLOSED" || batch.status === "ARCHIVED"
+                              ? `Copy customer link (Notice: Batch is ${batch.status})`
+                              : "Copy the customer pre-order link"
+                          }
+                          onClick={() => void handleCopyLink(batch)}
                         >
-                          Copy link
+                          {copiedBatchId === batch.id ? "Copied ✓" : "Copy link"}
                         </button>
                         <Link
                           href={`/butigadmin/orders?batchId=${batch.id}`}

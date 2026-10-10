@@ -71,12 +71,23 @@ export default function StorefrontClient({
     if (!activeProduct?.variants) return [];
     return [...new Set(activeProduct.variants.filter((v) => v.size).map((v) => v.size!))];
   }, [activeProduct]);
-  const [selectedColor, setSelectedColor] = useState<string | null>(colors[0] ?? null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [heroImageIndex, setHeroImageIndex] = useState(0);
   const [showClearCartModal, setShowClearCartModal] = useState(false);
+
+  const prevProductIdRef = useRef<string>(activeProduct?.id ?? "");
+  useEffect(() => {
+    if (activeProduct && activeProduct.id !== prevProductIdRef.current) {
+      prevProductIdRef.current = activeProduct.id;
+      setSelectedColor(null);
+      setSelectedSize(null);
+      setQty(1);
+      setHeroImageIndex(0);
+    }
+  }, [activeProduct]);
 
   useEffect(() => {
     if (showClearCartModal) {
@@ -98,8 +109,7 @@ export default function StorefrontClient({
 
   const handleSelectProduct = (product: StorefrontProduct, autoScroll = true) => {
     setSelectedProductId(product.id);
-    const newColors = [...new Set(product.variants.filter((v) => v.color).map((v) => v.color!))];
-    setSelectedColor(newColors[0] ?? null);
+    setSelectedColor(null);
     setSelectedSize(null);
     setQty(1);
     setAdded(false);
@@ -134,17 +144,159 @@ export default function StorefrontClient({
   const isOrderable =
     !isClosed &&
     activeProduct?.preorderStatus === "OPEN";
+
   const isVariantAvailable = (color: string | null, size: string | null) => {
     if (!activeProduct) return false;
-    const v = activeProduct.variants.find(
-      (variant) =>
-        (colors.length === 0 || variant.color === color) &&
-        (sizes.length === 0 || variant.size === size)
+    if (colors.length > 0 && color) {
+      const v = activeProduct.variants.find(
+        (variant) =>
+          variant.color === color &&
+          (sizes.length === 0 || variant.size === size)
+      );
+      if (!v || !v.active) return false;
+      if (v.remainingCapacity !== null && v.remainingCapacity <= 0) return false;
+      return true;
+    }
+    const matching = activeProduct.variants.filter(
+      (variant) => (sizes.length === 0 || variant.size === size) && variant.active
     );
-    if (!v || !v.active) return false;
-    if (v.remainingCapacity !== null && v.remainingCapacity <= 0) return false;
-    return true;
+    if (matching.length === 0) return false;
+    return matching.some(
+      (v) => v.remainingCapacity === null || v.remainingCapacity > 0
+    );
   };
+
+  const isColorAvailable = (color: string) => {
+    if (!activeProduct) return false;
+    if (sizes.length > 0 && selectedSize) {
+      const v = activeProduct.variants.find(
+        (variant) => variant.color === color && variant.size === selectedSize && variant.active
+      );
+      if (!v) return false;
+      if (v.remainingCapacity !== null && v.remainingCapacity <= 0) return false;
+      return true;
+    }
+    const matching = activeProduct.variants.filter(
+      (variant) => variant.color === color && variant.active
+    );
+    if (matching.length === 0) return false;
+    return matching.some(
+      (v) => v.remainingCapacity === null || v.remainingCapacity > 0
+    );
+  };
+
+  const availabilityInfo = useMemo(() => {
+    if (!activeProduct || !activeProduct.variants) {
+      return { count: null, label: "", isSoldOut: false };
+    }
+    const activeVariants = activeProduct.variants.filter((v) => v.active);
+    if (activeVariants.length === 0) {
+      return { count: 0, label: "Sold out", isSoldOut: true };
+    }
+
+    const hasColorSelection = colors.length === 0 || selectedColor !== null;
+    const hasSizeSelection = sizes.length === 0 || selectedSize !== null;
+
+    if (hasColorSelection && hasSizeSelection) {
+      const variant = activeVariants.find(
+        (v) =>
+          (colors.length === 0 || v.color === selectedColor) &&
+          (sizes.length === 0 || v.size === selectedSize)
+      );
+      if (!variant) {
+        return { count: 0, label: "Unavailable for this selection", isSoldOut: true };
+      }
+      const desc = [variant.color, variant.size].filter(Boolean).join(" / ");
+      if (variant.remainingCapacity !== null) {
+        const remaining = activeProduct.preorderRemaining !== null
+          ? Math.min(variant.remainingCapacity, activeProduct.preorderRemaining)
+          : variant.remainingCapacity;
+        return {
+          count: remaining,
+          label: remaining > 0 ? `${remaining} available for ${desc}` : `Sold out for ${desc}`,
+          isSoldOut: remaining <= 0,
+        };
+      }
+      const remaining = activeProduct.preorderRemaining;
+      return {
+        count: remaining,
+        label: remaining !== null ? `${remaining} available for ${desc}` : `Available for ${desc}`,
+        isSoldOut: false,
+      };
+    }
+
+    if (selectedColor && !selectedSize) {
+      const colorVariants = activeVariants.filter((v) => v.color === selectedColor);
+      const hasUnlimited = colorVariants.some((v) => v.remainingCapacity === null);
+      const colorTotal = colorVariants.reduce(
+        (sum, v) => sum + (v.remainingCapacity ?? 0),
+        0
+      );
+      if (!hasUnlimited) {
+        const remaining = activeProduct.preorderRemaining !== null
+          ? Math.min(colorTotal, activeProduct.preorderRemaining)
+          : colorTotal;
+        return {
+          count: remaining,
+          label: remaining > 0 ? `${remaining} available for ${selectedColor}` : `Sold out for ${selectedColor}`,
+          isSoldOut: remaining <= 0,
+        };
+      }
+      const remaining = activeProduct.preorderRemaining;
+      return {
+        count: remaining,
+        label: remaining !== null ? `${remaining} available for ${selectedColor}` : `Available for ${selectedColor}`,
+        isSoldOut: false,
+      };
+    }
+
+    if (!selectedColor && selectedSize) {
+      const sizeVariants = activeVariants.filter((v) => v.size === selectedSize);
+      const hasUnlimited = sizeVariants.some((v) => v.remainingCapacity === null);
+      const sizeTotal = sizeVariants.reduce(
+        (sum, v) => sum + (v.remainingCapacity ?? 0),
+        0
+      );
+      if (!hasUnlimited) {
+        const remaining = activeProduct.preorderRemaining !== null
+          ? Math.min(sizeTotal, activeProduct.preorderRemaining)
+          : sizeTotal;
+        return {
+          count: remaining,
+          label: remaining > 0 ? `${remaining} available for size ${selectedSize}` : `Sold out for size ${selectedSize}`,
+          isSoldOut: remaining <= 0,
+        };
+      }
+      const remaining = activeProduct.preorderRemaining;
+      return {
+        count: remaining,
+        label: remaining !== null ? `${remaining} available for size ${selectedSize}` : `Available for size ${selectedSize}`,
+        isSoldOut: false,
+      };
+    }
+
+    const hasUnlimited = activeVariants.some((v) => v.remainingCapacity === null);
+    const totalVariantRemaining = activeVariants.reduce(
+      (sum, v) => sum + (v.remainingCapacity ?? 0),
+      0
+    );
+    if (!hasUnlimited) {
+      const remaining = activeProduct.preorderRemaining !== null
+        ? Math.min(totalVariantRemaining, activeProduct.preorderRemaining)
+        : totalVariantRemaining;
+      return {
+        count: remaining,
+        label: remaining > 0 ? `${remaining} available in total` : "Sold out",
+        isSoldOut: remaining <= 0,
+      };
+    }
+    const remaining = activeProduct.preorderRemaining;
+    return {
+      count: remaining,
+      label: remaining !== null ? `${remaining} available in total` : "Available for pre-order",
+      isSoldOut: false,
+    };
+  }, [activeProduct, colors.length, sizes.length, selectedColor, selectedSize]);
   const effectivePrice = selectedVariant?.priceOverride
     ? Number(selectedVariant.priceOverride)
     : activeProduct
@@ -453,26 +605,33 @@ export default function StorefrontClient({
                       <div>
                         <div className={styles.selectorLabel}>
                           <span>Color</span>
-                          <span style={{ fontWeight: 600, color: "rgba(255, 255, 255, 0.95)" }}>
-                            {selectedColor || "Select"}
+                          <span style={{ fontWeight: 600, color: selectedColor ? "rgba(255, 255, 255, 0.95)" : "#ff80a0" }}>
+                            {selectedColor || "Please select a color"}
                           </span>
                         </div>
                         <div className={styles.pillsRow} style={{ marginTop: "var(--space-1)" }}>
-                          {colors.map((color) => (
-                            <button
-                              key={color}
-                              type="button"
-                              className={`${styles.optionPill} ${
-                                selectedColor === color ? styles.selectedPill : ""
-                              }`}
-                              onClick={() => {
-                                setSelectedColor(color);
-                                setSelectedSize(null);
-                              }}
-                            >
-                              {color}
-                            </button>
-                          ))}
+                          {colors.map((color) => {
+                            const available = isColorAvailable(color);
+                            return (
+                              <button
+                                key={color}
+                                type="button"
+                                className={`${styles.optionPill} ${
+                                  selectedColor === color ? styles.selectedPill : ""
+                                } ${!available ? styles.disabledPill : ""}`}
+                                onClick={() => {
+                                  if (!available) return;
+                                  setSelectedColor(color);
+                                  if (selectedSize && !isVariantAvailable(color, selectedSize)) {
+                                    setSelectedSize(null);
+                                  }
+                                }}
+                                disabled={!available}
+                              >
+                                {color}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -536,26 +695,44 @@ export default function StorefrontClient({
                       >
                         {added
                           ? "✓ Added to Order!"
-                          : sizes.length > 0 && !selectedSize
-                          ? "Select a Size to Pre-order"
                           : colors.length > 0 && !selectedColor
                           ? "Select a Color to Pre-order"
+                          : sizes.length > 0 && !selectedSize
+                          ? "Select a Size to Pre-order"
+                          : !canAdd && selectedVariant && (selectedVariant.remainingCapacity !== null && selectedVariant.remainingCapacity <= 0)
+                          ? "Sold Out"
                           : `Add to Pre-Order — ${formatMoney(effectivePrice * qty)}`}
                       </button>
                     </div>
                     <DeliveryEta batchEndAt={activeProduct.batchEndAt} />
-                    {activeProduct.preorderRemaining !== null && (
+                    {availabilityInfo.label && (
                       <p
+                        id="product-availability-text"
                         style={{
                           textAlign: "center",
                           fontSize: "var(--text-xs)",
-                          color: "#ff8fa0",
+                          color: availabilityInfo.isSoldOut ? "#ff8fa0" : "#86efac",
                           fontWeight: 600,
                           margin: 0,
-                          textShadow: "0 0 10px rgba(255, 143, 160, 0.4)",
+                          textShadow: availabilityInfo.isSoldOut
+                            ? "0 0 10px rgba(255, 143, 160, 0.4)"
+                            : "0 0 10px rgba(134, 239, 172, 0.4)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "6px",
                         }}
                       >
-                        Only {activeProduct.preorderRemaining} left in this drop
+                        <span
+                          style={{
+                            display: "inline-block",
+                            width: 6,
+                            height: 6,
+                            borderRadius: "50%",
+                            background: availabilityInfo.isSoldOut ? "#f87171" : "#10b981",
+                          }}
+                        />
+                        {availabilityInfo.label}
                       </p>
                     )}
                   </div>

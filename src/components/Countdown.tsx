@@ -1,12 +1,13 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+
+const emptySubscribe = () => () => {};
 
 export function Countdown({ targetDate }: { targetDate: string }) {
   const [label, setLabel] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
   useEffect(() => {
-    setMounted(true);
     const describe = (): string | null => {
       const remaining = new Date(targetDate).getTime() - Date.now();
       if (remaining <= 0) return null;

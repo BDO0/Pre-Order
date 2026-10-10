@@ -43,6 +43,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: { code: "VALIDATION_ERROR", message: issue ? issue.message : "Invalid product data.", fields: parsed.error.flatten().fieldErrors } }, { status: 400 });
     }
     const { variants, images, ...columns } = parsed.data;
+    const batchClash = await prisma.batch.findUnique({
+      where: { slug: columns.slug },
+      select: { id: true },
+    });
+    if (batchClash) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "SLUG_TAKEN",
+            message: "A batch already uses this URL slug. Pick a different one.",
+          },
+        },
+        { status: 409 }
+      );
+    }
     const variantRows = expandVariantPayload(variants ?? []).map((variant) => ({
       size: variant.size ?? null,
       color: variant.color ?? null,

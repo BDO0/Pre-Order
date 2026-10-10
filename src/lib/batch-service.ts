@@ -1,1 +1,137 @@
-import type { BatchStatus, Prisma } from "@prisma/client";import { prisma } from "@/lib/db";import { parseEta, slugifyBatchName } from "@/lib/batches";import type { BatchUpdateInput, BatchWriteInput } from "@/lib/validation";export const FALLBACK_BATCH_SLUG = "batch";export interface BatchWriteData {  name?: string;  slug?: string;  description?: string | null;  status?: BatchStatus;  startAt?: Date | null;  endAt?: Date | null;  coverImage?: string | null;  productIds?: string[];}function present(body: Record<string, unknown>, key: string): boolean {  return Object.prototype.hasOwnProperty.call(body, key);}export function normaliseBatchWrite(  body: Record<string, unknown>,  parsed: BatchWriteInput | BatchUpdateInput): BatchWriteData {  const data: BatchWriteData = {};  if (present(body, "name") && parsed.name !== undefined) {    data.name = parsed.name;  }  if (present(body, "slug") && parsed.slug !== undefined) {    data.slug = slugifyBatchName(parsed.slug);  }  if (present(body, "description")) {    data.description = parsed.description || null;  } else if (present(body, "notes")) {    data.description = parsed.notes || null;  }  if (present(body, "status") && parsed.status !== undefined) {    data.status = parsed.status;  }  if (present(body, "startAt")) {    data.startAt = parseEta(parsed.startAt);  }  if (present(body, "endAt")) {    data.endAt = parseEta(parsed.endAt);  } else if (present(body, "etaAt")) {    data.endAt = parseEta(parsed.etaAt);  }  if (present(body, "coverImage")) {    data.coverImage = parsed.coverImage || null;  }  if (present(body, "productIds") && Array.isArray(parsed.productIds)) {    data.productIds = [...new Set(parsed.productIds)];  }  return data;}export function isEmptyBatchWrite(data: BatchWriteData): boolean {  return Object.keys(data).length === 0;}export async function uniqueBatchSlug(desired: string, excludeId?: string): Promise<string> {  const base = slugifyBatchName(desired) || FALLBACK_BATCH_SLUG;  for (let attempt = 1; attempt < 100; attempt += 1) {    const candidate = attempt === 1 ? base : `${base}-${attempt}`;    const clash = await prisma.batch.findFirst({      where: {        slug: candidate,        ...(excludeId ? { id: { not: excludeId } } : {}),      },      select: { id: true },    });    if (!clash) return candidate;  }  return `${base}-${Date.now().toString(36)}`;}export class BatchWriteError extends Error {}export async function assertProductsExist(ids: string[]): Promise<void> {  if (ids.length === 0) return;  const found = await prisma.product.findMany({    where: { id: { in: ids } },    select: { id: true },  });  if (found.length === ids.length) return;  const known = new Set(found.map((product) => product.id));  const missing = ids.filter((id) => !known.has(id));  throw new BatchWriteError(    `Unknown product id${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}`  );}export async function syncBatchProducts(  tx: Prisma.TransactionClient,  batchId: string,  productIds: string[]): Promise<void> {  await tx.batchProduct.deleteMany({ where: { batchId } });  if (productIds.length === 0) return;  await tx.batchProduct.createMany({    data: productIds.map((productId) => ({ batchId, productId })),    skipDuplicates: true,  });}export async function ensureProductInOpenBatch(  tx: Prisma.TransactionClient,  productId: string): Promise<string | null> {  const linked = await tx.batchProduct.findFirst({    where: { productId },    select: { batchId: true },  });  if (linked) return linked.batchId;  const openBatch = await tx.batch.findFirst({    where: { status: "OPEN" },    orderBy: { createdAt: "desc" },    select: { id: true },  });  if (!openBatch) return null;  await tx.batchProduct.createMany({    data: [{ batchId: openBatch.id, productId }],    skipDuplicates: true,  });  return openBatch.id;}
+import type { BatchStatus, Prisma } from "@prisma/client";
+import { prisma } from "@/lib/db";
+import { parseEta, slugifyBatchName } from "@/lib/batches";
+import type { BatchUpdateInput, BatchWriteInput } from "@/lib/validation";
+
+export const FALLBACK_BATCH_SLUG = "batch";
+
+export interface BatchWriteData {
+  name?: string;
+  slug?: string;
+  description?: string | null;
+  status?: BatchStatus;
+  startAt?: Date | null;
+  endAt?: Date | null;
+  coverImage?: string | null;
+  productIds?: string[];
+}
+
+function present(body: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(body, key);
+}
+
+export function normaliseBatchWrite(
+  body: Record<string, unknown>,
+  parsed: BatchWriteInput | BatchUpdateInput
+): BatchWriteData {
+  const data: BatchWriteData = {};
+  if (present(body, "name") && parsed.name !== undefined) {
+    data.name = parsed.name;
+  }
+  if (present(body, "slug") && parsed.slug !== undefined) {
+    data.slug = slugifyBatchName(parsed.slug);
+  }
+  if (present(body, "description")) {
+    data.description = parsed.description || null;
+  } else if (present(body, "notes")) {
+    data.description = parsed.notes || null;
+  }
+  if (present(body, "status") && parsed.status !== undefined) {
+    data.status = parsed.status;
+  }
+  if (present(body, "startAt")) {
+    data.startAt = parseEta(parsed.startAt);
+  }
+  if (present(body, "endAt")) {
+    data.endAt = parseEta(parsed.endAt);
+  } else if (present(body, "etaAt")) {
+    data.endAt = parseEta(parsed.etaAt);
+  }
+  if (present(body, "coverImage")) {
+    data.coverImage = parsed.coverImage || null;
+  }
+  if (present(body, "productIds") && Array.isArray(parsed.productIds)) {
+    data.productIds = [...new Set(parsed.productIds)];
+  }
+  return data;
+}
+
+export function isEmptyBatchWrite(data: BatchWriteData): boolean {
+  return Object.keys(data).length === 0;
+}
+
+export async function uniqueBatchSlug(
+  desired: string,
+  excludeId?: string
+): Promise<string> {
+  const base = slugifyBatchName(desired) || FALLBACK_BATCH_SLUG;
+  for (let attempt = 1; attempt < 100; attempt += 1) {
+    const candidate = attempt === 1 ? base : `${base}-${attempt}`;
+    const batchClash = await prisma.batch.findFirst({
+      where: {
+        slug: candidate,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      select: { id: true },
+    });
+    const productClash = await prisma.product.findFirst({
+      where: {
+        slug: candidate,
+      },
+      select: { id: true },
+    });
+    if (!batchClash && !productClash) return candidate;
+  }
+  return `${base}-${Date.now().toString(36)}`;
+}
+
+export class BatchWriteError extends Error {}
+
+export async function assertProductsExist(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const found = await prisma.product.findMany({
+    where: { id: { in: ids } },
+    select: { id: true },
+  });
+  if (found.length === ids.length) return;
+  const known = new Set(found.map((product) => product.id));
+  const missing = ids.filter((id) => !known.has(id));
+  throw new BatchWriteError(
+    `Unknown product id${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}`
+  );
+}
+
+export async function syncBatchProducts(
+  tx: Prisma.TransactionClient,
+  batchId: string,
+  productIds: string[]
+): Promise<void> {
+  await tx.batchProduct.deleteMany({ where: { batchId } });
+  if (productIds.length === 0) return;
+  await tx.batchProduct.createMany({
+    data: productIds.map((productId) => ({ batchId, productId })),
+    skipDuplicates: true,
+  });
+}
+
+export async function ensureProductInOpenBatch(
+  tx: Prisma.TransactionClient,
+  productId: string
+): Promise<string | null> {
+  const linked = await tx.batchProduct.findFirst({
+    where: { productId },
+    select: { batchId: true },
+  });
+  if (linked) return linked.batchId;
+  const openBatch = await tx.batch.findFirst({
+    where: { status: "OPEN" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (!openBatch) return null;
+  await tx.batchProduct.createMany({
+    data: [{ batchId: openBatch.id, productId }],
+    skipDuplicates: true,
+  });
+  return openBatch.id;
+}

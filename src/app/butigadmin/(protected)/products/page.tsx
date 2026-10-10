@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { variantCountLabel, stockSummary } from "@/lib/variant-stock";
 import { parseApiResponse } from "@/lib/api-client";
+import { copyTextToClipboard } from "@/lib/clipboard";
 interface AdminProductRow {
   id: string;
   name: string;
@@ -23,6 +24,7 @@ interface AdminProductRow {
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<AdminProductRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [copiedProductId, setCopiedProductId] = useState<string | null>(null);
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -112,13 +114,29 @@ export default function AdminProductsPage() {
                       <button
                         type="button"
                         className="btn btn-ghost btn-sm"
+                        style={
+                          copiedProductId === product.id
+                            ? {
+                                color: "var(--color-success, #86efac)",
+                                fontWeight: 700,
+                              }
+                            : undefined
+                        }
                         title="Copy customer link"
-                        onClick={() => {
+                        onClick={async () => {
                           const url = `${window.location.origin}/preorder/${product.slug}`;
-                          navigator.clipboard.writeText(url).then(() => alert(`Customer link copied:\n${url}`));
+                          const success = await copyTextToClipboard(url);
+                          if (success) {
+                            setCopiedProductId(product.id);
+                            setTimeout(() => {
+                              setCopiedProductId((curr) =>
+                                curr === product.id ? null : curr
+                              );
+                            }, 2500);
+                          }
                         }}
                       >
-                        Copy
+                        {copiedProductId === product.id ? "Copied ✓" : "Copy"}
                       </button>
                     </div>
                   </td>

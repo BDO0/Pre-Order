@@ -115,10 +115,14 @@ export default function AdminOrdersPage() {
   const exportHref = (() => {
     const params = new URLSearchParams();
     if (batchFilter) params.set("batchId", batchFilter);
-    params.set("status", "CONFIRMED");
-    if (currentTab.key === "approved") params.set("paymentStatus", "PAID");
-    if (currentTab.key === "approved-unpaid")
-      params.set("paymentStatus", "UNPAID");
+    if (currentTab.key === "cancelled") {
+      params.set("status", "CANCELLED");
+    } else {
+      params.set("status", "CONFIRMED");
+      if (currentTab.key === "approved") params.set("paymentStatus", "PAID");
+      if (currentTab.key === "approved-unpaid")
+        params.set("paymentStatus", "UNPAID");
+    }
     return `/api/admin/orders/export?${params.toString()}`;
   })();
 
@@ -321,7 +325,8 @@ export default function AdminOrdersPage() {
           }}
         >
           {(currentTab.key === "approved" ||
-            currentTab.key === "approved-unpaid") && (
+            currentTab.key === "approved-unpaid" ||
+            currentTab.key === "cancelled") && (
             <a href={exportHref} className="btn btn-secondary btn-sm">
               Export CSV{batchFilter ? " (this batch)" : " (all batches)"}
             </a>
