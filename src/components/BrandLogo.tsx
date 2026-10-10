@@ -83,9 +83,9 @@ export function BrandLogo({
           <span
             style={{
               fontFamily: "var(--font-outfit, 'Outfit', 'Inter', sans-serif)",
-              fontSize: `${height * 0.24}px`,
-              fontWeight: 400,
-              letterSpacing: "0.42em",
+              fontSize: `${height * 0.36}px`,
+              fontWeight: 500,
+              letterSpacing: "0.28em",
               color: subtextColor,
               textTransform: "uppercase",
               marginTop: `${height * 0.12}px`,
@@ -130,13 +130,13 @@ export function BrandLogo({
             <span
               style={{
                 fontFamily: "var(--font-outfit, 'Outfit', 'Inter', sans-serif)",
-                fontSize: `${height * 0.2}px`,
-                fontWeight: 400,
-                letterSpacing: "0.46em",
+                fontSize: `${height * 0.3}px`,
+                fontWeight: 500,
+                letterSpacing: "0.32em",
                 color: subtextColor,
                 textTransform: "uppercase",
                 marginTop: `${height * 0.12}px`,
-                paddingLeft: "0.46em", 
+                paddingLeft: "0.32em",
               }}
             >
               Philippines
@@ -192,12 +192,12 @@ export function BrandLogo({
             className="brand-logo-tagline"
             style={{
               fontFamily: "var(--font-outfit, 'Outfit', 'Inter', sans-serif)",
-              fontSize: `${height * 0.18}px`,
-              fontWeight: 400,
-              letterSpacing: "0.38em",
+              fontSize: `${height * 0.3}px`,
+              fontWeight: 500,
+              letterSpacing: "0.28em",
               color: subtextColor,
               textTransform: "uppercase",
-              marginTop: `${height * 0.1}px`,
+              marginTop: `${height * 0.08}px`,
               paddingLeft: "0.08em",
               whiteSpace: "nowrap",
             }}

@@ -898,10 +898,15 @@ h1, h2, h3, h4, h5, h6 {
     font-size: clamp(0.72rem, 3.4vw, 0.95rem) !important;
     letter-spacing: 0.08em !important;
   }
+  .brand-logo-tagline {
+    font-size: clamp(0.55rem, 2.4vw, 0.72rem) !important;
+    letter-spacing: 0.2em !important;
+  }
 }
 
 @media (max-width: 350px) {
-  .brand-logo-title {
+  .brand-logo-title,
+  .brand-logo-tagline {
     display: none !important;
   }
 }
