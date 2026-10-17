@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { activeVariantCount, stockSummary, variantCountLabel } from "@/lib/variant-stock";
+import {
+  activeVariantCount,
+  stockSummary,
+  variantCountLabel,
+  getProductAvailabilityOverview,
+  colorHexHint,
+} from "@/lib/variant-stock";
+
 
 describe("stockSummary", () => {
   it("adds up the capped variants", () => {
@@ -61,3 +68,82 @@ describe("variantCountLabel", () => {
     expect(variantCountLabel([])).toBe("0 variants");
   });
 });
+
+describe("getProductAvailabilityOverview", () => {
+  it("computes color and size breakdowns correctly", () => {
+    const variants = [
+      { color: "Black", size: "S", capacity: 10, remainingCapacity: 5, active: true },
+      { color: "Black", size: "M", capacity: 10, remainingCapacity: 2, active: true },
+      { color: "White", size: "S", capacity: 5, remainingCapacity: 0, active: true },
+      { color: "White", size: "M", capacity: 5, remainingCapacity: 1, active: true },
+      { color: "Red", size: "L", capacity: 20, remainingCapacity: 20, active: false }, // inactive
+    ];
+
+    const overview = getProductAvailabilityOverview(variants);
+
+    expect(overview.totalVariants).toBe(5);
+    expect(overview.activeVariants).toBe(4);
+    expect(overview.totalRemaining).toBe(8); // 5 + 2 + 0 + 1
+    expect(overview.totalCapacity).toBe(30); // 10 + 10 + 5 + 5
+
+    // Colors
+    expect(overview.colors.length).toBe(2);
+    const black = overview.colors.find((c) => c.name === "Black");
+    expect(black).toBeDefined();
+    expect(black?.remaining).toBe(7);
+    expect(black?.capacity).toBe(20);
+    expect(black?.isSoldOut).toBe(false);
+    expect(black?.pairedOptions).toEqual(["S", "M"]);
+
+    const white = overview.colors.find((c) => c.name === "White");
+    expect(white).toBeDefined();
+    expect(white?.remaining).toBe(1);
+    expect(white?.isLowStock).toBe(true);
+    expect(white?.pairedOptions).toEqual(["S", "M"]);
+
+    // Sizes
+    expect(overview.sizes.length).toBe(2);
+    const sizeS = overview.sizes.find((s) => s.name === "S");
+    expect(sizeS?.remaining).toBe(5);
+    expect(sizeS?.pairedOptions).toEqual(["Black", "White"]);
+  });
+
+  it("handles empty and sold out sets", () => {
+    expect(getProductAvailabilityOverview([])).toMatchObject({
+      activeVariants: 0,
+      isSoldOut: true,
+      colors: [],
+      sizes: [],
+    });
+
+    const soldOut = getProductAvailabilityOverview([
+      { color: "Navy", size: "M", capacity: 5, remainingCapacity: 0, active: true },
+    ]);
+    expect(soldOut.isSoldOut).toBe(true);
+    expect(soldOut.colors[0].isSoldOut).toBe(true);
+    expect(soldOut.summaryText).toBe("Sold Out");
+  });
+
+  it("handles unlimited variants gracefully", () => {
+    const overview = getProductAvailabilityOverview([
+      { color: "Blue", size: "XL", capacity: null, remainingCapacity: null, active: true },
+    ]);
+    expect(overview.hasUnlimited).toBe(true);
+    expect(overview.colors[0].isUnlimited).toBe(true);
+    expect(overview.summaryText).toBe("Unlimited availability");
+  });
+});
+
+describe("colorHexHint", () => {
+  it("resolves recognized colors to hex", () => {
+    expect(colorHexHint("black")).toBe("#171717");
+    expect(colorHexHint("Red")).toBe("#ef4444");
+    expect(colorHexHint("Sky Blue")).toBe("#38bdf8");
+  });
+
+  it("returns null for unknown or empty colors", () => {
+    expect(colorHexHint(null)).toBeNull();
+    expect(colorHexHint("CustomPattern123")).toBeNull();
+  });
+});
+

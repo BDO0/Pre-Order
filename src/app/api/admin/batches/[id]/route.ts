@@ -10,9 +10,6 @@ import {
   syncBatchProducts,
   uniqueBatchSlug,
 } from "@/lib/batch-service";
-import { releaseOrderCapacity } from "@/lib/order-service";
-import { releasesCapacity } from "@/lib/order-state-machine";
-import type { OrderStatus } from "@prisma/client";
 
 export async function PATCH(
   request: NextRequest,
@@ -108,28 +105,26 @@ export async function DELETE(
       );
     }
 
-    await prisma.$transaction(async (tx) => {
-      const orders = await tx.order.findMany({
-        where: { batchId: id },
-        select: { id: true, status: true },
-      });
-      const orderIds = orders.map((o) => o.id);
+    await prisma.$transaction(
+      async (tx) => {
+        const orders = await tx.order.findMany({
+          where: { batchId: id },
+          select: { id: true },
+        });
+        const orderIds = orders.map((o) => o.id);
 
-      if (orderIds.length > 0) {
-        for (const o of orders) {
-          if (!releasesCapacity(o.status as OrderStatus)) {
-            await releaseOrderCapacity(tx, o.id);
-          }
+        if (orderIds.length > 0) {
+          await tx.auditLog.deleteMany({ where: { orderId: { in: orderIds } } });
+          await tx.orderStatusHistory.deleteMany({ where: { orderId: { in: orderIds } } });
+          await tx.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
+          await tx.order.deleteMany({ where: { id: { in: orderIds } } });
         }
-        await tx.auditLog.deleteMany({ where: { orderId: { in: orderIds } } });
-        await tx.orderStatusHistory.deleteMany({ where: { orderId: { in: orderIds } } });
-        await tx.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
-        await tx.order.deleteMany({ where: { id: { in: orderIds } } });
-      }
 
-      await tx.batchProduct.deleteMany({ where: { batchId: id } });
-      await tx.batch.delete({ where: { id } });
-    });
+        await tx.batchProduct.deleteMany({ where: { batchId: id } });
+        await tx.batch.delete({ where: { id } });
+      },
+      { maxWait: 15_000, timeout: 30_000 }
+    );
 
     return NextResponse.json({
       success: true,

@@ -113,52 +113,64 @@ export async function DELETE(
     if (!guard.ok) return guard.response;
     const { id } = await params;
 
-    const result = await prisma.$transaction(async (tx) => {
-      const product = await tx.product.findUnique({
-        where: { id },
-        select: { id: true, name: true, slug: true },
-      });
-      if (!product) {
-        return { notFound: true } as const;
-      }
-
-      const variants = await tx.productVariant.findMany({
-        where: { productId: id },
-        select: { id: true },
-      });
-      const variantIds = variants.map((v) => v.id);
-
-      if (variantIds.length > 0) {
-        const orderItems = await tx.orderItem.findMany({
-          where: { variantId: { in: variantIds } },
-          select: { orderId: true },
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const product = await tx.product.findUnique({
+          where: { id },
+          select: { id: true, name: true, slug: true },
         });
-        const affectedOrderIds = [...new Set(orderItems.map((i) => i.orderId))];
+        if (!product) {
+          return { notFound: true } as const;
+        }
 
-        await tx.orderItem.deleteMany({
-          where: { variantId: { in: variantIds } },
+        const variants = await tx.productVariant.findMany({
+          where: { productId: id },
+          select: { id: true },
         });
+        const variantIds = variants.map((v) => v.id);
 
-        for (const orderId of affectedOrderIds) {
-          const remaining = await tx.orderItem.count({ where: { orderId } });
-          if (remaining === 0) {
-            await tx.auditLog.deleteMany({ where: { orderId } });
-            await tx.orderStatusHistory.deleteMany({ where: { orderId } });
-            await tx.order.delete({ where: { id: orderId } });
+        if (variantIds.length > 0) {
+          const orderItems = await tx.orderItem.findMany({
+            where: { variantId: { in: variantIds } },
+            select: { orderId: true },
+          });
+          const affectedOrderIds = [...new Set(orderItems.map((i) => i.orderId))];
+
+          // Delete all order items for this product's variants in bulk
+          await tx.orderItem.deleteMany({
+            where: { variantId: { in: variantIds } },
+          });
+
+          // Delete any orders that are now empty in bulk
+          if (affectedOrderIds.length > 0) {
+            const ordersStillWithItems = await tx.orderItem.findMany({
+              where: { orderId: { in: affectedOrderIds } },
+              select: { orderId: true },
+              distinct: ["orderId"],
+            });
+            const keepOrderIds = new Set(ordersStillWithItems.map((o) => o.orderId));
+            const ordersToDelete = affectedOrderIds.filter((orderId) => !keepOrderIds.has(orderId));
+
+            if (ordersToDelete.length > 0) {
+              await tx.auditLog.deleteMany({ where: { orderId: { in: ordersToDelete } } });
+              await tx.orderStatusHistory.deleteMany({ where: { orderId: { in: ordersToDelete } } });
+              await tx.order.deleteMany({ where: { id: { in: ordersToDelete } } });
+            }
           }
         }
-      }
 
-      await tx.batchProduct.deleteMany({ where: { productId: id } });
-      await tx.productVariant.deleteMany({ where: { productId: id } });
-      await tx.product.delete({ where: { id } });
+        await tx.batchProduct.deleteMany({ where: { productId: id } });
+        await tx.productVariant.deleteMany({ where: { productId: id } });
+        await tx.product.delete({ where: { id } });
 
-      return {
-        notFound: false,
-        deleted: true,
-        message: `Product "${product.name}" deleted permanently.`,
-      } as const;
-    });
+        return {
+          notFound: false,
+          deleted: true,
+          message: `Product "${product.name}" deleted permanently.`,
+        } as const;
+      },
+      { maxWait: 15_000, timeout: 30_000 }
+    );
 
     if (result.notFound) {
       return NextResponse.json(
