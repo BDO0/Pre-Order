@@ -1,6 +1,7 @@
 "use client";
 import { formatMoney } from "@/lib/format";
 import { useState, useEffect, use } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { getValidNextStatuses } from "@/lib/order-state-machine";
@@ -59,11 +60,13 @@ function variantLabel(snapshot: unknown): string {
   return [variant.color, variant.size].filter(Boolean).join(" / ");
 }
 export default function AdminOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
   const resolvedParams = use(params);
   const id = resolvedParams.id;
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
@@ -75,6 +78,33 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
     setNotice(message);
     setActionError("");
     setTimeout(() => setNotice(""), 4000);
+  };
+  const handleDeleteOrder = async () => {
+    if (!order) return;
+    const confirmed = window.confirm(
+      `Permanently delete order ${order.reference}?\n\nThis will remove the order and all its items and history from the database. This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setActionError("");
+    try {
+      const res = await fetch(`/api/admin/orders/${id}`, {
+        method: "DELETE",
+      });
+      const { ok, error: errText } = await parseApiResponse(
+        res,
+        "Failed to delete order"
+      );
+      if (!ok) throw new Error(errText || "Failed to delete order");
+      flash(`Order ${order.reference} deleted permanently.`);
+      setTimeout(() => router.push("/butigadmin/orders"), 1000);
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Failed to delete order"
+      );
+      setDeleting(false);
+    }
   };
   const fetchOrder = async () => {
     try {
@@ -521,6 +551,17 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
                     ))}
                   </div>
                 )}
+                <div style={{ borderTop: "1px solid var(--color-neutral-100)", paddingTop: "var(--space-2)", marginTop: "var(--space-2)" }}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    style={{ color: "var(--color-error)", fontSize: "var(--text-xs)", width: "100%", textAlign: "center" }}
+                    onClick={handleDeleteOrder}
+                    disabled={updating || deleting}
+                  >
+                    {deleting ? "Deleting..." : "Delete Order Permanently"}
+                  </button>
+                </div>
               </div>
             </div>
             <div className="card">

@@ -52,7 +52,7 @@ export default function AdminProductsPage() {
 
   const handleDelete = async (product: AdminProductRow) => {
     const confirmed = window.confirm(
-      `Delete "${product.name}"?\n\nIf the product has past orders, it will be deactivated and archived. Otherwise, it will be permanently removed.`
+      `Permanently delete "${product.name}"?\n\nThis will remove the product and its variants from the database. This cannot be undone.`
     );
     if (!confirmed) return;
 
@@ -68,27 +68,15 @@ export default function AdminProductsPage() {
       if (!ok) throw new Error(error || "Failed to delete the product");
 
       const result = data as {
-        archived?: boolean;
         deleted?: boolean;
         message?: string;
       } | null;
 
-      if (result?.archived) {
-        showMsg(
-          "success",
-          result.message || `"${product.name}" has orders and was deactivated.`
-        );
-        setProducts((prev) =>
-          prev.map((p) =>
-            p.id === product.id
-              ? { ...p, active: false, preorderStatus: "DISABLED" }
-              : p
-          )
-        );
-      } else {
-        showMsg("success", result?.message || `"${product.name}" deleted.`);
-        setProducts((prev) => prev.filter((p) => p.id !== product.id));
-      }
+      showMsg(
+        "success",
+        result?.message || `"${product.name}" deleted permanently.`
+      );
+      setProducts((prev) => prev.filter((p) => p.id !== product.id));
     } catch (err) {
       showMsg(
         "error",

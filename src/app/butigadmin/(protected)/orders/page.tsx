@@ -253,6 +253,36 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const handleDeleteOrder = async (orderId: string, reference: string) => {
+    const confirmed = window.confirm(
+      `Permanently delete order ${reference}?\n\nThis will remove the order and all its items and history from the database. This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setActionLoading(orderId);
+    setActionError("");
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}`, {
+        method: "DELETE",
+      });
+      const { ok, error } = await parseApiResponse(
+        res,
+        "Failed to delete order",
+      );
+      if (!ok) throw new Error(error || "Failed to delete order");
+      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setTotalCount((c) => Math.max(0, c - 1));
+      flash(`Order ${reference} deleted permanently.`);
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Failed to delete order",
+      );
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+
   const handleClearCancelled = async () => {
     const scope = batchFilter ? "this batch" : "ALL batches";
     const confirmed = window.confirm(
@@ -792,6 +822,18 @@ export default function AdminOrdersPage() {
                           >
                             View
                           </Link>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            style={{ color: "var(--color-error, #dc2626)" }}
+                            disabled={actionLoading === order.id}
+                            title="Delete order permanently"
+                            onClick={() =>
+                              handleDeleteOrder(order.id, order.reference)
+                            }
+                          >
+                            {actionLoading === order.id ? "Deleting..." : "Delete"}
+                          </button>
                         </div>
                       </td>
                     </tr>

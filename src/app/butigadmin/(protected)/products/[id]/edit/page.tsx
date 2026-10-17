@@ -62,7 +62,7 @@ export default function EditProductPage({
 
   const handleDelete = async () => {
     const confirmed = window.confirm(
-      `Delete "${formData.name || "this product"}"?\n\nIf the product has past orders, it will be deactivated and archived. Otherwise, it will be permanently removed.`
+      `Permanently delete "${formData.name || "this product"}"?\n\nThis will remove the product and its variants from the database. This cannot be undone.`
     );
     if (!confirmed) return;
 
@@ -79,12 +79,11 @@ export default function EditProductPage({
       if (!ok) throw new Error(apiErr || "Failed to delete product.");
 
       const resData = data as {
-        archived?: boolean;
         deleted?: boolean;
         message?: string;
       } | null;
 
-      setSuccess(resData?.message || "Product deleted successfully.");
+      setSuccess(resData?.message || "Product deleted permanently.");
       setTimeout(() => router.push("/butigadmin/products"), 1200);
     } catch (err: unknown) {
       setError(
@@ -820,7 +819,7 @@ export default function EditProductPage({
                   marginTop: "var(--space-1)",
                 }}
               >
-                Permanently delete this product, or deactivate it if it has past orders.
+                Permanently delete this product from the database.
               </div>
             </div>
             <button

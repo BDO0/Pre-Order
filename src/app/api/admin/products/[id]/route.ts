@@ -122,55 +122,41 @@ export async function DELETE(
         return { notFound: true } as const;
       }
 
-      const orderItemsCount = await tx.orderItem.count({
-        where: { variant: { productId: id } },
+      const variants = await tx.productVariant.findMany({
+        where: { productId: id },
+        select: { id: true },
       });
+      const variantIds = variants.map((v) => v.id);
 
-      if (orderItemsCount > 0) {
-        await tx.product.update({
-          where: { id },
-          data: { active: false, preorderEnabled: false, preorderStatus: "DISABLED" },
+      if (variantIds.length > 0) {
+        const orderItems = await tx.orderItem.findMany({
+          where: { variantId: { in: variantIds } },
+          select: { orderId: true },
+        });
+        const affectedOrderIds = [...new Set(orderItems.map((i) => i.orderId))];
+
+        await tx.orderItem.deleteMany({
+          where: { variantId: { in: variantIds } },
         });
 
-        await tx.auditLog.create({
-          data: {
-            actor: guard.actor,
-            action: "product.archived",
-            newValue: {
-              productId: id,
-              name: product.name,
-              reason: "Product has past orders; deactivated instead of deleted",
-            },
-          },
-        });
-
-        return {
-          notFound: false,
-          archived: true,
-          message: `"${product.name}" has past orders, so it was deactivated and hidden from batches.`,
-        } as const;
+        for (const orderId of affectedOrderIds) {
+          const remaining = await tx.orderItem.count({ where: { orderId } });
+          if (remaining === 0) {
+            await tx.auditLog.deleteMany({ where: { orderId } });
+            await tx.orderStatusHistory.deleteMany({ where: { orderId } });
+            await tx.order.delete({ where: { id: orderId } });
+          }
+        }
       }
 
       await tx.batchProduct.deleteMany({ where: { productId: id } });
       await tx.productVariant.deleteMany({ where: { productId: id } });
       await tx.product.delete({ where: { id } });
 
-      await tx.auditLog.create({
-        data: {
-          actor: guard.actor,
-          action: "product.deleted",
-          oldValue: {
-            productId: id,
-            name: product.name,
-            slug: product.slug,
-          },
-        },
-      });
-
       return {
         notFound: false,
-        archived: false,
-        message: `Product "${product.name}" deleted.`,
+        deleted: true,
+        message: `Product "${product.name}" deleted permanently.`,
       } as const;
     });
 
@@ -184,8 +170,7 @@ export async function DELETE(
     return NextResponse.json({
       success: true,
       data: {
-        archived: result.archived,
-        deleted: !result.archived,
+        deleted: true,
         message: result.message,
       },
     });

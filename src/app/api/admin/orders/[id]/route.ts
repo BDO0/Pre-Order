@@ -149,3 +149,48 @@ export async function PATCH(
     return NextResponse.json({ success: false, error: { code: "SERVER_ERROR", message: "Something went wrong." } }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const guard = await requirePermission("orders.update", request);
+    if (!guard.ok) return guard.response;
+    const { id } = await params;
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      select: { id: true, reference: true, status: true },
+    });
+
+    if (!order) {
+      return NextResponse.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Order not found." } },
+        { status: 404 }
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (!releasesCapacity(order.status as OrderStatus)) {
+        await releaseOrderCapacity(tx, id);
+      }
+      await tx.auditLog.deleteMany({ where: { orderId: id } });
+      await tx.orderStatusHistory.deleteMany({ where: { orderId: id } });
+      await tx.orderItem.deleteMany({ where: { orderId: id } });
+      await tx.order.delete({ where: { id } });
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: { deleted: true, id, reference: order.reference },
+    });
+  } catch (error) {
+    console.error("[DELETE /api/admin/orders/[id]]", error);
+    return NextResponse.json(
+      { success: false, error: { code: "SERVER_ERROR", message: "Failed to delete order." } },
+      { status: 500 }
+    );
+  }
+}
+
