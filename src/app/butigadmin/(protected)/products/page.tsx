@@ -25,6 +25,14 @@ export default function AdminProductsPage() {
   const [products, setProducts] = useState<AdminProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedProductId, setCopiedProductId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const showMsg = (type: "success" | "error", text: string) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 4500);
+  };
+
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -41,6 +49,56 @@ export default function AdminProductsPage() {
     };
     fetchProducts();
   }, []);
+
+  const handleDelete = async (product: AdminProductRow) => {
+    const confirmed = window.confirm(
+      `Delete "${product.name}"?\n\nIf the product has past orders, it will be deactivated and archived. Otherwise, it will be permanently removed.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(product.id);
+    try {
+      const res = await fetch(`/api/admin/products/${product.id}`, {
+        method: "DELETE",
+      });
+      const { ok, data, error } = await parseApiResponse(
+        res,
+        "Failed to delete the product"
+      );
+      if (!ok) throw new Error(error || "Failed to delete the product");
+
+      const result = data as {
+        archived?: boolean;
+        deleted?: boolean;
+        message?: string;
+      } | null;
+
+      if (result?.archived) {
+        showMsg(
+          "success",
+          result.message || `"${product.name}" has orders and was deactivated.`
+        );
+        setProducts((prev) =>
+          prev.map((p) =>
+            p.id === product.id
+              ? { ...p, active: false, preorderStatus: "DISABLED" }
+              : p
+          )
+        );
+      } else {
+        showMsg("success", result?.message || `"${product.name}" deleted.`);
+        setProducts((prev) => prev.filter((p) => p.id !== product.id));
+      }
+    } catch (err) {
+      showMsg(
+        "error",
+        err instanceof Error ? err.message : "Failed to delete the product"
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div>
       <div className="admin-page-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -49,6 +107,34 @@ export default function AdminProductsPage() {
           + New Product
         </Link>
       </div>
+
+      {message && (
+        <div
+          role={message.type === "error" ? "alert" : undefined}
+          style={{
+            padding: "var(--space-3) var(--space-4)",
+            background:
+              message.type === "success"
+                ? "rgb(22 163 74 / 0.08)"
+                : "rgb(220 38 38 / 0.08)",
+            border: `1px solid ${
+              message.type === "success"
+                ? "rgb(22 163 74 / 0.3)"
+                : "rgb(220 38 38 / 0.3)"
+            }`,
+            borderRadius: "var(--radius-lg)",
+            color:
+              message.type === "success"
+                ? "var(--color-success)"
+                : "var(--color-error)",
+            fontWeight: 500,
+            marginBottom: "var(--space-4)",
+          }}
+        >
+          {message.type === "success" ? "✓" : "⚠"} {message.text}
+        </div>
+      )}
+
       <div className="table-wrapper">
         <div className="table-scroll">
           <table className="data-table">
@@ -138,11 +224,22 @@ export default function AdminProductsPage() {
                       >
                         {copiedProductId === product.id ? "Copied ✓" : "Copy"}
                       </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        style={{ color: "var(--color-error, #dc2626)" }}
+                        disabled={deletingId === product.id}
+                        title="Delete product"
+                        onClick={() => handleDelete(product)}
+                      >
+                        {deletingId === product.id ? "Deleting..." : "Delete"}
+                      </button>
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
+
           </table>
         </div>
       </div>

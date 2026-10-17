@@ -45,6 +45,7 @@ export default function EditProductPage({
   const { id } = use(params);
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -58,6 +59,41 @@ export default function EditProductPage({
     colors: "",
     preorderLimit: "",
   });
+
+  const handleDelete = async () => {
+    const confirmed = window.confirm(
+      `Delete "${formData.name || "this product"}"?\n\nIf the product has past orders, it will be deactivated and archived. Otherwise, it will be permanently removed.`
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/products/${id}`, {
+        method: "DELETE",
+      });
+      const { ok, data, error: apiErr } = await parseApiResponse(
+        res,
+        "Failed to delete product."
+      );
+      if (!ok) throw new Error(apiErr || "Failed to delete product.");
+
+      const resData = data as {
+        archived?: boolean;
+        deleted?: boolean;
+        message?: string;
+      } | null;
+
+      setSuccess(resData?.message || "Product deleted successfully.");
+      setTimeout(() => router.push("/butigadmin/products"), 1200);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Failed to delete product."
+      );
+      setDeleting(false);
+    }
+  };
+
   const [stock, setStock] = useState<Record<string, string>>({});
   const [fillValue, setFillValue] = useState("");
   const [storedVariants, setStoredVariants] = useState<StoredVariant[]>([]);
@@ -737,7 +773,7 @@ export default function EditProductPage({
               </Link>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || deleting}
                 className="btn btn-primary"
                 style={{ flex: 2 }}
               >
@@ -747,6 +783,63 @@ export default function EditProductPage({
           </form>
         </div>
       </div>
+
+      <div
+        className="card"
+        style={{
+          maxWidth: "680px",
+          margin: "var(--space-6) auto 0",
+          border: "1px solid rgb(220 38 38 / 0.2)",
+          background: "rgb(254 242 242 / 0.35)",
+        }}
+      >
+        <div className="card-body">
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "var(--space-3)",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontWeight: 600,
+                  fontSize: "var(--text-sm)",
+                  color: "var(--color-error, #dc2626)",
+                }}
+              >
+                Delete Product
+              </div>
+              <div
+                style={{
+                  fontSize: "var(--text-xs)",
+                  color: "var(--color-neutral-500)",
+                  marginTop: "var(--space-1)",
+                }}
+              >
+                Permanently delete this product, or deactivate it if it has past orders.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting || loading}
+              className="btn btn-sm"
+              style={{
+                background: "var(--color-error, #dc2626)",
+                color: "#ffffff",
+                border: "none",
+              }}
+            >
+              {deleting ? "Deleting..." : "Delete Product"}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
+

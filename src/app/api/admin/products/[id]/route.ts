@@ -112,25 +112,89 @@ export async function DELETE(
     const guard = await requirePermission("products.write", request);
     if (!guard.ok) return guard.response;
     const { id } = await params;
-    const orderItemsCount = await prisma.orderItem.count({
-      where: { variant: { productId: id } },
-    });
-    if (orderItemsCount > 0) {
-      await prisma.product.update({
+
+    const result = await prisma.$transaction(async (tx) => {
+      const product = await tx.product.findUnique({
         where: { id },
-        data: { active: false, preorderEnabled: false, preorderStatus: "DISABLED" },
+        select: { id: true, name: true, slug: true },
       });
-      return NextResponse.json({
-        success: true,
-        data: { archived: true, message: "Product has past orders. It has been deactivated." },
+      if (!product) {
+        return { notFound: true } as const;
+      }
+
+      const orderItemsCount = await tx.orderItem.count({
+        where: { variant: { productId: id } },
       });
+
+      if (orderItemsCount > 0) {
+        await tx.product.update({
+          where: { id },
+          data: { active: false, preorderEnabled: false, preorderStatus: "DISABLED" },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actor: guard.actor,
+            action: "product.archived",
+            newValue: {
+              productId: id,
+              name: product.name,
+              reason: "Product has past orders; deactivated instead of deleted",
+            },
+          },
+        });
+
+        return {
+          notFound: false,
+          archived: true,
+          message: `"${product.name}" has past orders, so it was deactivated and hidden from batches.`,
+        } as const;
+      }
+
+      await tx.batchProduct.deleteMany({ where: { productId: id } });
+      await tx.productVariant.deleteMany({ where: { productId: id } });
+      await tx.product.delete({ where: { id } });
+
+      await tx.auditLog.create({
+        data: {
+          actor: guard.actor,
+          action: "product.deleted",
+          oldValue: {
+            productId: id,
+            name: product.name,
+            slug: product.slug,
+          },
+        },
+      });
+
+      return {
+        notFound: false,
+        archived: false,
+        message: `Product "${product.name}" deleted.`,
+      } as const;
+    });
+
+    if (result.notFound) {
+      return NextResponse.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Product not found." } },
+        { status: 404 }
+      );
     }
-    await prisma.batchProduct.deleteMany({ where: { productId: id } });
-    await prisma.productVariant.deleteMany({ where: { productId: id } });
-    await prisma.product.delete({ where: { id } });
-    return NextResponse.json({ success: true, data: { deleted: true } });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        archived: result.archived,
+        deleted: !result.archived,
+        message: result.message,
+      },
+    });
   } catch (error) {
     console.error("[DELETE /api/admin/products/[id]]", error);
-    return NextResponse.json({ success: false, error: { code: "SERVER_ERROR" } }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: { code: "SERVER_ERROR", message: "Failed to delete product." } },
+      { status: 500 }
+    );
   }
 }
+
