@@ -7,6 +7,7 @@ import {
   getProductAvailabilityOverview,
   colorHexHint,
   DetailedVariant,
+  buildProductListingSummary,
 } from "@/lib/variant-stock";
 import { parseApiResponse } from "@/lib/api-client";
 import { copyTextToClipboard } from "@/lib/clipboard";
@@ -29,6 +30,7 @@ export default function AdminProductsPage() {
   const [products, setProducts] = useState<AdminProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedProductId, setCopiedProductId] = useState<string | null>(null);
+  const [copiedSummaryId, setCopiedSummaryId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -94,6 +96,27 @@ export default function AdminProductsPage() {
       );
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleCopySummary = async (
+    product: AdminProductRow,
+    overview: ReturnType<typeof getProductAvailabilityOverview>
+  ) => {
+    const text = buildProductListingSummary(
+      product,
+      overview,
+      typeof window !== "undefined" ? window.location.origin : ""
+    );
+    const success = await copyTextToClipboard(text);
+    if (success) {
+      setCopiedSummaryId(product.id);
+      showMsg("success", `Copied listing summary for "${product.name}" to clipboard!`);
+      setTimeout(() => {
+        setCopiedSummaryId((curr) => (curr === product.id ? null : curr));
+      }, 2500);
+    } else {
+      showMsg("error", "Could not automatically copy summary to clipboard.");
     }
   };
 
@@ -470,13 +493,13 @@ export default function AdminProductsPage() {
             <thead>
               <tr>
                 <th style={{ width: "50px" }}>Image</th>
-                <th style={{ minWidth: "160px" }}>Product Name</th>
-                <th style={{ minWidth: "90px" }}>Price</th>
-                <th style={{ minWidth: "200px" }}>Color Availability</th>
-                <th style={{ minWidth: "180px" }}>Size Availability</th>
-                <th style={{ minWidth: "130px" }}>Total Stock</th>
-                <th style={{ minWidth: "130px" }}>Status</th>
-                <th style={{ minWidth: "200px", textAlign: "right" }}>Actions</th>
+                <th style={{ minWidth: "140px" }}>Product Name</th>
+                <th style={{ minWidth: "85px" }}>Price</th>
+                <th style={{ minWidth: "140px", maxWidth: "180px" }}>Color Availability</th>
+                <th style={{ minWidth: "120px", maxWidth: "160px" }}>Size Availability</th>
+                <th style={{ minWidth: "115px", maxWidth: "140px" }}>Total Stock</th>
+                <th style={{ minWidth: "110px" }}>Status</th>
+                <th style={{ minWidth: "260px", textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -504,10 +527,12 @@ export default function AdminProductsPage() {
                       overview={overview}
                       isExpanded={isExpanded}
                       copiedProductId={copiedProductId}
+                      copiedSummaryId={copiedSummaryId}
                       deletingId={deletingId}
                       onToggleExpand={() =>
                         setExpandedProductId((prev) => (prev === product.id ? null : product.id))
                       }
+                      onCopySummary={() => handleCopySummary(product, overview)}
                       onCopyLink={async () => {
                         const url = `${window.location.origin}/preorder/${product.slug}`;
                         const success = await copyTextToClipboard(url);
@@ -538,8 +563,10 @@ function ProductTableRow({
   overview,
   isExpanded,
   copiedProductId,
+  copiedSummaryId,
   deletingId,
   onToggleExpand,
+  onCopySummary,
   onCopyLink,
   onDelete,
 }: {
@@ -547,11 +574,21 @@ function ProductTableRow({
   overview: ReturnType<typeof getProductAvailabilityOverview>;
   isExpanded: boolean;
   copiedProductId: string | null;
+  copiedSummaryId: string | null;
   deletingId: string | null;
   onToggleExpand: () => void;
+  onCopySummary: () => void;
   onCopyLink: () => void;
   onDelete: () => void;
 }) {
+  const listingText = useMemo(() => {
+    return buildProductListingSummary(
+      product,
+      overview,
+      typeof window !== "undefined" ? window.location.origin : ""
+    );
+  }, [product, overview]);
+
   return (
     <>
       <tr style={{ background: isExpanded ? "var(--color-neutral-50)" : undefined }}>
@@ -610,11 +647,11 @@ function ProductTableRow({
         <td style={{ fontWeight: 600 }}>{formatMoney(Number(product.price))}</td>
 
         {/* Color Availability Breakdown */}
-        <td>
+        <td style={{ maxWidth: "180px" }}>
           {overview.colors.length === 0 ? (
             <span style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-400)" }}>—</span>
           ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "3px" }}>
               {overview.colors.map((c) => {
                 const hex = colorHexHint(c.name);
                 return (
@@ -684,11 +721,11 @@ function ProductTableRow({
         </td>
 
         {/* Size Availability Breakdown */}
-        <td>
+        <td style={{ maxWidth: "160px" }}>
           {overview.sizes.length === 0 ? (
             <span style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-400)" }}>—</span>
           ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "3px" }}>
               {overview.sizes.map((s) => (
                 <span
                   key={s.name}
@@ -737,7 +774,7 @@ function ProductTableRow({
         </td>
 
         {/* Total Stock / Availability Status */}
-        <td>
+        <td style={{ maxWidth: "140px" }}>
           <div style={{ fontWeight: 700, fontSize: "var(--text-xs)" }}>
             {overview.summaryText}
           </div>
@@ -820,6 +857,24 @@ function ProductTableRow({
               {isExpanded ? "Hide Details ▲" : "Summary ▼"}
             </button>
 
+            {/* Quick Copy summary text */}
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={
+                copiedSummaryId === product.id
+                  ? {
+                      color: "var(--color-success, #16a34a)",
+                      fontWeight: 700,
+                    }
+                  : undefined
+              }
+              title="Copy product listing summary text (colors, sizes, stock, link)"
+              onClick={onCopySummary}
+            >
+              {copiedSummaryId === product.id ? "Copied ✓" : "📋 Copy"}
+            </button>
+
             {/* Customer Preview */}
             <Link
               href={`/preorder/${product.slug}`}
@@ -851,10 +906,10 @@ function ProductTableRow({
                     }
                   : undefined
               }
-              title="Copy customer link"
+              title="Copy customer pre-order link"
               onClick={onCopyLink}
             >
-              {copiedProductId === product.id ? "Copied ✓" : "Copy"}
+              {copiedProductId === product.id ? "Link ✓" : "Link"}
             </button>
 
             {/* Delete button (hard delete) */}
@@ -878,6 +933,8 @@ function ProductTableRow({
           <td colSpan={8} style={{ padding: "var(--space-4) var(--space-6)" }}>
             <div
               style={{
+                maxWidth: "780px",
+                boxSizing: "border-box",
                 background: "var(--color-bg-white)",
                 border: "1px solid var(--color-neutral-200)",
                 borderRadius: "var(--radius-lg)",
@@ -889,41 +946,149 @@ function ProductTableRow({
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
-                  alignItems: "center",
+                  alignItems: "flex-start",
+                  gap: "var(--space-3)",
                   borderBottom: "1px solid var(--color-neutral-100)",
-                  paddingBottom: "var(--space-2)",
+                  paddingBottom: "var(--space-3)",
                   marginBottom: "var(--space-3)",
+                  flexWrap: "wrap",
                 }}
               >
                 <div>
-                  <h4
-                    style={{
-                      margin: 0,
-                      fontSize: "var(--text-sm)",
-                      fontWeight: 700,
-                      color: "var(--color-neutral-900)",
-                    }}
-                  >
-                    Color & Size Inventory Matrix — {product.name}
-                  </h4>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <h4
+                      style={{
+                        margin: 0,
+                        fontSize: "var(--text-sm)",
+                        fontWeight: 700,
+                        color: "var(--color-neutral-900)",
+                      }}
+                    >
+                      Color & Size Inventory Matrix — {product.name}
+                    </h4>
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        padding: "1px 7px",
+                        borderRadius: "var(--radius-full)",
+                        background: overview.isSoldOut
+                          ? "rgb(220 38 38 / 0.12)"
+                          : overview.isLowStock
+                          ? "rgb(217 119 6 / 0.12)"
+                          : "rgb(22 163 74 / 0.12)",
+                        color: overview.isSoldOut
+                          ? "var(--color-error)"
+                          : overview.isLowStock
+                          ? "var(--color-warning)"
+                          : "var(--color-success)",
+                      }}
+                    >
+                      {overview.summaryText}
+                    </span>
+                  </div>
                   <p
                     style={{
                       margin: 0,
                       fontSize: "var(--text-xs)",
                       color: "var(--color-neutral-500)",
-                      marginTop: "2px",
+                      marginTop: "3px",
                     }}
                   >
-                    Detailed breakdown of each variant option, current capacity, remaining availability, and order status.
+                    Compact overview of variant options, remaining availability, and pre-order readiness.
                   </p>
                 </div>
-                <Link
-                  href={`/butigadmin/products/${product.id}/edit`}
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: "11px" }}
+
+                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    style={{
+                      fontSize: "12px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "5px",
+                    }}
+                    title="Copy complete product summary for easy listing on social media"
+                    onClick={onCopySummary}
+                  >
+                    {copiedSummaryId === product.id ? "✓ Copied Summary!" : "📋 Copy Summary Text"}
+                  </button>
+
+                  <Link
+                    href={`/butigadmin/products/${product.id}/edit`}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: "11px" }}
+                  >
+                    Adjust Stock in Editor →
+                  </Link>
+                </div>
+              </div>
+
+              {/* Ready-to-Post Listing Summary Preview / Quick Copy */}
+              <div
+                style={{
+                  background: "var(--color-neutral-50)",
+                  border: "1px solid var(--color-neutral-200)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "var(--space-3)",
+                  marginBottom: "var(--space-3)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "6px",
+                  }}
                 >
-                  Adjust Stock in Editor →
-                </Link>
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: "var(--color-neutral-700)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    📋 Ready-to-Post Listing Summary
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onCopySummary}
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      padding: "2px 8px",
+                      background: copiedSummaryId === product.id ? "var(--color-success)" : "var(--color-bg-white)",
+                      color: copiedSummaryId === product.id ? "#fff" : "var(--color-brand-700)",
+                      border: "1px solid var(--color-neutral-300)",
+                      borderRadius: "var(--radius-sm)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {copiedSummaryId === product.id ? "✓ Copied!" : "Copy Text"}
+                  </button>
+                </div>
+                <pre
+                  style={{
+                    margin: 0,
+                    fontFamily: "inherit",
+                    fontSize: "11px",
+                    color: "var(--color-neutral-600)",
+                    whiteSpace: "pre-wrap",
+                    lineHeight: 1.45,
+                    maxHeight: "110px",
+                    overflowY: "auto",
+                    background: "var(--color-bg-white)",
+                    padding: "8px 10px",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--color-neutral-200)",
+                  }}
+                >
+                  {listingText}
+                </pre>
               </div>
 
               {(!product.variants || product.variants.length === 0) ? (

@@ -1,3 +1,5 @@
+import { formatMoney } from "./format";
+
 export interface StockCountableVariant {
   active?: boolean;
   capacity?: number | null;
@@ -224,4 +226,101 @@ export function colorHexHint(colorName?: string | null): string | null {
   if (!colorName) return null;
   const key = colorName.trim().toLowerCase();
   return COMMON_COLOR_HEXES[key] ?? null;
+}
+
+export interface ProductListingInput {
+  name: string;
+  slug: string;
+  category?: string | null;
+  price: string | number;
+  preorderStatus?: string;
+  variants?: readonly DetailedVariant[];
+}
+
+/**
+ * Builds a clean, social-media / messaging-ready summary text of a product,
+ * including availability, color/size matrix, and customer order link.
+ */
+export function buildProductListingSummary(
+  product: ProductListingInput,
+  overview: ProductAvailabilityOverview,
+  baseUrl: string = ""
+): string {
+  const lines: string[] = [];
+
+  // Title & Basic Info
+  lines.push(`🛍️ ${product.name}`);
+  if (product.category) {
+    lines.push(`📁 Category: ${product.category}`);
+  }
+  lines.push(`💰 Price: ${formatMoney(Number(product.price))}`);
+
+  const statusLabel =
+    product.preorderStatus === "OPEN"
+      ? "Open for Pre-Order"
+      : product.preorderStatus === "COMING_SOON"
+      ? "Coming Soon"
+      : product.preorderStatus === "SOLD_OUT"
+      ? "Sold Out"
+      : product.preorderStatus === "CLOSED"
+      ? "Closed"
+      : product.preorderStatus || "Active";
+
+  lines.push(`📦 Status: ${statusLabel}`);
+  lines.push(`📊 Stock Overview: ${overview.summaryText}`);
+
+  // Colors breakdown
+  if (overview.colors.length > 0) {
+    lines.push("");
+    lines.push("🎨 Available Colors:");
+    for (const c of overview.colors) {
+      const stock = c.isUnlimited
+        ? "Unlimited"
+        : c.isSoldOut
+        ? "Sold Out"
+        : `${c.remaining} left`;
+      lines.push(`  • ${c.name}: ${stock}`);
+    }
+  }
+
+  // Sizes breakdown
+  if (overview.sizes.length > 0) {
+    lines.push("");
+    lines.push("📏 Available Sizes:");
+    for (const s of overview.sizes) {
+      const stock = s.isUnlimited
+        ? "Unlimited"
+        : s.isSoldOut
+        ? "Sold Out"
+        : `${s.remaining} left`;
+      lines.push(`  • ${s.name}: ${stock}`);
+    }
+  }
+
+  // Detailed Variant Combinations Breakdown
+  const activeVariants = (product.variants ?? []).filter((v) => v.active !== false);
+  if (activeVariants.length > 0) {
+    lines.push("");
+    lines.push("📋 Variant Breakdown:");
+    for (const v of activeVariants) {
+      const color = v.color || "Standard";
+      const size = v.size || "One Size";
+      const isUncapped = v.capacity === null;
+      const rem = v.remainingCapacity ?? 0;
+      const stock = isUncapped
+        ? "Unlimited"
+        : rem === 0
+        ? "Sold Out"
+        : `${rem} available`;
+      lines.push(`  • ${color} / ${size} — ${stock}`);
+    }
+  }
+
+  // Pre-Order Link
+  const cleanBase = baseUrl.replace(/\/+$/, "");
+  const link = cleanBase ? `${cleanBase}/preorder/${product.slug}` : `/preorder/${product.slug}`;
+  lines.push("");
+  lines.push(`🔗 Pre-Order Link: ${link}`);
+
+  return lines.join("\n");
 }

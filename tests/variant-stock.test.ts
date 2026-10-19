@@ -5,6 +5,7 @@ import {
   variantCountLabel,
   getProductAvailabilityOverview,
   colorHexHint,
+  buildProductListingSummary,
 } from "@/lib/variant-stock";
 
 
@@ -146,4 +147,66 @@ describe("colorHexHint", () => {
     expect(colorHexHint("CustomPattern123")).toBeNull();
   });
 });
+
+describe("buildProductListingSummary", () => {
+  it("formats full product listing summary with variants, colors, and order link", () => {
+    const variants = [
+      { color: "Black", size: "S", capacity: 10, remainingCapacity: 5, active: true },
+      { color: "Black", size: "M", capacity: 10, remainingCapacity: 0, active: true },
+      { color: "White", size: "S", capacity: 5, remainingCapacity: 3, active: true },
+    ];
+    const overview = getProductAvailabilityOverview(variants);
+    const summary = buildProductListingSummary(
+      {
+        name: "Premium Cotton Tee",
+        slug: "premium-cotton-tee",
+        category: "Apparel",
+        price: 850,
+        preorderStatus: "OPEN",
+        variants,
+      },
+      overview,
+      "https://example.com"
+    );
+
+    expect(summary).toContain("🛍️ Premium Cotton Tee");
+    expect(summary).toContain("📁 Category: Apparel");
+    expect(summary).toContain("💰 Price: ₱850");
+    expect(summary).toContain("📦 Status: Open for Pre-Order");
+    expect(summary).toContain("📊 Stock Overview: 8 / 25 available");
+    expect(summary).toContain("🎨 Available Colors:");
+    expect(summary).toContain("  • Black: 5 left");
+    expect(summary).toContain("  • White: 3 left");
+    expect(summary).toContain("📏 Available Sizes:");
+    expect(summary).toContain("  • S: 8 left");
+    expect(summary).toContain("  • M: Sold Out");
+    expect(summary).toContain("📋 Variant Breakdown:");
+    expect(summary).toContain("  • Black / S — 5 available");
+    expect(summary).toContain("  • Black / M — Sold Out");
+    expect(summary).toContain("  • White / S — 3 available");
+    expect(summary).toContain("🔗 Pre-Order Link: https://example.com/preorder/premium-cotton-tee");
+  });
+
+  it("handles products with no variants gracefully", () => {
+    const overview = getProductAvailabilityOverview([]);
+    const summary = buildProductListingSummary(
+      {
+        name: "Minimalist Cap",
+        slug: "minimalist-cap",
+        price: 499,
+        preorderStatus: "COMING_SOON",
+      },
+      overview
+    );
+
+    expect(summary).toContain("🛍️ Minimalist Cap");
+    expect(summary).toContain("💰 Price: ₱499");
+    expect(summary).toContain("📦 Status: Coming Soon");
+    expect(summary).toContain("📊 Stock Overview: No variants");
+    expect(summary).not.toContain("🎨 Available Colors:");
+    expect(summary).not.toContain("📏 Available Sizes:");
+    expect(summary).toContain("🔗 Pre-Order Link: /preorder/minimalist-cap");
+  });
+});
+
 
