@@ -1,7 +1,6 @@
-
 .page {
   min-height: 100dvh;
-  background: #140207;
+  background: #120105;
   color: #fff;
 }
 
@@ -22,17 +21,17 @@
 }
 
 .sectionCard {
-  background: rgba(255, 255, 255, 0.07);
+  background: linear-gradient(180deg, rgba(46, 6, 17, 0.84) 0%, rgba(36, 4, 13, 0.9) 100%);
   backdrop-filter: blur(28px) saturate(190%);
   -webkit-backdrop-filter: blur(28px) saturate(190%);
   border-radius: var(--radius-2xl);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(216, 183, 140, 0.22);
   padding: var(--space-6) var(--space-8);
   margin-bottom: var(--space-5);
   box-shadow:
     0 16px 48px rgba(0, 0, 0, 0.5),
-    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.42),
-    inset 0 -1px 1px 0 rgba(255, 255, 255, 0.08);
+    inset 0 1px 0 rgba(216, 183, 140, 0.28),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4);
   transition: all 0.3s ease;
 }
 
@@ -50,7 +49,7 @@
   color: white;
   margin-bottom: var(--space-5);
   letter-spacing: -0.01em;
-  background: linear-gradient(135deg, #ffffff 0%, #ffeaf0 60%, #f7b4c4 100%);
+  background: linear-gradient(135deg, #FFFFFF 0%, #F5E5D8 45%, #D8B78C 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -68,31 +67,31 @@
 .paymentInstructions {
   margin-top: var(--space-4);
   padding: var(--space-5);
-  background: rgba(168, 16, 56, 0.15);
+  background: rgba(138, 14, 44, 0.18);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-radius: var(--radius-xl);
-  border: 1px solid rgba(255, 200, 220, 0.25);
-  border-left: 4px solid #c01844;
+  border: 1px solid rgba(216, 183, 140, 0.24);
+  border-left: 4px solid #D8B78C;
   font-size: var(--text-sm);
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 245, 235, 0.88);
   line-height: 1.6;
 }
 
 .summaryCard {
-  background: rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(46, 6, 17, 0.9) 0%, rgba(36, 4, 13, 0.95) 100%);
   backdrop-filter: blur(32px) saturate(200%);
   -webkit-backdrop-filter: blur(32px) saturate(200%);
   border-radius: var(--radius-2xl);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(216, 183, 140, 0.28);
   padding: var(--space-6) var(--space-8);
   position: sticky;
   top: calc(var(--space-6) + 68px);
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.6),
-    0 0 32px rgba(255, 175, 200, 0.16),
-    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.45),
-    inset 0 -1px 1px 0 rgba(255, 255, 255, 0.08);
+    0 0 32px rgba(190, 24, 60, 0.16),
+    inset 0 1px 0 rgba(216, 183, 140, 0.35),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.5);
 }
 
 @media (max-width: 640px) {
@@ -111,7 +110,7 @@
   max-height: 40vh;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: rgba(216, 183, 140, 0.3) transparent;
 }
 
 .summaryItem {
@@ -123,20 +122,20 @@
 
 .summaryItemQty {
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.82);
+  color: #D8B78C;
   min-width: 24px;
 }
 
 .summaryItemName {
   flex: 1;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.92);
+  color: rgba(255, 245, 235, 0.95);
 }
 
 .summaryItemVariant {
   display: block;
   font-size: var(--text-xs);
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 245, 235, 0.72);
   font-weight: 400;
   margin-top: 2px;
 }
@@ -151,7 +150,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(216, 183, 140, 0.15);
   padding-top: var(--space-4);
   margin-top: var(--space-4);
   font-family: var(--font-serif);
@@ -164,7 +163,7 @@
   font-family: var(--font-display);
   font-size: 1.5rem;
   font-weight: 800;
-  background: linear-gradient(135deg, #ffffff 0%, #ffc0cb 50%, #f4728d 100%);
+  background: linear-gradient(135deg, #FFFFFF 0%, #F5E5D8 45%, #D8B78C 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -174,7 +173,7 @@
   position: fixed;
   inset: 0;
   z-index: 500;
-  background: rgba(10, 1, 4, 0.78);
+  background: rgba(18, 1, 5, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   display: flex;
@@ -190,20 +189,20 @@
 }
 
 .modalCard {
-  background: rgba(22, 3, 10, 0.94);
-  border: 1px solid rgba(255, 200, 220, 0.28);
+  background: linear-gradient(180deg, rgba(38, 5, 14, 0.96) 0%, rgba(24, 2, 8, 0.98) 100%);
+  border: 1px solid rgba(216, 183, 140, 0.35);
   border-radius: var(--radius-2xl);
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.8),
-    0 0 45px rgba(168, 16, 56, 0.35),
-    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.45);
+    0 0 45px rgba(190, 24, 60, 0.35),
+    inset 0 1px 0 rgba(216, 183, 140, 0.4);
   width: 100%;
   max-width: 520px;
   padding: var(--space-6) var(--space-8);
   max-height: 90vh;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: rgba(216, 183, 140, 0.3) transparent;
   animation: modalScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   flex-direction: column;
@@ -224,7 +223,7 @@
 
 .modalHeader {
   text-align: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(216, 183, 140, 0.15);
   padding-bottom: var(--space-3);
 }
 
@@ -234,7 +233,7 @@
   font-weight: 700;
   color: white;
   margin: 0 0 var(--space-1) 0;
-  background: linear-gradient(135deg, #ffffff 0%, #ffeaf0 60%, #f7b4c4 100%);
+  background: linear-gradient(135deg, #FFFFFF 0%, #F5E5D8 45%, #D8B78C 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -242,14 +241,14 @@
 
 .modalSubtitle {
   font-size: var(--text-xs);
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(255, 245, 235, 0.82);
   margin: 0;
 }
 
 .modalSection {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(30, 4, 11, 0.6);
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(216, 183, 140, 0.15);
   padding: var(--space-3) var(--space-4);
   display: flex;
   flex-direction: column;
@@ -261,12 +260,12 @@
   justify-content: space-between;
   align-items: center;
   font-size: var(--text-sm);
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 245, 235, 0.82);
 }
 
 .modalRowLabel {
   font-size: var(--text-xs);
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(216, 183, 140, 0.85);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 600;
@@ -279,7 +278,7 @@
 }
 
 .modalHandleHighlight {
-  color: #ff8fa0;
+  color: #D8B78C;
   font-weight: 700;
 }
 
@@ -287,7 +286,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(216, 183, 140, 0.12);
   padding-top: var(--space-2);
   margin-top: var(--space-1);
 }
@@ -297,14 +296,14 @@
   justify-content: space-between;
   align-items: baseline;
   font-size: var(--text-xs);
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 245, 235, 0.85);
 }
 
 .modalTotalRow {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  border-top: 1px solid rgba(216, 183, 140, 0.2);
   padding-top: var(--space-3);
   margin-top: var(--space-2);
   font-size: var(--text-base);
@@ -315,15 +314,18 @@
 .modalTotalAmount {
   font-size: 1.25rem;
   font-weight: 800;
-  color: #ffb4c8;
+  background: linear-gradient(135deg, #FFFFFF 0%, #F5E5D8 45%, #D8B78C 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .modalNotice {
   font-size: var(--text-xs);
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(255, 245, 235, 0.82);
   line-height: 1.5;
-  background: rgba(168, 16, 56, 0.15);
-  border: 1px solid rgba(255, 200, 220, 0.2);
+  background: rgba(138, 14, 44, 0.2);
+  border: 1px solid rgba(216, 183, 140, 0.25);
   border-radius: var(--radius-md);
   padding: var(--space-3);
   text-align: center;

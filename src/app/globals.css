@@ -6,10 +6,10 @@
   --color-brand-200: #fbd5d5;
   --color-brand-300: #f8a4a4;
   --color-brand-400: #f16868;
-  --color-brand-500: #800020; 
-  --color-brand-600: #6b0019;
-  --color-brand-700: #570014;
-  --color-brand-800: #43000f;
+  --color-brand-500: var(--color-wine-500); 
+  --color-brand-600: var(--color-wine-600);
+  --color-brand-700: var(--color-wine-700);
+  --color-brand-800: var(--color-wine-800);
   --color-brand-900: #2e000a;
 
   --color-bg-main:   #f5f0eb;  
@@ -29,20 +29,58 @@
   --color-neutral-900: #1a1715;
   --color-neutral-950: #0d0b0a;
 
-  --color-success:  #16a34a;
-  --color-warning:  #d97706;
-  --color-error:    #dc2626;
-  --color-info:     #2563eb;
+  --color-success:    #16a34a;
+  --color-warning:    #d97706;
+  --color-error:      #dc2626;
+  --color-terracotta: #C0564A;
+  --color-info:       #2563eb;
 
   --font-serif:   var(--font-playfair), Georgia, "Times New Roman", serif;
   --font-display: var(--font-outfit), system-ui, -apple-system, sans-serif;
-  --font-body:    var(--font-inter), system-ui, -apple-system, sans-serif;
+  --font-body:    var(--font-outfit), system-ui, -apple-system, sans-serif;
 
-  --glass-burgundy-base: #140307;
-  --glass-burgundy-surface: rgba(255, 255, 255, 0.07);
-  --glass-bevel-highlight: inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.45), inset 0 -1px 1px 0 rgba(255, 255, 255, 0.08);
-  --holographic-gradient: linear-gradient(135deg, rgba(255, 180, 200, 0.7) 0%, rgba(197, 179, 248, 0.7) 35%, rgba(156, 232, 248, 0.7) 70%, rgba(253, 226, 166, 0.7) 100%);
-  --holographic-glow: 0 0 24px rgba(255, 180, 200, 0.25), 0 0 48px rgba(156, 232, 248, 0.15);
+  /* Unified Royal Wine Ramp (Canonical Single Source) */
+  --color-wine-500: #8A0E2C;
+  --color-wine-600: #6E051D;
+  --color-wine-700: #520014;
+  --color-wine-800: #38000E;
+  --color-wine-accent: #A31236;
+  --color-wine-500-rgb: 138, 14, 44;
+  --color-wine-700-rgb: 82, 0, 20;
+
+  /* Primary Action Inversion: Luminous Champagne Gold Foil on Dark Velvet */
+  --cta-gold-bg: linear-gradient(135deg, #F3E3C8 0%, #D8B78C 38%, #C5A069 66%, #EBD6B4 100%);
+  --cta-gold-hover: linear-gradient(135deg, #FAF0DE 0%, #E2C39B 38%, #D4AF79 66%, #F5E3C9 100%);
+  --cta-gold-text: #2A0A12;
+  --cta-gold-shadow: 0 4px 18px rgba(216, 183, 140, 0.28);
+  --cta-gold-shadow-hover: 0 8px 28px rgba(216, 183, 140, 0.42);
+
+  /* Champagne Gold Accents (Strict accent budget) */
+  --color-gold-200: #F3E5D8;
+  --color-gold-300: #E5CBA8;
+  --color-gold-400: #D8B78C;
+  --color-gold-500: #C5A069;
+  --color-gold-600: #A8834D;
+  --color-gold-border: rgba(216, 183, 140, 0.85);
+  --color-gold-hairline: rgba(216, 183, 140, 0.65);
+
+  /* Silk Alabaster & Warm Neutrals */
+  --color-text-silk: #F8F5F0;
+  --color-text-muted-silk: rgba(248, 245, 240, 0.78);
+  --color-text-subtle-silk: rgba(248, 245, 240, 0.65); /* 0.65 floor for contrast */
+
+  /* Status: Antique Sage & Terracotta */
+  --color-sage: #8FA98F;
+  --color-sage-bg: rgba(143, 169, 143, 0.16);
+  --color-sage-border: rgba(143, 169, 143, 0.35);
+  --color-terracotta: #C0564A;
+  --color-terracotta-bg: rgba(192, 86, 74, 0.16);
+  --color-terracotta-border: rgba(192, 86, 74, 0.35);
+
+  /* Royal Wine Dual-Tone Atelier Canvas */
+  --glass-canvas-base: #140106;
+  --glass-surface-card: rgba(46, 6, 17, 0.88);
+  --glass-surface-panel: rgba(36, 4, 13, 0.92);
 
   --text-xs:   0.75rem;
   --text-sm:   0.875rem;
@@ -66,11 +104,11 @@
   --space-20: 5rem;
   --space-24: 6rem;
 
-  --radius-sm:   0.375rem;
-  --radius-md:   0.5rem;
-  --radius-lg:   0.75rem;
-  --radius-xl:   1rem;
-  --radius-2xl:  1.5rem;
+  --radius-sm:   0.375rem; /* 6px */
+  --radius-md:   0.5rem;   /* 8px */
+  --radius-lg:   0.75rem;  /* 12px */
+  --radius-xl:   1rem;     /* 16px */
+  --radius-2xl:  1.5rem;   /* 24px */
   --radius-full: 9999px;
 
   --shadow-sm:  0 1px 3px 0 rgb(128 0 32 / 0.08);
@@ -114,8 +152,8 @@ body {
   font-family: var(--font-body);
   font-size: var(--text-base);
   line-height: 1.6;
-  color: var(--color-neutral-900);
-  background-color: var(--color-bg-main);
+  color: var(--color-text-silk, #F8F5F0);
+  background-color: #140106;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100dvh;
@@ -207,26 +245,55 @@ h1, h2, h3, h4, h5, h6 {
   pointer-events: none;
 }
 
+:focus-visible {
+  outline: 2px solid var(--color-gold-400, #D8B78C) !important;
+  outline-offset: 2px !important;
+}
+
 .btn:focus-visible {
-  outline: 2px solid var(--color-brand-500);
+  outline: 2px solid var(--color-gold-400, #D8B78C);
   outline-offset: 2px;
 }
 
 .btn-primary {
-  background: var(--color-brand-500);
-  color: white;
-  box-shadow: 0 2px 8px rgb(128 0 32 / 0.3);
+  background: linear-gradient(135deg, var(--color-wine-600) 0%, var(--color-wine-800) 100%);
+  color: #F8F5F0;
+  border: 1px solid rgba(216, 183, 140, 0.5);
+  font-weight: 600;
+  box-shadow: 0 4px 18px rgba(56, 0, 14, 0.28);
+  letter-spacing: 0.01em;
 }
 
 .btn-primary:hover {
-  background: var(--color-brand-600);
-  box-shadow: 0 4px 16px rgb(128 0 32 / 0.4);
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, var(--color-wine-500) 0%, var(--color-wine-700) 100%);
+  color: #ffffff;
+  border-color: rgba(216, 183, 140, 0.7);
+  box-shadow: 0 6px 24px rgba(56, 0, 14, 0.38);
+  transform: translateY(-1.5px);
 }
 
 .btn-primary:active {
   transform: translateY(0);
-  box-shadow: 0 1px 4px rgb(128 0 32 / 0.3);
+}
+
+/* Scoped Luxury Gold Foil CTA for Dark Storefront & Glass Surfaces */
+.glass-storefront .btn-primary,
+.glassPage .btn-primary {
+  background: var(--cta-gold-bg);
+  color: var(--cta-gold-text);
+  border: 1px solid rgba(168, 131, 77, 0.9);
+  font-weight: 700;
+  box-shadow: 0 4px 18px rgba(216, 183, 140, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  letter-spacing: 0.01em;
+}
+
+.glass-storefront .btn-primary:hover,
+.glassPage .btn-primary:hover {
+  background: var(--cta-gold-hover);
+  color: #1A050B;
+  border-color: rgba(168, 131, 77, 1);
+  box-shadow: 0 8px 28px rgba(216, 183, 140, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  transform: translateY(-1.5px);
 }
 
 .btn-secondary {
@@ -368,14 +435,14 @@ h1, h2, h3, h4, h5, h6 {
   text-transform: uppercase;
 }
 
-.badge-open       { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-.badge-coming     { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
-.badge-sold-out   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
-.badge-closed     { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
-.badge-pending    { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
-.badge-confirmed  { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
-.badge-completed  { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-.badge-cancelled  { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+.badge-open       { background: #eaf3ec; color: #2d5a3e; border: 1px solid #b2d4be; }
+.badge-coming     { background: #fbf5eb; color: #8a6730; border: 1px solid #ebd6b4; }
+.badge-sold-out   { background: #f4f1ed; color: #6d645e; border: 1px solid #d5cec7; }
+.badge-closed     { background: #f1f0ee; color: #5a534e; border: 1px solid #cfc8c2; }
+.badge-pending    { background: #fbf5eb; color: #8a6730; border: 1px solid #ebd6b4; }
+.badge-confirmed  { background: #f5edf0; color: #6e051d; border: 1px solid #d9b8c2; }
+.badge-completed  { background: #eaf3ec; color: #2d5a3e; border: 1px solid #b2d4be; }
+.badge-cancelled  { background: #faecea; color: #8e2b22; border: 1px solid #f0cac6; }
 
 .cart-count-badge {
   display: inline-flex;
@@ -523,6 +590,7 @@ h1, h2, h3, h4, h5, h6 {
 @media (min-width: 1280px) {
   .product-grid { grid-template-columns: repeat(4, 1fr); }
 }
+
 
 
 .admin-layout {
@@ -865,31 +933,46 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 
+
 .glass-storefront .badge-open {
-  background: rgba(22, 163, 74, 0.18);
-  color: #4ade80;
-  border: 1px solid rgba(74, 222, 128, 0.2);
+  background: rgba(46, 125, 50, 0.28);
+  color: #a3e9ae;
+  border: 1px solid rgba(74, 222, 128, 0.42);
+}
+
+.glass-storefront .badge-capsule,
+.badge-capsule {
+  background: rgba(216, 183, 140, 0.2);
+  color: #F8E6C8;
+  border: 1px solid rgba(216, 183, 140, 0.5);
+}
+
+.glass-storefront .badge-neutral,
+.badge-neutral {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 240, 230, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.16);
 }
 
 .glass-storefront .badge-coming {
-  background: rgba(217, 119, 6, 0.18);
-  color: #fbbf24;
-  border: 1px solid rgba(251, 191, 36, 0.2);
+  background: rgba(216, 183, 140, 0.2);
+  color: #F8E6C8;
+  border: 1px solid rgba(216, 183, 140, 0.5);
 }
 
 .glass-storefront .badge-sold-out,
 .glass-storefront .badge-closed {
-  background: rgba(255, 255, 255, 0.07);
-  color: rgba(255, 255, 255, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 240, 230, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.16);
 }
 
 .glass-storefront .empty-state-title {
-  color: rgba(255, 255, 255, 0.9);
+  color: #FFF9F2;
 }
 
 .glass-storefront .empty-state-text {
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 240, 230, 0.75);
 }
 
 

@@ -340,7 +340,13 @@ export default function ProductPageClient({ product, batch }: { product: Product
                         zIndex: 10,
                         maxWidth: "90%",
                         overflowX: "auto",
-                        padding: "4px"
+                        padding: "6px 10px",
+                        background: "rgba(24, 3, 10, 0.75)",
+                        backdropFilter: "blur(16px)",
+                        WebkitBackdropFilter: "blur(16px)",
+                        borderRadius: "var(--radius-full)",
+                        border: "1px solid rgba(216, 183, 140, 0.35)",
+                        boxShadow: "0 8px 24px rgba(14, 0, 4, 0.6)"
                       }}>
                         {product.images.map((img, idx) => (
                           <button
@@ -350,14 +356,16 @@ export default function ProductPageClient({ product, batch }: { product: Product
                             aria-label={`Show image ${idx + 1}`}
                             aria-current={idx === safeHeroIndex}
                             style={{
-                              width: "48px",
-                              height: "48px",
-                              borderRadius: "8px",
-                              border: idx === safeHeroIndex ? "2px solid #fff" : "2px solid rgba(255,255,255,0.4)",
+                              width: "44px",
+                              height: "44px",
+                              borderRadius: "var(--radius-md)",
+                              border: idx === safeHeroIndex ? "2px solid #D8B78C" : "1.5px solid rgba(216, 183, 140, 0.35)",
                               overflow: "hidden",
                               flexShrink: 0,
                               cursor: "pointer",
-                              background: "#000"
+                              background: "rgba(10, 1, 4, 0.6)",
+                              boxShadow: idx === safeHeroIndex ? "0 0 10px rgba(216, 183, 140, 0.5)" : "none",
+                              transition: "all var(--transition-fast)"
                             }}
                           >
                             <img src={imageUrlAtWidth(img, 400)} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />

@@ -1,7 +1,6 @@
-
 .page {
   min-height: 100dvh;
-  background: #140207;
+  background: #120105;
   color: #fff;
 }
 
@@ -25,16 +24,16 @@
   display: flex;
   gap: var(--space-4);
   padding: var(--space-5);
-  background: rgba(255, 255, 255, 0.07);
+  background: linear-gradient(180deg, rgba(46, 6, 17, 0.82) 0%, rgba(36, 4, 13, 0.88) 100%);
   backdrop-filter: blur(28px) saturate(190%);
   -webkit-backdrop-filter: blur(28px) saturate(190%);
   border-radius: var(--radius-2xl);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(216, 183, 140, 0.22);
   margin-bottom: var(--space-4);
   box-shadow:
     0 16px 40px rgba(0, 0, 0, 0.45),
-    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.4),
-    inset 0 -1px 1px 0 rgba(255, 255, 255, 0.08);
+    inset 0 1px 0 rgba(216, 183, 140, 0.28),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -64,16 +63,16 @@
     align-items: center;
     justify-content: space-between;
     padding-top: var(--space-2);
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid rgba(216, 183, 140, 0.12);
   }
 }
 
 .item:hover {
-  border-color: rgba(255, 200, 220, 0.35);
+  border-color: rgba(216, 183, 140, 0.45);
   box-shadow:
     0 20px 48px rgba(0, 0, 0, 0.55),
-    0 0 20px rgba(220, 40, 85, 0.2),
-    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.5);
+    0 0 24px rgba(190, 24, 60, 0.25),
+    inset 0 1px 0 rgba(216, 183, 140, 0.4);
   transform: translateY(-1.5px);
 }
 
@@ -81,15 +80,15 @@
   width: 88px;
   height: 88px;
   border-radius: var(--radius-xl);
-  background: radial-gradient(circle at center, rgba(168, 16, 56, 0.15) 0%, rgba(10, 1, 4, 0.7) 100%);
+  background: radial-gradient(circle at center, rgba(168, 16, 56, 0.2) 0%, rgba(18, 1, 5, 0.9) 100%);
   overflow: hidden;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(216, 183, 140, 0.22);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
 .itemImage img {
@@ -99,7 +98,7 @@
   max-height: 100%;
   object-fit: contain;
   object-position: center;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
 }
 
 .item:hover .itemImage img {
@@ -126,14 +125,14 @@
 .itemVariant {
   font-size: var(--text-xs);
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(255, 245, 235, 0.8);
   margin-top: var(--space-1);
 }
 
 .itemPrice {
   font-size: 1.15rem;
   font-weight: 800;
-  background: linear-gradient(135deg, #ffffff 0%, #ffc0cb 50%, #f4728d 100%);
+  background: linear-gradient(135deg, #FFFFFF 0%, #F5E5D8 45%, #D8B78C 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -152,13 +151,13 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(30, 4, 11, 0.7);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(216, 183, 140, 0.25);
   border-radius: var(--radius-full);
   padding: 3px 6px;
-  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.3);
+  box-shadow: inset 0 1px 1px 0 rgba(216, 183, 140, 0.15);
 }
 
 .qtyBtn {
@@ -169,7 +168,7 @@
   background: transparent;
   font-size: var(--text-base);
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 245, 235, 0.88);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -178,7 +177,7 @@
 }
 
 .qtyBtn:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(216, 183, 140, 0.2);
   color: #fff;
 }
 
@@ -187,12 +186,12 @@
   font-weight: 700;
   min-width: 26px;
   text-align: center;
-  color: white;
+  color: #fff;
 }
 
 .removeBtn {
   font-size: var(--text-xs);
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(216, 183, 140, 0.75);
   cursor: pointer;
   background: none;
   border: none;
@@ -202,23 +201,23 @@
 }
 
 .removeBtn:hover {
-  color: #ff8095;
+  color: #FF8BA7;
 }
 
 .summaryCard {
-  background: rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(46, 6, 17, 0.9) 0%, rgba(36, 4, 13, 0.95) 100%);
   backdrop-filter: blur(32px) saturate(200%);
   -webkit-backdrop-filter: blur(32px) saturate(200%);
   border-radius: var(--radius-2xl);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(216, 183, 140, 0.28);
   padding: var(--space-6) var(--space-8);
   position: sticky;
   top: calc(var(--space-6) + 68px);
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.6),
-    0 0 32px rgba(255, 175, 200, 0.15),
-    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.45),
-    inset 0 -1px 1px 0 rgba(255, 255, 255, 0.08);
+    0 0 32px rgba(190, 24, 60, 0.16),
+    inset 0 1px 0 rgba(216, 183, 140, 0.35),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.5);
 }
 
 @media (max-width: 640px) {
@@ -234,9 +233,8 @@
   font-size: 1.5rem;
   font-weight: 700;
   margin-bottom: var(--space-4);
-  color: white;
   letter-spacing: -0.01em;
-  background: linear-gradient(135deg, #ffffff 0%, #ffeaf0 60%, #f7b4c4 100%);
+  background: linear-gradient(135deg, #FFFFFF 0%, #F5E5D8 45%, #D8B78C 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -247,9 +245,9 @@
   justify-content: space-between;
   align-items: center;
   font-size: var(--text-sm);
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(255, 245, 235, 0.88);
   padding-block: var(--space-3);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  border-bottom: 1px solid rgba(216, 183, 140, 0.12);
 }
 
 .summaryTotal {
@@ -265,7 +263,7 @@
   font-family: var(--font-display);
   font-size: 1.4rem;
   font-weight: 800;
-  background: linear-gradient(135deg, #ffffff 0%, #ffc0cb 50%, #f4728d 100%);
+  background: linear-gradient(135deg, #FFFFFF 0%, #F5E5D8 45%, #D8B78C 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -273,7 +271,7 @@
 
 .summaryNote {
   font-size: var(--text-xs);
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 245, 235, 0.72);
   text-align: center;
   margin-top: var(--space-3);
   line-height: 1.5;
