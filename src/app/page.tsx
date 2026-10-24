@@ -92,7 +92,7 @@ export default async function HomePage() {
         <nav className={styles.glassNav}>
           <div className={styles.glassNavInner}>
             <Link href="/" className={styles.navBrand} aria-label={SITE_NAME}>
-              <BrandLogo variant="horizontal" height={34} />
+              <BrandLogo variant="horizontal" height={34} color="#D8B78C" textColor="#FFF9F2" subtextColor="#D8B78C" />
             </Link>
             <div className={styles.navActions}>
               <Link href="/cart" className={styles.navCartBtn} id="nav-cart-link" aria-label="View Cart" title="View Cart">
