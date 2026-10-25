@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useCartStore } from "@/store/cart";
+import { useCartStore, type CartItem } from "@/store/cart";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { INSTAGRAM_HANDLE_HINT, normaliseInstagramHandle } from "@/lib/instagram";
@@ -28,12 +28,13 @@ export default function CheckoutPage() {
     accessToken: string | null;
     total: number;
     copiedAll: boolean;
+    items: CartItem[];
   } | null>(null);
   useEffect(() => {
-    if (items.length === 0) {
+    if (items.length === 0 && !successData) {
       router.push("/cart");
     }
-  }, [items, router]);
+  }, [items, router, successData]);
   useEffect(() => {
     let cancelled = false;
     fetch("/api/form-fields")
@@ -114,13 +115,16 @@ export default function CheckoutPage() {
           orderErr || "We could not place your order. Please try again."
         );
       }
+      const purchasedItems = [...items];
       setShowConfirmModal(false);
       setSuccessData({
         reference: orderData.reference,
         accessToken: typeof orderData.accessToken === "string" ? orderData.accessToken : null,
         total: Number(orderData.total ?? getSubtotal()),
         copiedAll: false,
+        items: purchasedItems,
       });
+      clearCart();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Something went wrong. Please try again."
@@ -177,7 +181,7 @@ export default function CheckoutPage() {
       </div>
     );
   };
-  if (items.length === 0) {
+  if (items.length === 0 && !successData) {
     return (
       <div className={`${glass.glassPage} ${styles.page}`}>
         <div className={glass.bg} aria-hidden="true" />
@@ -545,10 +549,10 @@ export default function CheckoutPage() {
                 <div className={styles.modalSection}>
                   <div className={styles.modalRow}>
                     <span className={styles.modalRowLabel}>Pre-Order Items</span>
-                    <span className={styles.modalRowValue}>{items.reduce((a, i) => a + i.quantity, 0)} pc(s)</span>
+                    <span className={styles.modalRowValue}>{successData.items.reduce((a, i) => a + i.quantity, 0)} pc(s)</span>
                   </div>
                   <div className={styles.modalItemsList}>
-                    {items.map((item) => (
+                    {successData.items.map((item) => (
                       <div key={item.id} className={styles.modalItemRow}>
                         <span>
                           {item.quantity}× {item.product.name}{" "}
@@ -572,7 +576,7 @@ export default function CheckoutPage() {
                   id="copy-all-order-info-btn"
                   onClick={async () => {
                     const handle = instagramHandle.trim().startsWith("@") ? instagramHandle.trim() : `@${instagramHandle.trim()}`;
-                    const itemLines = items
+                    const itemLines = successData.items
                       .map((i) => `  • ${i.quantity}× ${i.product.name}${[i.variant.color, i.variant.size].filter(Boolean).length > 0 ? ` (${[i.variant.color, i.variant.size].filter(Boolean).join(" / ")})` : ""} — ${formatMoney(i.unitPrice * i.quantity)}`)
                       .join("\n");
                     const text = [

@@ -702,7 +702,7 @@ export default function StorefrontClient({
                         disabled={!canAdd || added}
                       >
                         {added
-                          ? "✓ Added to Order!"
+                          ? `✓ Added to Order! (${itemCount} in bag)`
                           : colors.length > 0 && !selectedColor
                           ? "Select a Color to Pre-order"
                           : sizes.length > 0 && !selectedSize

@@ -141,12 +141,11 @@ export async function DELETE(
             where: { variantId: { in: variantIds } },
           });
 
-          // Delete any orders that are now empty in bulk
+          // Delete any orders that are now empty in bulk, and recalculate totals for orders with remaining items
           if (affectedOrderIds.length > 0) {
             const ordersStillWithItems = await tx.orderItem.findMany({
               where: { orderId: { in: affectedOrderIds } },
-              select: { orderId: true },
-              distinct: ["orderId"],
+              select: { orderId: true, quantity: true, unitPriceAtPurchase: true },
             });
             const keepOrderIds = new Set(ordersStillWithItems.map((o) => o.orderId));
             const ordersToDelete = affectedOrderIds.filter((orderId) => !keepOrderIds.has(orderId));
@@ -155,6 +154,35 @@ export async function DELETE(
               await tx.auditLog.deleteMany({ where: { orderId: { in: ordersToDelete } } });
               await tx.orderStatusHistory.deleteMany({ where: { orderId: { in: ordersToDelete } } });
               await tx.order.deleteMany({ where: { id: { in: ordersToDelete } } });
+            }
+
+            // Recalculate totals for surviving orders so price matches the remaining items
+            for (const orderId of keepOrderIds) {
+              const remainingItems = ordersStillWithItems.filter((item) => item.orderId === orderId);
+              const newSubtotal = remainingItems.reduce(
+                (sum, item) => sum + Number(item.unitPriceAtPurchase) * item.quantity,
+                0
+              );
+              await tx.order.update({
+                where: { id: orderId },
+                data: {
+                  subtotal: newSubtotal,
+                  total: newSubtotal,
+                },
+              });
+              await tx.auditLog.create({
+                data: {
+                  orderId,
+                  actor: guard.actor,
+                  action: "order.recalculated",
+                  newValue: {
+                    subtotal: newSubtotal.toString(),
+                    total: newSubtotal.toString(),
+                    reason: `Recalculated after product "${product.name}" was deleted`,
+                  },
+                  metadata: { role: guard.role },
+                },
+              });
             }
           }
         }
