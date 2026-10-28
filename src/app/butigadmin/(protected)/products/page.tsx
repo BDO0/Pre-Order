@@ -10,6 +10,7 @@ import {
   buildProductListingSummary,
 } from "@/lib/variant-stock";
 import { parseApiResponse } from "@/lib/api-client";
+import { buildColorImageMap, colorImageCoverage, primaryImageForColor } from "@/lib/product-color-images";
 import { copyTextToClipboard } from "@/lib/clipboard";
 
 interface AdminProductRow {
@@ -19,6 +20,7 @@ interface AdminProductRow {
   category: string | null;
   price: string | number;
   images: string[];
+  colorImages?: { colorKey: string; url: string; sortOrder?: number | null }[];
   variants?: DetailedVariant[];
   active: boolean;
   preorderStatus: string;
@@ -589,6 +591,24 @@ function ProductTableRow({
     );
   }, [product, overview]);
 
+  // How much of this product's colour range has its own photography. The chip in
+  // the name cell only shows when the product actually offers colours.
+  const colorImageMap = useMemo(
+    () => buildColorImageMap(product.colorImages),
+    [product.colorImages]
+  );
+  const galleryCoverage = useMemo(
+    () => colorImageCoverage(product.variants, colorImageMap),
+    [product.variants, colorImageMap]
+  );
+  // The same shot the storefront leads with: a product photographed only
+  // colour-by-colour has an empty default gallery, and showing "IMG" for it
+  // would tell an admin their images are missing when they are not.
+  const thumbnail = useMemo(
+    () => primaryImageForColor({ images: product.images, colorImages: colorImageMap }, null),
+    [product.images, colorImageMap]
+  );
+
   return (
     <>
       <tr style={{ background: isExpanded ? "var(--color-neutral-50)" : undefined }}>
@@ -606,9 +626,9 @@ function ProductTableRow({
               overflow: "hidden",
             }}
           >
-            {product.images?.[0] ? (
+            {thumbnail ? (
               <img
-                src={product.images[0]}
+                src={thumbnail}
                 alt=""
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
@@ -638,6 +658,36 @@ function ProductTableRow({
                 }}
               >
                 {product.category}
+              </span>
+            )}
+            {galleryCoverage.total > 0 && (
+              <span
+                title={
+                  galleryCoverage.missing.length === 0
+                    ? `All ${galleryCoverage.total} colours have their own photos`
+                    : `Using the default gallery: ${galleryCoverage.missing.join(", ")}`
+                }
+                style={{
+                  fontSize: "10px",
+                  padding: "1px 6px",
+                  borderRadius: "var(--radius-sm)",
+                  whiteSpace: "nowrap",
+                  background:
+                    galleryCoverage.missing.length === 0
+                      ? "rgb(22 163 74 / 0.08)"
+                      : "rgb(217 119 6 / 0.08)",
+                  color:
+                    galleryCoverage.missing.length === 0
+                      ? "var(--color-success)"
+                      : "var(--color-warning)",
+                  border: `1px solid ${
+                    galleryCoverage.missing.length === 0
+                      ? "rgb(22 163 74 / 0.2)"
+                      : "rgb(217 119 6 / 0.2)"
+                  }`,
+                }}
+              >
+                Photos {galleryCoverage.covered}/{galleryCoverage.total}
               </span>
             )}
           </div>

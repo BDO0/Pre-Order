@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/api-guard";
 import { ensureProductInOpenBatch } from "@/lib/batch-service";
 import { uniqueViolationTarget } from "@/lib/prisma-errors";
+import { createProductColorImages, ColorImageSyncError } from "@/lib/product-color-image-sync";
+import { revalidateStorefront } from "@/lib/storefront-cache";
 import { expandVariantPayload } from "@/lib/variant-plan";
 import { productCreateSchema } from "@/lib/validation";
 export async function GET(request: NextRequest) {
@@ -19,7 +21,10 @@ export async function GET(request: NextRequest) {
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
-        include: { variants: { orderBy: [{ color: "asc" }, { size: "asc" }] } },
+        include: {
+          variants: { orderBy: [{ color: "asc" }, { size: "asc" }] },
+          colorImages: { orderBy: [{ colorKey: "asc" }, { sortOrder: "asc" }] },
+        },
         orderBy: { name: "asc" },
         skip: (page - 1) * limit,
         take: limit,
@@ -42,7 +47,7 @@ export async function POST(request: NextRequest) {
       const issue = parsed.error.issues[0];
       return NextResponse.json({ success: false, error: { code: "VALIDATION_ERROR", message: issue ? issue.message : "Invalid product data.", fields: parsed.error.flatten().fieldErrors } }, { status: 400 });
     }
-    const { variants, images, ...columns } = parsed.data;
+    const { variants, images, colorImages, ...columns } = parsed.data;
     const batchClash = await prisma.batch.findUnique({
       where: { slug: columns.slug },
       select: { id: true },
@@ -84,17 +89,25 @@ export async function POST(request: NextRequest) {
         },
       });
       await ensureProductInOpenBatch(tx, created.id);
+      const colorImageCount = await createProductColorImages(tx, created.id, colorImages);
       await tx.auditLog.create({
         data: {
           actor: guard.actor,
           action: "product.created",
-          newValue: { productId: created.id, name: created.name },
+          newValue: { productId: created.id, name: created.name, colorImageCount },
         },
       });
       return created;
     });
+    revalidateStorefront();
     return NextResponse.json({ success: true, data: product }, { status: 201 });
   } catch (error) {
+    if (error instanceof ColorImageSyncError) {
+      return NextResponse.json(
+        { success: false, error: { code: "VALIDATION_ERROR", message: error.message } },
+        { status: 400 }
+      );
+    }
     if (uniqueViolationTarget(error)?.includes("slug")) {
       return NextResponse.json(
         {

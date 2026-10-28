@@ -15,6 +15,7 @@ import ProductPageClient from "./ProductPageClient";
 import StorefrontClient, { StorefrontProduct } from "@/app/StorefrontClient";
 import { TrustFooter } from "@/components/TrustFooter";
 import { prisma } from "@/lib/db";
+import { buildColorImageMap, primaryImageForColor } from "@/lib/product-color-images";
 import glass from "@/app/glass.module.css";
 interface Props {
   params: Promise<{ slug: string }>;
@@ -31,6 +32,7 @@ const loadBatch = cache(async (slug: string) => {
                 where: { active: true },
                 orderBy: [{ color: "asc" }, { size: "asc" }],
               },
+              colorImages: { orderBy: [{ colorKey: "asc" }, { sortOrder: "asc" }] },
             },
           },
         },
@@ -50,6 +52,7 @@ const loadBatch = cache(async (slug: string) => {
       category: p.category,
       description: p.description,
       images: Array.isArray(p.images) ? p.images : [],
+      colorImages: buildColorImageMap(p.colorImages),
       batchId: batch.id,
       batchName: batch.name,
       batchSlug: batch.slug,
@@ -90,6 +93,7 @@ const loadProduct = cache(async (slug: string) => {
       variants: {
         where: { active: true },
       },
+      colorImages: { orderBy: [{ colorKey: "asc" }, { sortOrder: "asc" }] },
       batches: {
         include: {
           batch: true,
@@ -120,6 +124,7 @@ const loadProduct = cache(async (slug: string) => {
       price: Number(product.price),
       currency: product.currency,
       images: product.images,
+      colorImages: buildColorImageMap(product.colorImages),
       preorderStatus: product.preorderStatus,
       preorderRemaining:
         product.preorderLimit !== null
@@ -189,10 +194,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const description =
       product.description ??
       `Pre-order ${product.name} from ${SITE_NAME}. Limited quantities, confirmed personally on Instagram.`;
-    const ogImages = product.images[0]
+    const ogImage = primaryImageForColor(product, null);
+    const ogImages = ogImage
       ? [
           {
-            url: product.images[0],
+            url: ogImage,
             width: 1200,
             height: 630,
             alt: `${product.name} — pre-order at ${SITE_NAME}`,

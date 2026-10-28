@@ -131,8 +131,9 @@ model Product {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  variants  ProductVariant[]
-  batches   BatchProduct[]
+  variants    ProductVariant[]
+  batches     BatchProduct[]
+  colorImages ProductColorImage[]
 
   @@map("products")
 }
@@ -154,6 +155,28 @@ model ProductVariant {
   orderItems OrderItem[]
 
   @@map("product_variants")
+}
+
+/// One image (or several, via `sortOrder`) attached to a colour option of a
+/// product. Options are matched by `colorKey` - the colour label trimmed and
+/// lowercased - rather than by variant id, because the admin variant sync
+/// retires and recreates options when a label changes. A colour with no rows
+/// here falls back to the product's default gallery (`Product.images`).
+model ProductColorImage {
+  id         String   @id @default(cuid())
+  productId  String
+  colorKey   String
+  colorLabel String
+  url        String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([productId, colorKey, sortOrder])
+  @@index([productId])
+  @@map("product_color_images")
 }
 
 

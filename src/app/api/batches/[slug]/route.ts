@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { buildColorImageMap } from "@/lib/product-color-images";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 export async function GET(
   request: NextRequest,
@@ -21,6 +22,7 @@ export async function GET(
                   where: { active: true },
                   orderBy: [{ color: "asc" }, { size: "asc" }],
                 },
+                colorImages: { orderBy: [{ colorKey: "asc" }, { sortOrder: "asc" }] },
               },
             },
           },
@@ -69,6 +71,7 @@ export async function GET(
               price: p.price,
               currency: p.currency,
               images: p.images,
+              colorImages: buildColorImageMap(p.colorImages),
               category: p.category,
               preorderStatus: p.preorderStatus,
               preorderLimit: p.preorderLimit,

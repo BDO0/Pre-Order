@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   activeVariantCount,
+  MAX_LINE_QUANTITY,
+  quantityCap,
   stockSummary,
   variantCountLabel,
   getProductAvailabilityOverview,
@@ -46,6 +48,31 @@ describe("stockSummary", () => {
 
   it("treats a missing active flag as active", () => {
     expect(stockSummary([{ capacity: 2, remainingCapacity: 2 }])).toBe("2 / 2");
+  });
+});
+
+describe("quantityCap", () => {
+  it("takes the variant stock when it is the tighter limit", () => {
+    expect(quantityCap({ remainingCapacity: 3 }, 40)).toBe(3);
+  });
+
+  it("takes the product limit when the variant stock is looser", () => {
+    expect(quantityCap({ remainingCapacity: 10 }, 4)).toBe(4);
+  });
+
+  it("falls back to the line ceiling when nothing is capped", () => {
+    expect(quantityCap({ remainingCapacity: null }, null)).toBe(MAX_LINE_QUANTITY);
+    expect(quantityCap(undefined, undefined)).toBe(MAX_LINE_QUANTITY);
+    expect(quantityCap(null)).toBe(MAX_LINE_QUANTITY);
+  });
+
+  it("keeps a sold-out variant at zero so the stepper cannot add a unit", () => {
+    expect(quantityCap({ remainingCapacity: 0 }, 10)).toBe(0);
+    expect(quantityCap({ remainingCapacity: 5 }, 0)).toBe(0);
+  });
+
+  it("treats an omitted product limit as unlimited, not as zero", () => {
+    expect(quantityCap({ remainingCapacity: 7 })).toBe(7);
   });
 });
 

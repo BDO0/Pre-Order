@@ -149,6 +149,9 @@ export default function AdminBatchesPage() {
     setUploading(true);
     try {
       const compressed = await compressImageClient(file);
+      // Nothing here renders the preview, so the object URL would just leak one
+      // full-size bitmap per upload - release it as soon as it is not needed.
+      URL.revokeObjectURL(compressed.previewUrl);
       const uploadData = new FormData();
       uploadData.append("file", compressed.file);
       uploadData.append("purpose", "BATCH_IMAGE");

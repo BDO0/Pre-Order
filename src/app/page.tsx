@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { SITE_NAME } from "@/lib/site";
+import { buildColorImageMap } from "@/lib/product-color-images";
 import { BrandLogo } from "@/components/BrandLogo";
 import { CartCountBadge } from "@/components/CartCountBadge";
 import { CustomBagIcon } from "@/components/CustomerIcons";
@@ -23,6 +24,7 @@ async function getAvailableProducts(): Promise<{
                 where: { active: true },
                 orderBy: [{ color: "asc" }, { size: "asc" }],
               },
+              colorImages: { orderBy: [{ colorKey: "asc" }, { sortOrder: "asc" }] },
             },
           },
         },
@@ -45,6 +47,7 @@ async function getAvailableProducts(): Promise<{
         category: p.category,
         description: p.description,
         images: Array.isArray(p.images) ? p.images : [],
+        colorImages: buildColorImageMap(p.colorImages),
         batchId: batch.id,
         batchName: batch.name,
         batchSlug: batch.slug,

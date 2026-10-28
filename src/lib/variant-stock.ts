@@ -50,6 +50,32 @@ export function stockSummary(variants: readonly StockCountableVariant[] | undefi
   return `${remaining} / ${capacity}${uncapped > 0 ? ` (+${uncapped} unlimited)` : ""}`;
 }
 
+/**
+ * Hard ceiling for one basket line when neither the variant stock nor the
+ * product's pre-order limit caps it, so the stepper never offers "unlimited".
+ */
+export const MAX_LINE_QUANTITY = 99;
+
+/**
+ * The most units a single basket line may hold: the variant's own remaining
+ * stock, further capped by the product's overall pre-order limit, and
+ * `MAX_LINE_QUANTITY` when both are unlimited.
+ *
+ * `remainingCapacity` alone is not enough - a product with unlimited variant
+ * stock and a `preorderLimit` of 5 would let a shopper build a basket of 10 and
+ * only be rejected at checkout. The stepper, the derived quantity and the
+ * add-to-basket action all have to read the same number.
+ */
+export function quantityCap(
+  variant: StockCountableVariant | null | undefined,
+  productRemaining?: number | null
+): number {
+  return Math.min(
+    variant?.remainingCapacity ?? MAX_LINE_QUANTITY,
+    productRemaining ?? MAX_LINE_QUANTITY
+  );
+}
+
 export function activeVariantCount(
   variants: readonly StockCountableVariant[] | undefined
 ): number {

@@ -12,6 +12,12 @@ export interface CartProduct {
   id: string;
   name: string;
   images: string[];
+  /**
+   * Shot of the colour the shopper actually picked. Absent for carts saved
+   * before colour images existed, which is why the cart falls back to
+   * `images[0]`.
+   */
+  imageUrl?: string;
   price: number;
 }
 export interface CartItem {
@@ -73,7 +79,16 @@ export const useCartStore = create<CartState>()(
           set({
             items: items.map((i) =>
               i.variantId === variant.id
-                ? { ...i, quantity: newQuantity }
+                ? {
+                    ...i,
+                    quantity: newQuantity,
+                    // Refresh the snapshot too: the shopper may add another unit
+                    // long after the line was created, and an admin edit to the
+                    // colour photo, price or stock must not stay invisible.
+                    product,
+                    variant,
+                    unitPrice: variant.priceOverride ?? product.price,
+                  }
                 : i
             ),
           });

@@ -2,11 +2,13 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useCartStore } from "@/store/cart";
+import { imagesForColor, primaryImageForColor } from "@/lib/product-color-images";
 import { SHOP_INSTAGRAM_HANDLE, SHOP_INSTAGRAM_URL, SITE_NAME } from "@/lib/site";
 import { CustomBagIcon, CustomHangerIcon, GarmentSilhouette } from "@/components/CustomerIcons";
 import { DeliveryEta } from "@/components/DeliveryEta";
 import { Countdown } from "@/components/Countdown";
 import { formatMoney } from "@/lib/format";
+import { quantityCap } from "@/lib/variant-stock";
 import styles from "./storefront.module.css";
 import { CARD_SIZES, HERO_HEIGHT, HERO_SIZES, HERO_WIDTH, imageSrcSet, imageUrlAtWidth } from "@/lib/image-geometry";
 export interface Variant {
@@ -27,6 +29,7 @@ export interface StorefrontProduct {
   category: string | null;
   description: string | null;
   images: string[];
+  colorImages?: Record<string, string[]>;
   batchId: string;
   batchName: string;
   batchSlug: string;
@@ -105,7 +108,11 @@ export default function StorefrontClient({
     }
   }, [showClearCartModal]);
 
-  const safeHeroIndex = Math.min(heroImageIndex, Math.max(0, (activeProduct?.images?.length || 1) - 1));
+  const gallery = useMemo(
+    () => imagesForColor(activeProduct, selectedColor),
+    [activeProduct, selectedColor]
+  );
+  const safeHeroIndex = Math.min(heroImageIndex, Math.max(0, gallery.length - 1));
 
   const handleSelectProduct = (product: StorefrontProduct, autoScroll = true) => {
     setSelectedProductId(product.id);
@@ -137,6 +144,23 @@ export default function StorefrontClient({
     );
     return match || (colors.length === 0 && sizes.length === 0 ? activeProduct.variants[0] : null);
   }, [activeProduct, selectedColor, selectedSize, colors.length, sizes.length]);
+
+  /**
+   * The most units a single line may hold: the variant's own stock, also capped
+   * by the product's overall pre-order limit, and 99 when both are unlimited.
+   *
+   * `remainingCapacity` alone is not enough - a product with unlimited variant
+   * stock and a `preorderLimit` of 5 would let a shopper build a basket of 10 and
+   * only be rejected at checkout.
+   */
+  const qtyCap = quantityCap(selectedVariant, activeProduct?.preorderRemaining);
+
+  // Switching to a colour or size with less stock must not leave the stepper on a
+  // quantity that silently disables "Add to Pre-Order". The amount that is shown
+  // and submitted is therefore derived from the cap rather than synced into state
+  // from an effect: `qty` is only what the shopper asked for, `cappedQty` is real.
+  const maxQty = Math.max(1, qtyCap);
+  const cappedQty = Math.min(qty, maxQty);
   const isClosed =
     campaignStatus === "CLOSED" ||
     activeProduct?.preorderStatus === "CLOSED" ||
@@ -168,14 +192,11 @@ export default function StorefrontClient({
 
   const isColorAvailable = (color: string) => {
     if (!activeProduct) return false;
-    if (sizes.length > 0 && selectedSize) {
-      const v = activeProduct.variants.find(
-        (variant) => variant.color === color && variant.size === selectedSize && variant.active
-      );
-      if (!v) return false;
-      if (v.remainingCapacity !== null && v.remainingCapacity <= 0) return false;
-      return true;
-    }
+    // Availability of the colour as a whole, deliberately ignoring the size the
+    // shopper happens to have picked. Each colourway has its own gallery, so
+    // gating the pills on one size/size-combination would hide a colour that is
+    // still orderable in another size and make a sold-out colourway impossible
+    // to even look at. The size pills below still do the exact combination check.
     const matching = activeProduct.variants.filter(
       (variant) => variant.color === color && variant.active
     );
@@ -306,7 +327,7 @@ export default function StorefrontClient({
     isOrderable &&
     Boolean(selectedVariant) &&
     Boolean(selectedVariant?.active) &&
-    (selectedVariant?.remainingCapacity === null || (selectedVariant?.remainingCapacity ?? 0) >= qty);
+    qtyCap >= 1;
   const handleAdd = () => {
     if (!activeProduct || !selectedVariant || !canAdd) return;
     const success = addItem(
@@ -314,10 +335,11 @@ export default function StorefrontClient({
         id: activeProduct.id,
         name: activeProduct.name,
         images: activeProduct.images,
+        imageUrl: primaryImageForColor(activeProduct, selectedColor) ?? undefined,
         price: activeProduct.price,
       },
       selectedVariant,
-      qty,
+      cappedQty,
       activeProduct.batchId,
       activeProduct.batchSlug
     );
@@ -337,10 +359,11 @@ export default function StorefrontClient({
         id: activeProduct.id,
         name: activeProduct.name,
         images: activeProduct.images,
+        imageUrl: primaryImageForColor(activeProduct, selectedColor) ?? undefined,
         price: activeProduct.price,
       },
       selectedVariant,
-      qty,
+      cappedQty,
       activeProduct.batchId,
       activeProduct.batchSlug
     );
@@ -470,7 +493,7 @@ export default function StorefrontClient({
                     </button>
                   </>
                 )}
-                {activeProduct.images[safeHeroIndex] ? (
+                {gallery[safeHeroIndex] ? (
                   <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
                     <>
                       {
@@ -479,16 +502,16 @@ export default function StorefrontClient({
 
 }
                       <img
-                        src={activeProduct.images[safeHeroIndex]}
+                        src={gallery[safeHeroIndex]}
                         alt=""
                         aria-hidden="true"
                         className={styles.showcaseImgBackdrop}
                       />
                       <img
-                        src={activeProduct.images[safeHeroIndex]}
+                        src={gallery[safeHeroIndex]}
                         alt={activeProduct.name}
                         className={styles.showcaseImg}
-                        srcSet={imageSrcSet(activeProduct.images[safeHeroIndex])}
+                        srcSet={imageSrcSet(gallery[safeHeroIndex])}
                         sizes={HERO_SIZES}
                         width={HERO_WIDTH}
                         height={HERO_HEIGHT}
@@ -496,7 +519,7 @@ export default function StorefrontClient({
                         fetchPriority="high"
                       />
                     </>
-                    {activeProduct.images.length > 1 && (
+                    {gallery.length > 1 && (
                       <div style={{
                         position: "absolute",
                         bottom: "var(--space-3)",
@@ -515,7 +538,7 @@ export default function StorefrontClient({
                         border: "1px solid rgba(216, 183, 140, 0.35)",
                         boxShadow: "0 8px 24px rgba(14, 0, 4, 0.6)"
                       }}>
-                        {activeProduct.images.map((img, idx) => (
+                        {gallery.map((img, idx) => (
                            <button
                              key={idx}
                              type="button"
@@ -590,7 +613,7 @@ export default function StorefrontClient({
                   {activeProduct.description ||
                     "Limited-run crafted pre-order piece. Reserve yours before orders close."}
                 </p>
-                {!isOrderable ? (
+                {!isOrderable && (
                   <div
                     style={{
                       padding: "var(--space-4)",
@@ -601,14 +624,15 @@ export default function StorefrontClient({
                       fontWeight: 600,
                       color: "rgba(255, 255, 255, 0.85)",
                       fontSize: "var(--text-sm)",
+                      marginBottom: "var(--space-2)",
                     }}
                   >
                     {activeProduct.preorderStatus === "COMING_SOON"
                       ? "Coming soon to pre-order"
                       : "Item currently unavailable"}
                   </div>
-                ) : (
-                  <div className={styles.variantSection}>
+                )}
+                <div className={styles.variantSection}>
                     {colors.length > 0 && (
                       <div>
                         <div className={styles.selectorLabel}>
@@ -620,21 +644,27 @@ export default function StorefrontClient({
                         <div className={styles.pillsRow} style={{ marginTop: "var(--space-1)" }}>
                           {colors.map((color) => {
                             const available = isColorAvailable(color);
+                            // A closed or sold-out product still lets shoppers
+                            // browse its colourways: the pills only need to be
+                            // clickable, the add button stays disabled.
+                            const selectable = !isOrderable || available;
                             return (
                               <button
                                 key={color}
                                 type="button"
                                 className={`${styles.optionPill} ${
                                   selectedColor === color ? styles.selectedPill : ""
-                                } ${!available ? styles.disabledPill : ""}`}
+                                } ${!selectable ? styles.disabledPill : ""}`}
                                 onClick={() => {
-                                  if (!available) return;
                                   setSelectedColor(color);
+                                  // Each colour has its own gallery, so the hero
+                                  // restarts at that colour's first shot.
+                                  setHeroImageIndex(0);
                                   if (selectedSize && !isVariantAvailable(color, selectedSize)) {
                                     setSelectedSize(null);
                                   }
                                 }}
-                                disabled={!available}
+                                aria-disabled={!selectable}
                               >
                                 {color}
                               </button>
@@ -671,47 +701,48 @@ export default function StorefrontClient({
                         </div>
                       </div>
                     )}
-                    <div className={styles.actionRow} style={{ marginTop: "var(--space-2)" }}>
-                      <div className={styles.qtyBox}>
+                    {isOrderable && (
+                      <div className={styles.actionRow} style={{ marginTop: "var(--space-2)" }}>
+                        <div className={styles.qtyBox}>
+                          <button
+                            type="button"
+                            className={styles.qtyBtn}
+                            onClick={() => setQty(Math.max(1, cappedQty - 1))}
+                            aria-label="Decrease quantity"
+                          >
+                            −
+                          </button>
+                          <span className={styles.qtyVal}>{cappedQty}</span>
+                          <button
+                            type="button"
+                            className={styles.qtyBtn}
+                            onClick={() => setQty(Math.min(maxQty, cappedQty + 1))}
+                            aria-label="Increase quantity"
+                          >
+                            +
+                          </button>
+                        </div>
                         <button
                           type="button"
-                          className={styles.qtyBtn}
-                          onClick={() => setQty((q) => Math.max(1, q - 1))}
-                          aria-label="Decrease quantity"
+                          id="add-to-order-btn"
+                          className={`${styles.addToOrderBtn} ${added ? styles.addedSuccessBtn : ""}`}
+                          onClick={handleAdd}
+                          disabled={!canAdd || added}
                         >
-                          −
-                        </button>
-                        <span className={styles.qtyVal}>{qty}</span>
-                        <button
-                          type="button"
-                          className={styles.qtyBtn}
-                          onClick={() => {
-                            const max = selectedVariant?.remainingCapacity ?? 99;
-                            setQty((q) => Math.min(max, q + 1));
-                          }}
-                          aria-label="Increase quantity"
-                        >
-                          +
+                          {added
+                            ? `✓ Added to Order! (${itemCount} in bag)`
+                            : colors.length > 0 && !selectedColor
+                            ? "Select a Color to Pre-order"
+                            : selectedColor && !isColorAvailable(selectedColor)
+                            ? "Sold Out"
+                            : sizes.length > 0 && !selectedSize
+                            ? "Select a Size to Pre-order"
+                            : qtyCap <= 0
+                            ? "Sold Out"
+                            : `Add to Pre-Order — ${formatMoney(effectivePrice * cappedQty)}`}
                         </button>
                       </div>
-                      <button
-                        type="button"
-                        id="add-to-order-btn"
-                        className={`${styles.addToOrderBtn} ${added ? styles.addedSuccessBtn : ""}`}
-                        onClick={handleAdd}
-                        disabled={!canAdd || added}
-                      >
-                        {added
-                          ? `✓ Added to Order! (${itemCount} in bag)`
-                          : colors.length > 0 && !selectedColor
-                          ? "Select a Color to Pre-order"
-                          : sizes.length > 0 && !selectedSize
-                          ? "Select a Size to Pre-order"
-                          : !canAdd && selectedVariant && (selectedVariant.remainingCapacity !== null && selectedVariant.remainingCapacity <= 0)
-                          ? "Sold Out"
-                          : `Add to Pre-Order — ${formatMoney(effectivePrice * qty)}`}
-                      </button>
-                    </div>
+                    )}
                     <DeliveryEta batchEndAt={activeProduct.batchEndAt} />
                     {availabilityInfo.label && (
                       <p
@@ -743,8 +774,7 @@ export default function StorefrontClient({
                         {availabilityInfo.label}
                       </p>
                     )}
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           )}
@@ -784,6 +814,10 @@ export default function StorefrontClient({
           <div className={styles.iconGrid}>
             {(showAllCatalogue ? filteredProducts : filteredProducts.slice(0, 8)).map((p) => {
               const isSelected = p.id === activeProduct?.id;
+              // Same resolution the hero uses, so the grid and the product view
+              // never disagree: a colour-photographed product with no default
+              // gallery still gets a thumbnail here.
+              const cardImage = primaryImageForColor(p, null);
               return (
                 <button
                   key={p.id}
@@ -796,10 +830,10 @@ export default function StorefrontClient({
                   aria-label={`Select ${p.name}`}
                 >
                   <div className={styles.smallThumbWrap}>
-                    {p.images[0] ? (
+                    {cardImage ? (
                       <img
-                        src={imageUrlAtWidth(p.images[0], 400)}
-                        srcSet={imageSrcSet(p.images[0])}
+                        src={imageUrlAtWidth(cardImage, 400)}
+                        srcSet={imageSrcSet(cardImage)}
                         sizes={CARD_SIZES}
                         alt={p.name}
                         className={styles.smallThumbImg}

@@ -4,6 +4,7 @@ import { useCartStore } from "@/store/cart";
 import Link from "next/link";
 import { SITE_NAME } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
+import { imageSrcSet, imageUrlAtWidth } from "@/lib/image-geometry";
 import { BrandLogo } from "@/components/BrandLogo";
 import { CustomBagIcon, GarmentSilhouette } from "@/components/CustomerIcons";
 import styles from "./cart.module.css";
@@ -144,52 +145,65 @@ export default function CartPage() {
           </h1>
           <div className={styles.layout}>
             <div className={styles.items}>
-              {items.map((item) => (
-                <div key={item.id} className={styles.item}>
-                  <div className={styles.itemImage}>
-                    {item.product.images[0] ? (
-                      <img src={item.product.images[0]} loading="lazy" decoding="async" alt={item.product.name} />
-                    ) : (
-                      <GarmentSilhouette category={item.product.name} name={item.product.name} size={32} />
-                    )}
-                  </div>
-                  <div className={styles.itemInfo}>
-                    <p className={styles.itemName}>{item.product.name}</p>
-                    <p className={styles.itemVariant}>
-                      {[item.variant.color, item.variant.size].filter(Boolean).join(" • ")}
-                    </p>
-                    <p className={styles.itemPrice}>
-                      {formatMoney(item.unitPrice * item.quantity)}
-                    </p>
-                  </div>
-                  <div className={styles.itemActions}>
-                    <div className={styles.qtyControl}>
+              {items.map((item) => {
+                // `imageUrl` is the shot of the colour the shopper picked; older
+                // persisted carts fall back to the default gallery. The 64px tile
+                // renders the 400w derivative rather than the 1320w hero.
+                const thumbnail = item.product.imageUrl ?? item.product.images[0];
+                return (
+                  <div key={item.id} className={styles.item}>
+                    <div className={styles.itemImage}>
+                      {thumbnail ? (
+                        <img
+                          src={imageUrlAtWidth(thumbnail, 400)}
+                          srcSet={imageSrcSet(thumbnail)}
+                          sizes="96px"
+                          loading="lazy"
+                          decoding="async"
+                          alt={item.product.name}
+                        />
+                      ) : (
+                        <GarmentSilhouette category={item.product.name} name={item.product.name} size={32} />
+                      )}
+                    </div>
+                    <div className={styles.itemInfo}>
+                      <p className={styles.itemName}>{item.product.name}</p>
+                      <p className={styles.itemVariant}>
+                        {[item.variant.color, item.variant.size].filter(Boolean).join(" • ")}
+                      </p>
+                      <p className={styles.itemPrice}>
+                        {formatMoney(item.unitPrice * item.quantity)}
+                      </p>
+                    </div>
+                    <div className={styles.itemActions}>
+                      <div className={styles.qtyControl}>
+                        <button
+                          className={styles.qtyBtn}
+                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                          aria-label="Decrease"
+                        >
+                          −
+                        </button>
+                        <span className={styles.qtyValue}>{item.quantity}</span>
+                        <button
+                          className={styles.qtyBtn}
+                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          aria-label="Increase"
+                        >
+                          +
+                        </button>
+                      </div>
                       <button
-                        className={styles.qtyBtn}
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        aria-label="Decrease"
+                        className={styles.removeBtn}
+                        onClick={() => removeItem(item.id)}
+                        aria-label={`Remove ${item.product.name}`}
                       >
-                        −
-                      </button>
-                      <span className={styles.qtyValue}>{item.quantity}</span>
-                      <button
-                        className={styles.qtyBtn}
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        aria-label="Increase"
-                      >
-                        +
+                        Remove
                       </button>
                     </div>
-                    <button
-                      className={styles.removeBtn}
-                      onClick={() => removeItem(item.id)}
-                      aria-label={`Remove ${item.product.name}`}
-                    >
-                      Remove
-                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               <button
                 className="btn btn-ghost btn-sm"
                 onClick={() => setShowClearConfirm(true)}

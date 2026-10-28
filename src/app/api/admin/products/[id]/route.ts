@@ -4,6 +4,8 @@ import { requirePermission } from "@/lib/api-guard";
 import { productUpdateSchema } from "@/lib/validation";
 import { ensureProductInOpenBatch } from "@/lib/batch-service";
 import { uniqueViolationTarget } from "@/lib/prisma-errors";
+import { syncProductColorImages, ColorImageSyncError } from "@/lib/product-color-image-sync";
+import { revalidateStorefront } from "@/lib/storefront-cache";
 import { syncProductVariants, VariantSyncError } from "@/lib/product-variants";
 export async function GET(
   request: NextRequest,
@@ -15,7 +17,10 @@ export async function GET(
     const { id } = await params;
     const product = await prisma.product.findUnique({
       where: { id },
-      include: { variants: { orderBy: [{ color: "asc" }, { size: "asc" }] } },
+      include: {
+        variants: { orderBy: [{ color: "asc" }, { size: "asc" }] },
+        colorImages: { orderBy: [{ colorKey: "asc" }, { sortOrder: "asc" }] },
+      },
     });
     if (!product) return NextResponse.json({ success: false, error: { code: "NOT_FOUND", message: "Product not found." } }, { status: 404 });
     return NextResponse.json({ success: true, data: product });
@@ -48,7 +53,7 @@ export async function PATCH(
         { status: 400 }
       );
     }
-    const { variants, images, ...columns } = parsed.data;
+    const { variants, images, colorImages, removeColorImages, ...columns } = parsed.data;
     const result = await prisma.$transaction(async (tx) => {
       const product = await tx.product.update({
         where: { id },
@@ -62,6 +67,10 @@ export async function PATCH(
       });
       const variantChanges =
         variants === undefined ? null : await syncProductVariants(tx, id, variants);
+      const colorImageChanges =
+        colorImages === undefined && removeColorImages === undefined
+          ? null
+          : await syncProductColorImages(tx, id, colorImages, removeColorImages);
       const batchId = await ensureProductInOpenBatch(tx, id);
       await tx.auditLog.create({
         data: {
@@ -71,17 +80,29 @@ export async function PATCH(
             productId: id,
             name: product.name,
             ...(variantChanges ? { variantChanges } : {}),
+            ...(colorImageChanges ? { colorImageChanges } : {}),
           },
         },
       });
-      return { product, variantChanges, batchId };
+      return { product, variantChanges, colorImageChanges, batchId };
     });
+    revalidateStorefront();
     return NextResponse.json({
       success: true,
       data: result.product,
-      meta: { batchId: result.batchId, variantChanges: result.variantChanges },
+      meta: {
+        batchId: result.batchId,
+        variantChanges: result.variantChanges,
+        colorImageChanges: result.colorImageChanges,
+      },
     });
   } catch (error) {
+    if (error instanceof ColorImageSyncError) {
+      return NextResponse.json(
+        { success: false, error: { code: "VALIDATION_ERROR", message: error.message } },
+        { status: 400 }
+      );
+    }
     if (error instanceof VariantSyncError) {
       return NextResponse.json(
         { success: false, error: { code: "VALIDATION_ERROR", message: error.message } },
@@ -188,6 +209,9 @@ export async function DELETE(
         }
 
         await tx.batchProduct.deleteMany({ where: { productId: id } });
+        // No `onDelete` on the relation, so children are cleared explicitly.
+        // Without this the product delete fails on the colour image FK.
+        await tx.productColorImage.deleteMany({ where: { productId: id } });
         await tx.productVariant.deleteMany({ where: { productId: id } });
         await tx.product.delete({ where: { id } });
 
@@ -207,6 +231,7 @@ export async function DELETE(
       );
     }
 
+    revalidateStorefront();
     return NextResponse.json({
       success: true,
       data: {

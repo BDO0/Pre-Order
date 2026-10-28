@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { orderSubmissionSchema } from "@/lib/validation";
 import { createOrder, OrderError } from "@/lib/order-service";
+import { revalidateStorefront } from "@/lib/storefront-cache";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { isSameOrigin } from "@/lib/api-guard";
 export async function POST(request: NextRequest) {
@@ -29,6 +30,9 @@ export async function POST(request: NextRequest) {
       );
     }
     const result = await createOrder(parsed.data);
+    // New reservations change the remaining counts the storefront renders, and
+    // an idempotent replay is harmless to rebuild.
+    if (!result.idempotent) revalidateStorefront();
     return NextResponse.json(
       { success: true, data: result.order },
       { status: result.idempotent ? 200 : 201 }

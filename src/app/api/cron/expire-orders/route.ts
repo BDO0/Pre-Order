@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { releaseOrderCapacity } from "@/lib/order-service";
+import { revalidateStorefront } from "@/lib/storefront-cache";
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -67,6 +68,8 @@ export async function GET(request: Request) {
       });
     }
 
+    // Every cancellation above released capacity, which the storefront prints.
+    if (cancelledCount > 0) revalidateStorefront();
     return NextResponse.json({ success: true, count: cancelledCount });
   } catch (error) {
     console.error("Failed to expire orders:", error);

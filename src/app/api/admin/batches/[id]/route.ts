@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/api-guard";
 import { batchUpdateSchema } from "@/lib/validation";
+import type { OrderStatus } from "@prisma/client";
+import { releasesCapacity } from "@/lib/order-state-machine";
+import { releaseOrderCapacity } from "@/lib/order-service";
+import { revalidateStorefront } from "@/lib/storefront-cache";
 import {
   assertProductsExist,
   BatchWriteError,
@@ -69,6 +74,9 @@ export async function PATCH(
       });
       return batch;
     });
+    // The batch's window, name or product list is printed on the storefront, and
+    // the listing is ISR - without this the change takes up to a minute to show.
+    revalidateStorefront();
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {
     if (error instanceof BatchWriteError) {
@@ -109,11 +117,20 @@ export async function DELETE(
       async (tx) => {
         const orders = await tx.order.findMany({
           where: { batchId: id },
-          select: { id: true },
+          select: { id: true, status: true },
         });
         const orderIds = orders.map((o) => o.id);
 
         if (orderIds.length > 0) {
+          // Deleting an order takes its reserved units with it, so the same rule
+          // the order delete route applies has to run here: a status that has not
+          // already released capacity would otherwise leave the units consumed by
+          // an order that no longer exists.
+          for (const order of orders) {
+            if (!releasesCapacity(order.status as OrderStatus)) {
+              await releaseOrderCapacity(tx, order.id);
+            }
+          }
           await tx.auditLog.deleteMany({ where: { orderId: { in: orderIds } } });
           await tx.orderStatusHistory.deleteMany({ where: { orderId: { in: orderIds } } });
           await tx.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
@@ -125,6 +142,10 @@ export async function DELETE(
       },
       { maxWait: 15_000, timeout: 30_000 }
     );
+
+    // The batch page itself is now a 404 on top of the storefront changing.
+    revalidateStorefront();
+    revalidatePath(`/preorder/${existing.slug}`);
 
     return NextResponse.json({
       success: true,

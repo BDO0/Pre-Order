@@ -19,6 +19,14 @@ import {
   type CompressionResult,
 } from "@/lib/client-image-compression";
 import { parseApiResponse } from "@/lib/api-client";
+import ColorImageEditor from "@/components/ColorImageEditor";
+import {
+  clearedColorLabels,
+  colorImageDraftsFromRows,
+  colorImagePayload,
+  type ColorImageDraft,
+  type StoredColorImageRow,
+} from "@/lib/product-color-images";
 interface ProductVariantDetail {
   id: string;
   size: string | null;
@@ -35,6 +43,7 @@ interface ProductDetail {
   active: boolean;
   preorderLimit: number | null;
   images: unknown;
+  colorImages?: StoredColorImageRow[];
   variants?: ProductVariantDetail[];
 }
 export default function EditProductPage({
@@ -101,6 +110,19 @@ export default function EditProductPage({
   const [compressionInfo, setCompressionInfo] =
     useState<CompressionResult | null>(null);
   const [compressing, setCompressing] = useState(false);
+  // Same leak guard as the create form: the preview object URL is replaced on
+  // every file pick and has to be released with it.
+  const compressionPreviewUrl = compressionInfo?.previewUrl;
+  useEffect(() => {
+    if (!compressionPreviewUrl) return;
+    return () => URL.revokeObjectURL(compressionPreviewUrl);
+  }, [compressionPreviewUrl]);
+  const [colorImageDrafts, setColorImageDrafts] = useState<ColorImageDraft[]>(
+    [],
+  );
+  const [storedColorImages, setStoredColorImages] = useState<
+    StoredColorImageRow[]
+  >([]);
   useEffect(() => {
     const fetchProduct = async () => {
       try {
@@ -157,6 +179,9 @@ export default function EditProductPage({
         setExistingImages(
           Array.isArray(p.images) ? (p.images as string[]) : [],
         );
+        const colorImages = p.colorImages ?? [];
+        setStoredColorImages(colorImages);
+        setColorImageDrafts(colorImageDraftsFromRows(colorImages));
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Failed to load product");
       } finally {
@@ -268,6 +293,11 @@ export default function EditProductPage({
           preorderLimit: limit.capacity,
           images: finalImages,
           variants: payload.variants,
+          colorImages: colorImagePayload(colorImageDrafts),
+          removeColorImages: clearedColorLabels(
+            storedColorImages.map((row) => row.colorLabel || row.colorKey),
+            colorImageDrafts,
+          ),
         }),
       });
       const {
@@ -719,6 +749,26 @@ export default function EditProductPage({
                 Upload JPG, PNG or WebP to update product imagery.
                 Auto-optimized for web.
               </span>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Images per Colour</label>
+              <span
+                className="form-hint"
+                style={{ display: "block", marginBottom: "var(--space-2)" }}
+              >
+                Optional. A colour with its own images replaces the product image
+                above the moment a shopper picks it. Colours left empty keep
+                showing the main image.
+              </span>
+              <ColorImageEditor
+                colors={parsedColors}
+                drafts={colorImageDrafts}
+                onChange={setColorImageDrafts}
+                fallbackImageUrl={
+                  compressionInfo?.previewUrl || existingImages[0]
+                }
+                disabled={loading || compressing || deleting}
+              />
             </div>
             <div
               style={{

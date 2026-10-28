@@ -1,5 +1,11 @@
 import { z } from "zod";
 import { INSTAGRAM_HANDLE_HINT, normaliseInstagramHandle } from "@/lib/instagram";
+import {
+  MAX_COLOR_IMAGE_ROWS,
+  MAX_COLOR_LABEL_LENGTH,
+  MAX_IMAGES_PER_COLOR,
+  normalizeColorKey,
+} from "@/lib/product-color-images";
 import { MAX_ANSWER_LENGTH } from "@/lib/order-answers";
 export const instagramHandleSchema = z
   .string()
@@ -94,9 +100,49 @@ export const productVariantWriteSchema = productVariantSchema
     color: z.string().trim().max(200, "That colour is too long").optional().nullable().transform(blankToNull),
   });
 export const productVariantListSchema = z.array(productVariantWriteSchema).max(200);
+/**
+ * One image attached to a colour option. `sortOrder` is the slot inside that
+ * colour's gallery; a colour is authoritative for its own slots on save, so
+ * leaving one out is how the admin form removes a single image.
+ */
+export const colorImageWriteSchema = z.object({
+  color: z
+    .string()
+    .trim()
+    .min(1, "Pick a colour for this image")
+    .max(MAX_COLOR_LABEL_LENGTH, "That colour name is too long"),
+  url: z.string().trim().min(1, "An image is required").max(1000, "That image path is too long"),
+  sortOrder: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_IMAGES_PER_COLOR - 1, `A colour can hold at most ${MAX_IMAGES_PER_COLOR} images`)
+    .optional(),
+});
+export const colorImageListSchema = z
+  .array(colorImageWriteSchema)
+  .max(MAX_COLOR_IMAGE_ROWS, `A product can hold at most ${MAX_COLOR_IMAGE_ROWS} colour images`)
+  .superRefine((entries, ctx) => {
+    const counts = new Map<string, number>();
+    entries.forEach((entry, index) => {
+      const key = normalizeColorKey(entry.color);
+      const next = (counts.get(key) ?? 0) + 1;
+      counts.set(key, next);
+      if (next > MAX_IMAGES_PER_COLOR) {
+        ctx.addIssue({
+          code: "custom",
+          path: [index, "color"],
+          message: `A colour can hold at most ${MAX_IMAGES_PER_COLOR} images`,
+        });
+      }
+    });
+  });
+/** Colours whose images should be dropped entirely on save. */
+export const colorImageRemovalSchema = z.array(z.string().trim().min(1)).max(60);
 export const productCreateSchema = productSchema.extend({
   images: z.array(z.string().max(1000)).max(10).optional(),
   variants: productVariantListSchema.optional(),
+  colorImages: colorImageListSchema.optional(),
 });
 export const productUpdateSchema = z.object({
   name: z.string().trim().min(2, "Product name is required"),
@@ -107,6 +153,8 @@ export const productUpdateSchema = z.object({
   preorderLimit: productSchema.shape.preorderLimit,
   images: z.array(z.string().max(1000)).max(10).optional(),
   variants: productVariantListSchema.optional(),
+  colorImages: colorImageListSchema.optional(),
+  removeColorImages: colorImageRemovalSchema.optional(),
 });
 export const FORM_FIELD_TYPES = [
   "TEXT",

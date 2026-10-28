@@ -9,6 +9,7 @@ import {
   releasesCapacity,
 } from "@/lib/order-state-machine";
 import { releaseOrderCapacity } from "@/lib/order-service";
+import { revalidateStorefront } from "@/lib/storefront-cache";
 import type { OrderStatus } from "@prisma/client";
 export async function GET(
   request: NextRequest,
@@ -133,6 +134,9 @@ export async function PATCH(
         { status: 409 }
       );
     }
+    // A status change can put reserved units back (or take them out of play), so
+    // the cached storefront is stale the moment this commit lands.
+    revalidateStorefront();
     return NextResponse.json({
       success: true,
       data: {
@@ -181,6 +185,8 @@ export async function DELETE(
       await tx.order.delete({ where: { id } });
     });
 
+    // Deleting a live order frees its units; the storefront has to be rebuilt.
+    revalidateStorefront();
     return NextResponse.json({
       success: true,
       data: { deleted: true, id, reference: order.reference },
