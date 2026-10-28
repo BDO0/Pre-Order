@@ -5,6 +5,10 @@
   justify-content: center;
   background: linear-gradient(160deg, var(--color-brand-700) 0%, var(--color-brand-900) 100%);
   padding: var(--space-4);
+  --color-neutral-400: #574e48;
+  --color-neutral-500: #3e3732;
+  --color-neutral-600: #28231f;
+  --color-neutral-700: #1a1715;
 }
 
 .card {
@@ -31,8 +35,8 @@
 
 .logoSub {
   font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--color-neutral-400);
+  font-weight: 700;
+  color: var(--color-neutral-500);
   text-transform: uppercase;
   letter-spacing: 0.12em;
   display: block;
@@ -49,7 +53,7 @@
 
 .subtitle {
   font-size: var(--text-sm);
-  color: var(--color-neutral-500);
+  color: var(--color-neutral-600);
   margin-bottom: var(--space-6);
   text-align: center;
 }

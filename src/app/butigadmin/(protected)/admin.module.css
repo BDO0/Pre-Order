@@ -38,7 +38,7 @@
 
 .userEmail {
   font-size: var(--text-xs);
-  color: var(--color-neutral-500);
+  color: rgba(255, 255, 255, 0.75);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -49,7 +49,7 @@
   padding: var(--space-2) var(--space-4);
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: var(--radius-lg);
-  color: var(--color-neutral-400);
+  color: rgba(255, 255, 255, 0.85);
   background: transparent;
   font-size: var(--text-xs);
   cursor: pointer;

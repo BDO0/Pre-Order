@@ -597,6 +597,10 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   min-height: 100dvh;
   background: var(--color-bg-main);
+  --color-neutral-400: #574e48;
+  --color-neutral-500: #3e3732;
+  --color-neutral-600: #28231f;
+  --color-neutral-700: #1a1715;
 }
 
 .admin-sidebar {
@@ -610,6 +614,10 @@ h1, h2, h3, h4, h5, h6 {
   top: 0;
   height: 100dvh;
   overflow-y: auto;
+  --color-neutral-400: rgba(255, 255, 255, 0.7);
+  --color-neutral-500: rgba(255, 255, 255, 0.85);
+  --color-neutral-600: #ffffff;
+  --color-neutral-700: #ffffff;
 }
 
 .admin-sidebar-brand {
@@ -797,6 +805,34 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid #fca5a5 !important;
 }
 
+.admin-layout .badge-coming {
+  background: #fef3c7 !important;
+  color: #78350f !important;
+  border: 1px solid #fcd34d !important;
+}
+
+.admin-layout .stat-label {
+  color: #3e3732;
+  font-weight: 700;
+}
+
+.admin-layout .form-hint {
+  color: #3e3732;
+  font-weight: 500;
+}
+
+.admin-layout .empty-state-text {
+  color: #3e3732;
+}
+
+.admin-layout .page-subtitle {
+  color: #3e3732;
+}
+
+.admin-layout .form-input::placeholder {
+  color: #6b635c;
+}
+
 
 .empty-state {
   display: flex;
@@ -842,6 +878,10 @@ h1, h2, h3, h4, h5, h6 {
     position: sticky;
     top: 0;
     z-index: 50;
+    --color-neutral-400: rgba(255, 255, 255, 0.7);
+    --color-neutral-500: rgba(255, 255, 255, 0.85);
+    --color-neutral-600: #ffffff;
+    --color-neutral-700: #ffffff;
   }
 
   .admin-mobilebar-top {
