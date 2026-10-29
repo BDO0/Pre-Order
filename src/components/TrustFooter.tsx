@@ -48,7 +48,7 @@ export function TrustFooter({
         </div>
         <div>
           <h4 style={{ color: "white", fontWeight: 700, marginBottom: "var(--space-3)", fontSize: "var(--text-base)" }}>How do I pay?</h4>
-          <p style={{ lineHeight: 1.6 }}>Add items to your cart and check out. No payment is collected upfront. We&apos;ll reach out on Instagram to arrange payment when your order is secured.</p>
+          <p style={{ lineHeight: 1.6 }}>Add items to your cart and check out. No payment upfront. Then send your order details to us on Instagram to confirm and arrange payment.</p>
         </div>
         <div>
           <h4 style={{ color: "white", fontWeight: 700, marginBottom: "var(--space-3)", fontSize: "var(--text-base)" }}>Follow Us</h4>

@@ -1,1 +1,76 @@
-import type { OrderStatus } from "@prisma/client";export interface StatusCopy {  label: string;  detail: string;  awaitingCustomer: boolean;}export const CUSTOMER_STATUS_COPY: Record<OrderStatus, StatusCopy> = {  PENDING: {    label: "Received",    detail:      "We have your order. The shop will message you on Instagram to confirm the details and arrange payment.",    awaitingCustomer: true,  },  AWAITING_PAYMENT: {    label: "Awaiting payment",    detail:      "Your pieces are held for you. Settle payment in Instagram DM and this will move along.",    awaitingCustomer: true,  },  PAYMENT_REVIEW: {    label: "Checking payment",    detail:      "We are matching your payment to this order. Nothing needed from you right now.",    awaitingCustomer: false,  },  CONFIRMED: {    label: "Confirmed",    detail:      "Your place in this drop is confirmed and your pieces are reserved.",    awaitingCustomer: false,  },  PROCESSING: {    label: "In production",    detail: "Your pieces are with the supplier.",    awaitingCustomer: false,  },  READY: {    label: "Ready",    detail: "Your order is ready to be shipped or picked up.",    awaitingCustomer: false,  },  SHIPPED: {    label: "Shipped",    detail: "On its way to you.",    awaitingCustomer: false,  },  COMPLETED: {    label: "Completed",    detail: "Delivered. Thank you for ordering from us.",    awaitingCustomer: false,  },  CANCELLED: {    label: "Cancelled",    detail:      "This order was cancelled and its stock returned to the drop. Message the shop if that is a surprise.",    awaitingCustomer: false,  },  REJECTED: {    label: "Not accepted",    detail:      "We could not take this order. Message the shop on Instagram and we will sort it out.",    awaitingCustomer: false,  },};export function customerStatusCopy(status: string): StatusCopy {  const known = (CUSTOMER_STATUS_COPY as Record<string, StatusCopy | undefined>)[    status  ];  if (known) return known;  const derived = status.replace(/_/g, " ").trim().toLowerCase();  return {    label: derived === "" ? "In progress" : derived,    detail: "Message the shop on Instagram if you have any questions about this order.",    awaitingCustomer: false,  };}
+import type { OrderStatus } from "@prisma/client";
+export interface StatusCopy {
+  label: string;
+  detail: string;
+  awaitingCustomer: boolean;
+}
+export const CUSTOMER_STATUS_COPY: Record<OrderStatus, StatusCopy> = {
+  PENDING: {
+    label: "Received",
+    detail:
+      "We have your order. Message us on Instagram with your order number to confirm it and arrange payment.",
+    awaitingCustomer: true,
+  },
+  AWAITING_PAYMENT: {
+    label: "Awaiting payment",
+    detail:
+      "Your pieces are held for you. Settle payment in Instagram DM and this will move along.",
+    awaitingCustomer: true,
+  },
+  PAYMENT_REVIEW: {
+    label: "Checking payment",
+    detail:
+      "We are matching your payment to this order. Nothing needed from you right now.",
+    awaitingCustomer: false,
+  },
+  CONFIRMED: {
+    label: "Confirmed",
+    detail:
+      "Your place in this drop is confirmed and your pieces are reserved.",
+    awaitingCustomer: false,
+  },
+  PROCESSING: {
+    label: "In production",
+    detail: "Your pieces are with the supplier.",
+    awaitingCustomer: false,
+  },
+  READY: {
+    label: "Ready",
+    detail: "Your order is ready to be shipped or picked up.",
+    awaitingCustomer: false,
+  },
+  SHIPPED: {
+    label: "Shipped",
+    detail: "On its way to you.",
+    awaitingCustomer: false,
+  },
+  COMPLETED: {
+    label: "Completed",
+    detail: "Delivered. Thank you for ordering from us.",
+    awaitingCustomer: false,
+  },
+  CANCELLED: {
+    label: "Cancelled",
+    detail:
+      "This order was cancelled and its stock returned to the drop. Message the shop if that is a surprise.",
+    awaitingCustomer: false,
+  },
+  REJECTED: {
+    label: "Not accepted",
+    detail:
+      "We could not take this order. Message the shop on Instagram and we will sort it out.",
+    awaitingCustomer: false,
+  },
+};
+export function customerStatusCopy(status: string): StatusCopy {
+  const known = (CUSTOMER_STATUS_COPY as Record<string, StatusCopy | undefined>)[
+    status
+  ];
+  if (known) return known;
+  const derived = status.replace(/_/g, " ").trim().toLowerCase();
+  return {
+    label: derived === "" ? "In progress" : derived,
+    detail: "Message the shop on Instagram if you have any questions about this order.",
+    awaitingCustomer: false,
+  };
+}

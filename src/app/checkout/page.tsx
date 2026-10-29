@@ -1,10 +1,10 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import { useCartStore, type CartItem } from "@/store/cart";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { INSTAGRAM_HANDLE_HINT, normaliseInstagramHandle } from "@/lib/instagram";
-import { SHOP_INSTAGRAM_HANDLE, SHOP_INSTAGRAM_URL, SITE_NAME } from "@/lib/site";
+import { SHOP_INSTAGRAM_HANDLE, SITE_NAME } from "@/lib/site";
 import { BrandLogo } from "@/components/BrandLogo";
 import { MAX_ANSWER_LENGTH, type PublicFormField } from "@/lib/order-answers";
 import { CustomBagIcon, CustomCardIcon, CustomAlertIcon } from "@/components/CustomerIcons";
@@ -30,11 +30,19 @@ export default function CheckoutPage() {
     copiedAll: boolean;
     items: CartItem[];
   } | null>(null);
+  // The persisted cart only reaches the store after the first client render
+  // (localStorage rehydration). Rendering before that makes a full page load of
+  // /checkout look empty — and, worse, the empty-cart guard below used to fire
+  // and bounce shoppers who refreshed the page straight back to /cart.
+  const cartHydrated = useSyncExternalStore(
+    (onChange) => useCartStore.persist.onFinishHydration(onChange),
+    () => useCartStore.persist.hasHydrated(),
+    () => false
+  );
   useEffect(() => {
-    if (items.length === 0 && !successData) {
-      router.push("/cart");
-    }
-  }, [items, router, successData]);
+    if (!cartHydrated || items.length > 0 || successData) return;
+    router.push("/cart");
+  }, [cartHydrated, items, router, successData]);
   useEffect(() => {
     let cancelled = false;
     fetch("/api/form-fields")
@@ -181,6 +189,34 @@ export default function CheckoutPage() {
       </div>
     );
   };
+  if (!cartHydrated) {
+    return (
+      <div className={`${glass.glassPage} ${styles.page}`}>
+        <div className={glass.bg} aria-hidden="true" />
+        <div className={glass.orb1} aria-hidden="true" />
+        <div className={glass.orb2} aria-hidden="true" />
+        <div className={glass.orb3} aria-hidden="true" />
+        <div className={glass.content}>
+          <main
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "var(--space-8) var(--space-4)",
+            }}
+          >
+            <p
+              aria-live="polite"
+              style={{ color: "rgba(255,255,255,0.7)", fontSize: "var(--text-sm)", margin: 0 }}
+            >
+              Loading your pre-order…
+            </p>
+          </main>
+        </div>
+      </div>
+    );
+  }
   if (items.length === 0 && !successData) {
     return (
       <div className={`${glass.glassPage} ${styles.page}`}>
@@ -320,7 +356,7 @@ export default function CheckoutPage() {
                 <h2 className={styles.sectionTitle}>{paymentStep}. Payment &amp; shipping</h2>
                 <div className={styles.paymentInstructions}>
                   <p style={{ fontWeight: 600, fontSize: "var(--text-sm)", color: "white", display: "inline-flex", alignItems: "center", gap: "8px", margin: 0 }}>
-                    <CustomCardIcon size={18} /> No payment taken now — order confirmation, payment, and delivery are arranged via Instagram DM.
+                    <CustomCardIcon size={18} /> No payment taken now — you confirm details, payment, and delivery with us in Instagram DM.
                   </p>
                 </div>
                 {error && (
@@ -359,7 +395,7 @@ export default function CheckoutPage() {
                   Review &amp; Place Pre-Order →
                 </button>
                 <p style={{ fontSize: "var(--text-xs)", color: "rgba(255, 255, 255, 0.78)", marginTop: "var(--space-3)", textAlign: "center" }}>
-                  No upfront charge · Confirmed via Instagram DM
+                  No upfront charge · You confirm in Instagram DM
                 </p>
               </div>
             </div>
@@ -427,13 +463,11 @@ export default function CheckoutPage() {
                   </div>
                 </div>
                 <div className={styles.modalNotice}>
-                  No payment is charged right now. We will message{" "}
+                  No payment now. After placing, send your order details to{" "}
                   <strong style={{ color: "#ff8fa0" }}>
-                    {instagramHandle.trim().startsWith("@")
-                      ? instagramHandle.trim()
-                      : `@${instagramHandle.trim()}`}
+                    @{SHOP_INSTAGRAM_HANDLE.replace(/^@/, "").replace(/\s+/g, "")}
                   </strong>{" "}
-                  on Instagram to verify sizing, settle payment, and coordinate delivery.
+                  on Instagram.
                 </div>
                 {error && (
                   <div
@@ -488,37 +522,19 @@ export default function CheckoutPage() {
               <div className={styles.modalCard} style={{ maxWidth: "540px" }}>
 
                 {}
-                <div style={{
-                  display: "flex", alignItems: "center", gap: "12px",
-                  padding: "var(--space-4) var(--space-5)",
-                  background: "rgba(255,255,255,0.08)",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  borderRadius: "var(--radius-xl)",
-                  marginBottom: "var(--space-3)",
-                }}>
-                  <span style={{ fontSize: "2rem" }}>📸</span>
-                  <p style={{ margin: 0, fontSize: "var(--text-base)", fontWeight: 700, color: "#fff", lineHeight: 1.3 }}>
-                    Save your order details
-                    <span style={{ display: "block", fontSize: "var(--text-sm)", fontWeight: 400, color: "rgba(255,255,255,0.8)", marginTop: "4px" }}>
-                      Please take a screenshot or copy the info below before closing this page.
-                    </span>
-                  </p>
-                </div>
-
-                {}
                 <div className={styles.modalHeader} style={{ textAlign: "center", paddingBottom: "var(--space-3)", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
                   <h2 id="success-modal-title" className={styles.modalTitle}>
                     Order Placed Successfully!
                   </h2>
                   <p className={styles.modalSubtitle}>
-                    Your pre-order has been received. We&apos;ll DM you on Instagram to confirm.
+                    Screenshot this, then send it to us on Instagram.
                   </p>
                 </div>
 
                 {}
                 <div style={{
                   textAlign: "center",
-                  padding: "var(--space-4)",
+                  padding: "var(--space-3)",
                   background: "rgba(168,16,56,0.2)",
                   borderRadius: "var(--radius-xl)",
                   border: "1px dashed rgba(255,200,220,0.4)",
@@ -526,7 +542,7 @@ export default function CheckoutPage() {
                   <p style={{ margin: 0, fontSize: "var(--text-xs)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(255,255,255,0.6)", marginBottom: "4px" }}>
                     Your Order Reference
                   </p>
-                  <p style={{ margin: 0, fontSize: "2rem", fontWeight: 800, fontFamily: "var(--font-display)", color: "#fff", letterSpacing: "0.06em", textShadow: "0 2px 12px rgba(220,40,85,0.5)" }}>
+                  <p style={{ margin: 0, fontSize: "1.45rem", fontWeight: 800, fontFamily: "var(--font-display)", color: "#fff", letterSpacing: "0.06em", textShadow: "0 2px 12px rgba(220,40,85,0.5)" }}>
                     {successData.reference}
                   </p>
                 </div>
@@ -589,7 +605,7 @@ export default function CheckoutPage() {
                       "",
                       `Total: ${formatMoney(successData.total)}`,
                       "",
-                      "Please send this as proof of your pre-order.",
+                      "Send this to us on Instagram to confirm your pre-order.",
                     ].join("\n");
                     try {
                       await navigator.clipboard.writeText(text);
@@ -622,7 +638,7 @@ export default function CheckoutPage() {
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                       </svg>
-                      Copy All Order Info
+                      Copy Order Details
                     </>
                   )}
                 </button>
@@ -630,7 +646,7 @@ export default function CheckoutPage() {
                 {}
                 <div style={{ textAlign: "center" }}>
                   <p style={{ margin: "0 0 var(--space-2) 0", fontSize: "var(--text-xs)", color: "rgba(255,255,255,0.6)", lineHeight: 1.5 }}>
-                    Copy your order info above, then tap below to DM us on Instagram and paste it.
+                    Tap below, then paste your order details in our DM.
                   </p>
                   <a
                     href={`https://ig.me/m/${SHOP_INSTAGRAM_HANDLE.replace(/^@/, "").replace(/\s+/g, "")}`}
@@ -656,7 +672,7 @@ export default function CheckoutPage() {
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
                     </svg>
-                    DM us on Instagram @{SHOP_INSTAGRAM_HANDLE.replace(/^@/, "")}
+                    Send to @{SHOP_INSTAGRAM_HANDLE.replace(/^@/, "").replace(/\s+/g, "")} on Instagram
                   </a>
                 </div>
 
