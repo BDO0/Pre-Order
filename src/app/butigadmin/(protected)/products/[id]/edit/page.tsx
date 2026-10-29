@@ -566,6 +566,7 @@ export default function EditProductPage({
                             flex: 1,
                             fontSize: "var(--text-sm)",
                             fontWeight: 500,
+                            color: "var(--color-neutral-900)",
                           }}
                         >
                           {describeVariant(row)}

@@ -411,7 +411,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
           <div>
             <div className="card">
               <div className="card-body">
-                <h2 style={{ fontSize: "var(--text-base)", fontWeight: 700, marginBottom: "var(--space-4)" }}>
+                <h2 style={{ fontSize: "var(--text-base)", fontWeight: 700, marginBottom: "var(--space-4)", color: "var(--color-neutral-900)" }}>
                   Order Items
                 </h2>
                 <table className="data-table">
@@ -647,7 +647,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
           <div className="card">
             <div className="card-body">
-              <h2 style={{ fontSize: "var(--text-base)", fontWeight: 700, marginBottom: "var(--space-4)" }}>
+              <h2 style={{ fontSize: "var(--text-base)", fontWeight: 700, marginBottom: "var(--space-4)", color: "var(--color-neutral-900)" }}>
                 Status History
               </h2>
               {order.statusHistory.length > 0 ? (
@@ -678,7 +678,7 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
           </div>
           <div className="card">
             <div className="card-body">
-              <h2 style={{ fontSize: "var(--text-base)", fontWeight: 700, marginBottom: "var(--space-4)" }}>
+              <h2 style={{ fontSize: "var(--text-base)", fontWeight: 700, marginBottom: "var(--space-4)", color: "var(--color-neutral-900)" }}>
                 Activity Log
               </h2>
               {order.auditLogs && order.auditLogs.length > 0 ? (

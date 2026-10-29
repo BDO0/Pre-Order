@@ -187,7 +187,7 @@ export default function NewProductPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
                 {rows.map((row) => (
                   <div key={variantKey(row.size, row.color)} style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                    <span style={{ flex: 1, fontSize: "var(--text-sm)", fontWeight: 500 }}>{describeVariant(row)}</span>
+                    <span style={{ flex: 1, fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-neutral-900)" }}>{describeVariant(row)}</span>
                     <input
                       type="number"
                       min="1"

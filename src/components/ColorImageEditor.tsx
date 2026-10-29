@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { compressImageClient } from "@/lib/client-image-compression";
+import { compressImageClient, heifUploadHint } from "@/lib/client-image-compression";
 import { parseApiResponse } from "@/lib/api-client";
 import {
   MAX_IMAGES_PER_COLOR,
@@ -34,6 +34,16 @@ interface ColorCard {
   retired: boolean;
 }
 
+/**
+ * What one colour's card is doing right now. Uploads go out one file at a time
+ * as they are picked, so on a phone the admin has to be able to see that
+ * something is happening and, if it stops, what went wrong.
+ */
+type CardStatus =
+  | { phase: "uploading"; done: number; total: number }
+  | { phase: "done"; added: number }
+  | { phase: "error"; message: string };
+
 const thumbStyle: React.CSSProperties = {
   width: "72px",
   height: "72px",
@@ -61,13 +71,19 @@ async function uploadProductImage(file: File): Promise<string> {
   // the upload goes out as a `File`, so the object URL would otherwise stay in
   // the page's blob store - one full-size image leaked per upload.
   let previewUrl: string | null = null;
+  // Phones shoot HEIC/HEIF by default. If this browser cannot decode it the raw
+  // file would reach the server and come back as a generic "Failed to upload
+  // image", so keep the actionable hint ready and report that instead.
+  const heifHint = heifUploadHint(file);
   try {
     const compressed = await compressImageClient(file);
     payload = compressed.file;
     previewUrl = compressed.previewUrl;
   } catch (err) {
-    // Compression is an optimisation, never a reason to lose the upload.
+    // Compression is an optimisation, never a reason to lose the upload - unless
+    // the browser could not read the format at all, which is the HEIC case.
     console.error("Compression error:", err);
+    if (heifHint) throw new Error(heifHint);
     payload = file;
   }
   try {
@@ -93,9 +109,28 @@ export default function ColorImageEditor({
   fallbackImageUrl,
   disabled = false,
 }: ColorImageEditorProps) {
-  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [statuses, setStatuses] = useState<Record<string, CardStatus>>({});
   const [error, setError] = useState("");
   const inputs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  /**
+   * Uploads are serialised, so whichever colour is uploading is the one every
+   * other card has to wait for.
+   */
+  const busyKey =
+    Object.entries(statuses).find(([, status]) => status.phase === "uploading")?.[0] ??
+    null;
+
+  const setStatus = (key: string, status: CardStatus | null) => {
+    setStatuses((previous) => {
+      const next = { ...previous };
+      if (status) next[key] = status;
+      else delete next[key];
+      return next;
+    });
+  };
+
+  const clearStatus = (color: string) => setStatus(normalizeColorKey(color), null);
 
   const urlsFor = (color: string): readonly string[] => {
     const key = normalizeColorKey(color);
@@ -131,9 +166,13 @@ export default function ColorImageEditor({
 
   const handleFiles = async (color: string, fileList: FileList | null) => {
     const key = normalizeColorKey(color);
+    // `input.files` is a live list - resetting the value empties the very list we
+    // are about to read, which is why picking photos did nothing on phones
+    // (WebKit enforces it, Chromium leaks the old files through). Take the files
+    // first, then clear the input so the same photo can be picked again.
+    const files = fileList ? Array.from(fileList) : [];
     const input = inputs.current[key];
     if (input) input.value = "";
-    const files = fileList ? Array.from(fileList) : [];
     if (files.length === 0) return;
 
     const current = urlsFor(color);
@@ -146,22 +185,29 @@ export default function ColorImageEditor({
     }
 
     setError("");
-    setBusyKey(key);
+    const queue = files.slice(0, room);
     const uploaded: string[] = [];
+    let failure = "";
     try {
-      for (const file of files.slice(0, room)) {
-        uploaded.push(await uploadProductImage(file));
-      }
-      if (files.length > room) {
-        setError(
-          `"${color}" holds ${MAX_IMAGES_PER_COLOR} images, so ${files.length - room} file(s) were skipped.`
-        );
+      for (let index = 0; index < queue.length; index += 1) {
+        setStatus(key, { phase: "uploading", done: index, total: queue.length });
+        uploaded.push(await uploadProductImage(queue[index]));
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to upload image.");
+      failure = err instanceof Error ? err.message : "Failed to upload image.";
     } finally {
       if (uploaded.length > 0) setUrls(color, [...current, ...uploaded]);
-      setBusyKey(null);
+      setStatus(
+        key,
+        failure
+          ? { phase: "error", message: failure }
+          : { phase: "done", added: uploaded.length }
+      );
+    }
+    if (!failure && files.length > room) {
+      setError(
+        `"${color}" holds ${MAX_IMAGES_PER_COLOR} images, so ${files.length - room} file(s) were skipped.`
+      );
     }
   };
 
@@ -179,6 +225,7 @@ export default function ColorImageEditor({
       color,
       urlsFor(color).filter((_, position) => position !== index)
     );
+    clearStatus(color);
   };
 
   if (cards.length === 0) {
@@ -195,7 +242,7 @@ export default function ColorImageEditor({
       {cards.map((card) => {
         const urls = urlsFor(card.color);
         const key = normalizeColorKey(card.color);
-        const busy = busyKey === key;
+        const status = statuses[key];
         const locked = disabled || busyKey !== null;
         return (
           <div
@@ -247,12 +294,40 @@ export default function ColorImageEditor({
                     color: "var(--color-neutral-500)",
                   }}
                 >
-                  {busy
-                    ? "Uploading..."
+                  {status?.phase === "uploading"
+                    ? status.total > 1
+                      ? `Uploading ${status.done + 1} of ${status.total}…`
+                      : "Uploading…"
                     : urls.length === 0
                       ? "Showing the main product image."
                       : `${urls.length} of ${MAX_IMAGES_PER_COLOR} images. The first one is the cover.`}
                 </p>
+                {status?.phase === "done" && (
+                  <p
+                    style={{
+                      margin: 0,
+                      marginTop: "var(--space-1)",
+                      fontSize: "var(--text-xs)",
+                      fontWeight: 600,
+                      color: "var(--color-success)",
+                    }}
+                  >
+                    {status.added} image{status.added === 1 ? "" : "s"} uploaded ✓
+                  </p>
+                )}
+                {status?.phase === "error" && (
+                  <p
+                    style={{
+                      margin: 0,
+                      marginTop: "var(--space-1)",
+                      fontSize: "var(--text-xs)",
+                      fontWeight: 600,
+                      color: "var(--color-error)",
+                    }}
+                  >
+                    {status.message}
+                  </p>
+                )}
               </div>
               {urls.length > 0 && (
                 <button
@@ -264,6 +339,7 @@ export default function ColorImageEditor({
                   }}
                   onClick={() => {
                     setError("");
+                    clearStatus(card.color);
                     setUrls(card.color, []);
                   }}
                   disabled={locked}
@@ -351,9 +427,8 @@ export default function ColorImageEditor({
               accept="image/*"
               multiple
               className="form-input"
-              style={{ padding: "var(--space-2)" }}
               disabled={locked}
-              onChange={(event) => handleFiles(card.color, event.target.files)}
+              onChange={(event) => handleFiles(card.color, event.currentTarget.files)}
             />
           </div>
         );
