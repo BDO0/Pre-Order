@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useCartStore } from "@/store/cart";
 import { SITE_NAME, SHOP_INSTAGRAM_HANDLE, SHOP_INSTAGRAM_URL } from "@/lib/site";
@@ -9,8 +9,9 @@ import { CartCountBadge } from "@/components/CartCountBadge";
 import { TrustFooter } from "@/components/TrustFooter";
 import { DeliveryEta } from "@/components/DeliveryEta";
 import { Countdown } from "@/components/Countdown";
+import { ProductLightbox } from "@/components/ProductLightbox";
 import { formatMoney } from "@/lib/format";
-import { imagesForColor, primaryImageForColor } from "@/lib/product-color-images";
+import { imagesForColor, primaryImageForColor, getColorSwatch } from "@/lib/product-color-images";
 import { quantityCap } from "@/lib/variant-stock";
 import glass from "@/app/glass.module.css";
 import { HERO_HEIGHT, HERO_SIZES, HERO_WIDTH, imageSrcSet, imageUrlAtWidth } from "@/lib/image-geometry";
@@ -63,6 +64,71 @@ export default function ProductPageClient({ product, batch }: { product: Product
   const [added, setAdded] = useState(false);
   const [heroImageIndex, setHeroImageIndex] = useState(0);
   const [showClearCartModal, setShowClearCartModal] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [flipDirection, setFlipDirection] = useState<"forward" | "backward">("forward");
+  const [isFlipping, setIsFlipping] = useState(false);
+
+  const flipTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const clearFlipTimers = () => {
+    flipTimersRef.current.forEach(clearTimeout);
+    flipTimersRef.current = [];
+  };
+  useEffect(() => clearFlipTimers, []);
+
+  const applyColor = (color: string) => {
+    setSelectedColor(color);
+    setHeroImageIndex(0);
+    if (selectedSize && !isVariantAvailable(color, selectedSize)) {
+      setSelectedSize(null);
+    }
+  };
+
+  const handleColorChange = (color: string) => {
+    if (color === selectedColor || isFlipping) return;
+
+    // Respect the OS "reduce motion" setting: switch instantly, no flip.
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    ) {
+      applyColor(color);
+      return;
+    }
+
+    const currentIdx = selectedColor ? colors.indexOf(selectedColor) : 0;
+    const targetIdx = colors.indexOf(color);
+    const direction: "forward" | "backward" = targetIdx >= currentIdx ? "forward" : "backward";
+
+    clearFlipTimers();
+    setFlipDirection(direction);
+    setIsFlipping(true);
+
+    flipTimersRef.current.push(
+      setTimeout(() => applyColor(color), 220),
+      setTimeout(() => {
+        setIsFlipping(false);
+        flipTimersRef.current = [];
+      }, 500)
+    );
+  };
+
+  // Warm the browser cache with each colourway's hero shot so the image swap at
+  // the flip midpoint never lands on a blank or stale frame.
+  const colorsKey = colors.join("\u0000");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const seen = new Set<string>();
+    for (const color of colorsKey ? colorsKey.split("\u0000") : []) {
+      const url = primaryImageForColor(product, color);
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      const img = new Image();
+      img.sizes = HERO_SIZES;
+      const srcSet = imageSrcSet(url);
+      if (srcSet) img.srcset = srcSet;
+      img.src = url;
+    }
+  }, [product, colorsKey]);
   const gallery = useMemo(
     () => imagesForColor(product, selectedColor),
     [product, selectedColor]
@@ -331,88 +397,99 @@ export default function ProductPageClient({ product, batch }: { product: Product
           <Link href="/" className={styles.backLink}>
             ← Back to Catalogue
           </Link>
-          <div className={styles.productGrid}>
-            <div className={styles.imageCard}>
-              <div className={styles.mediaFrame}>
+          <div className={styles.showcaseLayout}>
+            {/* 1. Floating Product Stage (Top) */}
+            <div className={styles.stageSection}>
+              <div className={`${styles.floatingStage} ${isFlipping ? styles.isFlipping : ""}`}>
+                <div className={styles.pedestalGlow} />
+
                 {gallery[safeHeroIndex] ? (
-                  <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
-                    <>
-                      {
-
-
-}
-                      <img
-                        src={gallery[safeHeroIndex]}
-                        alt=""
-                        aria-hidden="true"
-                        className={styles.productImgBackdrop}
-                      />
-                      <img
-                        src={gallery[safeHeroIndex]}
-                        alt={product.name}
-                        className={styles.productImg}
-                        srcSet={imageSrcSet(gallery[safeHeroIndex])}
-                        sizes={HERO_SIZES}
-                        width={HERO_WIDTH}
-                        height={HERO_HEIGHT}
-                        decoding="async"
-                        fetchPriority="high"
-                      />
-                    </>
-                    {gallery.length > 1 && (
-                      <div style={{
-                        position: "absolute",
-                        bottom: "var(--space-3)",
-                        left: "50%",
-                        transform: "translateX(-50%)",
-                        display: "flex",
-                        gap: "8px",
-                        zIndex: 10,
-                        maxWidth: "90%",
-                        overflowX: "auto",
-                        padding: "6px 10px",
-                        background: "rgba(24, 3, 10, 0.75)",
-                        backdropFilter: "blur(16px)",
-                        WebkitBackdropFilter: "blur(16px)",
-                        borderRadius: "var(--radius-full)",
-                        border: "1px solid rgba(216, 183, 140, 0.35)",
-                        boxShadow: "0 8px 24px rgba(14, 0, 4, 0.6)"
-                      }}>
-                        {gallery.map((img, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => setHeroImageIndex(idx)}
-                            aria-label={`Show image ${idx + 1}`}
-                            aria-current={idx === safeHeroIndex}
-                            style={{
-                              width: "44px",
-                              height: "44px",
-                              borderRadius: "var(--radius-md)",
-                              border: idx === safeHeroIndex ? "2px solid #D8B78C" : "1.5px solid rgba(216, 183, 140, 0.35)",
-                              overflow: "hidden",
-                              flexShrink: 0,
-                              cursor: "pointer",
-                              background: "rgba(10, 1, 4, 0.6)",
-                              boxShadow: idx === safeHeroIndex ? "0 0 10px rgba(216, 183, 140, 0.5)" : "none",
-                              transition: "all var(--transition-fast)"
-                            }}
-                          >
-                            <img src={imageUrlAtWidth(img, 400)} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                  <div className={styles.floatingMediaWrap}>
+                    <div
+                      className={`${styles.floatingImgContainer} ${
+                        isFlipping
+                          ? flipDirection === "forward"
+                            ? styles.flipForward
+                            : styles.flipBackward
+                          : styles.levitate
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        className={styles.imageZoomBtn}
+                        onClick={() => {
+                          if (!isFlipping) setLightboxOpen(true);
+                        }}
+                        aria-label={`View larger image of ${product.name}${selectedColor ? ` in ${selectedColor}` : ""}`}
+                        title="Click for a wider view"
+                      >
+                        <img
+                          src={gallery[safeHeroIndex]}
+                          alt={product.name}
+                          className={styles.productImg}
+                          srcSet={imageSrcSet(gallery[safeHeroIndex])}
+                          sizes={HERO_SIZES}
+                          width={HERO_WIDTH}
+                          height={HERO_HEIGHT}
+                          decoding="async"
+                          fetchPriority="high"
+                        />
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className={styles.placeholderArt}>
                     <GarmentSilhouette category={product.name} name={product.name} size={64} />
                   </div>
                 )}
+                {gallery[safeHeroIndex] && (
+                  <button
+                    type="button"
+                    className={styles.zoomHintBtn}
+                    onClick={() => {
+                      if (!isFlipping) setLightboxOpen(true);
+                    }}
+                    aria-label="Open larger image preview"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      <line x1="11" y1="8" x2="11" y2="14" />
+                      <line x1="8" y1="11" x2="14" y2="11" />
+                    </svg>
+                    <span>Zoom</span>
+                  </button>
+                )}
               </div>
+
+              {/* Gallery Thumbnails positioned beneath the floating garment */}
+              {gallery.length > 1 && (
+                <div className={styles.thumbnailDock}>
+                  {gallery.map((img, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setHeroImageIndex(idx)}
+                      className={`${styles.thumbBtn} ${idx === safeHeroIndex ? styles.activeThumb : ""}`}
+                      aria-label={`Show image ${idx + 1}`}
+                      aria-current={idx === safeHeroIndex}
+                    >
+                      <img
+                        src={imageUrlAtWidth(img, 400)}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className={styles.infoCol}>
-              <div>
+
+            {/* 2. Product Information & Pre-Order Form Below */}
+            <div className={styles.infoSection}>
+              <div className={styles.productMeta}>
                 <div className={styles.badgeRow} style={{ marginBottom: "var(--space-3)" }}>
                   <span className={styles.batchBadge}>{batch.name}</span>
                   {batch.endAt && <Countdown targetDate={batch.endAt} />}
@@ -427,10 +504,11 @@ export default function ProductPageClient({ product, batch }: { product: Product
                 <p className={styles.productPrice}>
                   {formatMoney(effectivePrice, product.currency)}
                 </p>
+                {product.description && (
+                  <p className={styles.productDesc}>{product.description}</p>
+                )}
               </div>
-              {product.description && (
-                <p className={styles.productDesc}>{product.description}</p>
-              )}
+
               {!isOrderable && (
                 <div
                   className={styles.formCard}
@@ -443,49 +521,53 @@ export default function ProductPageClient({ product, batch }: { product: Product
                   </p>
                 </div>
               )}
-              <div className={styles.formCard}>
-                  {colors.length > 0 && (
-                    <div>
-                      <div className={styles.fieldLabel}>
-                        <span>Select Color</span>
-                        <span style={{ color: selectedColor ? "rgba(255, 255, 255, 0.95)" : "#ff80a0", fontWeight: 600 }}>
-                          {selectedColor ?? "Please select a color"}
-                        </span>
-                      </div>
-                      <div className={styles.variantOptions}>
-                        {colors.map((color) => {
-                          const available = isColorAvailable(color);
-                          // Browsing colourways stays possible on a closed or
-                          // sold-out product: only the add controls go away.
-                          const selectable = !isOrderable || available;
-                          return (
-                            <button
-                              key={color}
-                              id={`color-${color.toLowerCase()}`}
-                              className={`${styles.variantBtn} ${
-                                selectedColor === color ? styles.selected : ""
-                              } ${!selectable ? styles.disabledVariant : ""}`}
-                              onClick={() => {
-                                setSelectedColor(color);
-                                // Colour galleries are separate, so jump back to
-                                // the first shot of the newly picked colour.
-                                setHeroImageIndex(0);
-                                if (selectedSize && !isVariantAvailable(color, selectedSize)) {
-                                  setSelectedSize(null);
-                                }
-                              }}
 
-                              aria-disabled={!selectable}
-                            >
-                              {color}
-                              {!selectable && <span className={styles.soldOutX}>✗</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
+              <div className={styles.formCard}>
+                {colors.length > 0 && (
+                  <div>
+                    <div className={styles.fieldLabel}>
+                      <span>Select Color</span>
+                      <span style={{ color: selectedColor ? "rgba(255, 255, 255, 0.95)" : "#ff80a0", fontWeight: 600 }}>
+                        {selectedColor ?? "Please select a color"}
+                      </span>
                     </div>
-                  )}
-                  {sizes.length > 0 && (
+                    <div className={styles.swatchesRow}>
+                      {colors.map((color) => {
+                        const available = isColorAvailable(color);
+                        const selectable = !isOrderable || available;
+                        const swatch = getColorSwatch(color);
+                        const isSelected = selectedColor === color;
+                        return (
+                          <button
+                            key={color}
+                            id={`color-${color.toLowerCase()}`}
+                            type="button"
+                            className={`${styles.swatchBtn} ${
+                              isSelected ? styles.selectedSwatch : ""
+                            } ${!selectable ? styles.disabledSwatch : ""}`}
+                            onClick={() => handleColorChange(color)}
+                            aria-disabled={!selectable}
+                            aria-pressed={isSelected}
+                            title={color}
+                          >
+                            {swatch && (
+                              <span
+                                className={styles.swatchDot}
+                                style={{
+                                  background: swatch.bg,
+                                  border: swatch.border ? `1.5px solid ${swatch.border}` : "1.5px solid rgba(255, 255, 255, 0.25)",
+                                }}
+                              />
+                            )}
+                            <span className={styles.swatchName}>{color}</span>
+                            {!selectable && <span className={styles.soldOutLine} aria-hidden="true" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {sizes.length > 0 && (
                     <div>
                       <div className={styles.fieldLabel}>
                         <span>Select Size</span>
@@ -676,6 +758,15 @@ export default function ProductPageClient({ product, batch }: { product: Product
             </div>
           </div>
         )}
+        <ProductLightbox
+          isOpen={lightboxOpen}
+          images={gallery}
+          activeIndex={safeHeroIndex}
+          productName={product.name}
+          selectedColor={selectedColor}
+          onClose={() => setLightboxOpen(false)}
+          onIndexChange={setHeroImageIndex}
+        />
       </div>
     </div>
   );

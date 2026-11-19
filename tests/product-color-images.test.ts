@@ -7,6 +7,7 @@ import {
   colorImageCreateRows,
   colorImageDraftsFromRows,
   colorImagePayload,
+  getColorSwatch,
   imagesForColor,
   MAX_IMAGES_PER_COLOR,
   normalizeColorKey,
@@ -438,5 +439,39 @@ describe("admin form drafts", () => {
     expect(clearedColorLabels([" black "], [{ color: "Black", urls: ["/uploads/a.webp"] }])).toEqual(
       []
     );
+  });
+});
+
+describe("getColorSwatch", () => {
+  it("resolves rich fashion and multi-word colorways", () => {
+    expect(getColorSwatch("Dusty Pink")?.bg).toBe("#c98b94");
+    expect(getColorSwatch("Off-White")?.bg).toBe("#f4f1ea");
+    expect(getColorSwatch("Emerald")?.bg).toBe("#059669");
+    expect(getColorSwatch("Rose Gold")?.bg).toBe("#c8968c");
+    expect(getColorSwatch("Mocha")?.bg).toBe("#705344");
+    expect(getColorSwatch("Lilac")?.bg).toBe("#c4a3d4");
+  });
+
+  it("applies light, dark, and dusty modifiers dynamically", () => {
+    const base = getColorSwatch("Olive")?.bg;
+    const light = getColorSwatch("Light Olive")?.bg;
+    const dark = getColorSwatch("Dark Olive")?.bg;
+    expect(base).toBeTruthy();
+    expect(light).toBeTruthy();
+    expect(dark).toBeTruthy();
+    expect(light).not.toBe(base);
+    expect(dark).not.toBe(base);
+  });
+
+  it("blends compound color words and supports two-tone split swatches", () => {
+    expect(getColorSwatch("Blue Grey")?.bg).toMatch(/^#[0-9a-f]{6}$/);
+    expect(getColorSwatch("Black / White")?.bg).toContain("linear-gradient(135deg");
+    expect(getColorSwatch("Navy & Gold")?.bg).toContain("linear-gradient(135deg");
+  });
+
+  it("returns null for unrecognized non-color labels instead of a brown fallback", () => {
+    expect(getColorSwatch("Standard")).toBeNull();
+    expect(getColorSwatch("Edition 01")).toBeNull();
+    expect(getColorSwatch("")).toBeNull();
   });
 });
