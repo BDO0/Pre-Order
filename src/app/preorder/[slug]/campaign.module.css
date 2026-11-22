@@ -126,11 +126,11 @@
 
 /* Directional Flip Animations */
 .flipForward {
-  animation: flipStageRightToLeft 0.46s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: flipStageRightToLeft 0.32s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 .flipBackward {
-  animation: flipStageLeftToRight 0.46s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: flipStageLeftToRight 0.32s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 @keyframes gentleFloat {
@@ -199,6 +199,7 @@
   object-position: center;
   display: block;
   padding: var(--space-4);
+  border-radius: var(--radius-2xl);
   filter: drop-shadow(0 22px 38px rgba(0, 0, 0, 0.58));
   user-select: none;
   -webkit-user-drag: none;
@@ -661,8 +662,7 @@
   }
   .pedestalGlow,
   .swatchBtn,
-  .thumbBtn,
-  .zoomHintBtn {
+  .thumbBtn {
     transition: none;
   }
 }
@@ -680,34 +680,4 @@
   background: transparent;
   cursor: zoom-in;
   color: inherit;
-}
-
-.zoomHintBtn {
-  position: absolute;
-  bottom: var(--space-3);
-  right: var(--space-3);
-  z-index: 9;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: var(--radius-full);
-  background: rgba(24, 3, 10, 0.72);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(216, 183, 140, 0.38);
-  color: #f5e5d8;
-  font-family: var(--font-display);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  cursor: zoom-in;
-  box-shadow: 0 4px 14px rgba(14, 0, 4, 0.45);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.zoomHintBtn:hover {
-  background: rgba(138, 14, 44, 0.9);
-  border-color: #d8b78c;
-  color: #fff9f2;
-  transform: translateY(-1px);
 }

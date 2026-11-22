@@ -45,9 +45,9 @@ interface BrandLogoProps {
 export function BrandLogo({
   variant = "horizontal",
   height = 36,
-  color = "#fff",
-  textColor = "rgba(255, 255, 255, 0.95)",
-  subtextColor = "rgba(255, 255, 255, 0.85)",
+  color = "#D8B78C",
+  textColor = "#FFF9F2",
+  subtextColor = "#D8B78C",
   withTagline = true,
   className = "",
   style = {},

@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { SHOP_SOCIALS, SITE_NAME } from "@/lib/site";
 import { formatShortDate } from "@/lib/format";
 import React from "react";
@@ -18,8 +19,8 @@ export function TrustFooter({
   const productionStart = formatShortDate(batchEndAt);
   const etaText =
     isEta && productionStart
-      ? `Production starts on ${productionStart}. Less than 1 day within Metro Manila and 5–7 days to Mindanao.`
-      : "Items are produced in limited batches. Delivery takes less than 1 day within Metro Manila and 5–7 days to Mindanao.";
+      ? `Production takes 2–3 weeks after the drop closes on ${productionStart}. Once shipped, courier transit is under 1 day within Metro Manila and 5–7 days to Visayas & Mindanao.`
+      : "Items are made to order in 2–3 weeks after drop closure. Once shipped, courier transit is under 1 day within Metro Manila and 5–7 days to Visayas & Mindanao.";
 
   return (
     <footer style={{
@@ -27,9 +28,9 @@ export function TrustFooter({
       maxWidth: "1000px",
       margin: "0 auto",
       padding: "var(--space-12) var(--space-6) var(--space-6)",
-      color: "rgba(255, 255, 255, 0.7)",
+      color: "rgba(248, 245, 240, 0.75)",
       fontSize: "var(--text-sm)",
-      borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+      borderTop: "1px solid rgba(216, 183, 140, 0.18)",
       marginTop: "var(--space-12)"
     }}>
       <div style={{
@@ -39,19 +40,27 @@ export function TrustFooter({
         marginBottom: "var(--space-12)"
       }}>
         <div>
-          <h4 style={{ color: "white", fontWeight: 700, marginBottom: "var(--space-3)", fontSize: "var(--text-base)" }}>How long until it arrives?</h4>
+          <h4 style={{ color: "#FFF9F2", fontWeight: 700, marginBottom: "var(--space-3)", fontSize: "var(--text-base)" }}>How long until it arrives?</h4>
           <p style={{ lineHeight: 1.6 }}>{etaText}</p>
         </div>
         <div>
-          <h4 style={{ color: "white", fontWeight: 700, marginBottom: "var(--space-3)", fontSize: "var(--text-base)" }}>What if the size is wrong?</h4>
+          <h4 style={{ color: "#FFF9F2", fontWeight: 700, marginBottom: "var(--space-3)", fontSize: "var(--text-base)" }}>What if the size is wrong?</h4>
           <p style={{ lineHeight: 1.6 }}>We will gladly arrange an exchange if your item does not fit perfectly, subject to remaining stock.</p>
         </div>
         <div>
-          <h4 style={{ color: "white", fontWeight: 700, marginBottom: "var(--space-3)", fontSize: "var(--text-base)" }}>How do I pay?</h4>
-          <p style={{ lineHeight: 1.6 }}>Add items to your cart and check out. No payment upfront. Then send your order details to us on Instagram to confirm and arrange payment.</p>
+          <h4 style={{ color: "#FFF9F2", fontWeight: 700, marginBottom: "var(--space-3)", fontSize: "var(--text-base)" }}>How do I pay &amp; track?</h4>
+          <p style={{ lineHeight: 1.6, marginBottom: "var(--space-2)" }}>
+            Reserve on this site with no upfront payment, then send your order details to us on Instagram to confirm and arrange payment.
+          </p>
+          <Link
+            href="/order-status"
+            style={{ color: "#D8B78C", fontWeight: 600, textDecoration: "underline", textUnderlineOffset: "3px" }}
+          >
+            Track an existing order →
+          </Link>
         </div>
         <div>
-          <h4 style={{ color: "white", fontWeight: 700, marginBottom: "var(--space-3)", fontSize: "var(--text-base)" }}>Follow Us</h4>
+          <h4 style={{ color: "#FFF9F2", fontWeight: 700, marginBottom: "var(--space-3)", fontSize: "var(--text-base)" }}>Follow Us</h4>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", lineHeight: 1.6 }}>
             {SHOP_SOCIALS.map((social) => (
               <div key={social.label}>
@@ -60,7 +69,7 @@ export function TrustFooter({
                   href={social.url}
                   target="_blank"
                   rel="noreferrer"
-                  style={{ color: "#ffb4c8", textDecoration: "none" }}
+                  style={{ color: "#D8B78C", textDecoration: "none", fontWeight: 500 }}
                 >
                   {social.handle}
                 </a>

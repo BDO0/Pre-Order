@@ -98,6 +98,9 @@ export default async function HomePage() {
               <BrandLogo variant="horizontal" height={34} color="#D8B78C" textColor="#FFF9F2" subtextColor="#D8B78C" />
             </Link>
             <div className={styles.navActions}>
+              <Link href="/order-status" className={styles.navGhostBtn} id="nav-track-link" aria-label="Track Order" title="Track Order">
+                Track<span className={styles.navCartLabel}> Order</span>
+              </Link>
               <Link href="/cart" className={styles.navCartBtn} id="nav-cart-link" aria-label="View Cart" title="View Cart">
                 <CustomBagIcon size={16} />
                 <span className={styles.navCartLabel}>Cart</span>
@@ -107,14 +110,15 @@ export default async function HomePage() {
           </div>
         </nav>
         <main style={{ flex: 1 }}>
-          {
-
-
-}
           <h1 className="visually-hidden">
             {SITE_NAME} — limited pre-order drops
           </h1>
-          <StorefrontClient products={products} />
+          <StorefrontClient
+            products={products}
+            campaignTitle={activeBatch?.name}
+            campaignDescription={activeBatch?.description}
+            campaignEndAt={activeBatch?.endAt}
+          />
         </main>
         <TrustFooter batchEndAt={activeBatch?.endAt} />
       </div>

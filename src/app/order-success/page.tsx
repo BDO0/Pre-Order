@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useState, useEffect } from "react";
 import { SITE_NAME, SHOP_INSTAGRAM_HANDLE } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
+import { loadLastOrder } from "@/store/last-order";
 import { CustomCheckSealIcon } from "@/components/CustomerIcons";
 import { BrandLogo } from "@/components/BrandLogo";
 import glass from "../glass.module.css";
@@ -96,8 +97,22 @@ function SummaryRow({ label, value, copyValue }: { label: string; value: string;
 
 function SuccessContent() {
   const searchParams = useSearchParams();
-  const reference    = searchParams.get("ref");
-  const token        = searchParams.get("token");
+  const urlReference = searchParams.get("ref");
+  const urlToken     = searchParams.get("token");
+  const [savedOrder, setSavedOrder] = useState<{ reference: string; accessToken: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!urlReference && !urlToken) {
+      const saved = loadLastOrder();
+      if (saved) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSavedOrder({ reference: saved.reference, accessToken: saved.accessToken });
+      }
+    }
+  }, [urlReference, urlToken]);
+
+  const reference = urlReference ?? savedOrder?.reference ?? null;
+  const token     = urlToken ?? savedOrder?.accessToken ?? null;
 
   const trackPath = token
     ? `/order-status?token=${encodeURIComponent(token)}`
@@ -178,18 +193,12 @@ function SuccessContent() {
 
   return (
     <div
+      className={glass.glassCard}
       style={{
         position: "relative",
-        background: "rgba(255, 255, 255, 0.08)",
-        backdropFilter: "blur(32px) saturate(200%)",
-        WebkitBackdropFilter: "blur(32px) saturate(200%)",
-        borderRadius: "var(--radius-2xl)",
-        border: "1px solid rgba(255, 255, 255, 0.16)",
         padding: "clamp(var(--space-6), 5vw, var(--space-10)) clamp(var(--space-4), 4vw, var(--space-8))",
         maxWidth: "600px",
         width: "100%",
-        boxShadow:
-          "0 24px 64px rgba(0, 0, 0, 0.65), 0 0 36px rgba(255, 175, 200, 0.22), 0 0 64px rgba(156, 232, 248, 0.14), inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.55), inset 0 -1px 1px 0 rgba(255, 255, 255, 0.1)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -197,88 +206,73 @@ function SuccessContent() {
         textAlign: "center",
       }}
     >
-      {}
       <div style={{ display: "flex", justifyContent: "flex-start", width: "100%" }}>
         <Link href="/" className={glass.navBack} style={{ fontSize: "var(--text-sm)" }}>
           ← Back to Shop
         </Link>
       </div>
 
-      {}
       <div
         style={{
           width: "76px",
           height: "76px",
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(168, 16, 56, 0.45) 0%, rgba(255, 255, 255, 0.05) 70%)",
-          border: "1px solid rgba(255, 200, 220, 0.4)",
+          background: "radial-gradient(circle, rgba(138, 14, 44, 0.5) 0%, rgba(32, 4, 12, 0.7) 75%)",
+          border: "1px solid rgba(216, 183, 140, 0.48)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          boxShadow: "0 0 28px rgba(255, 175, 200, 0.35)",
+          boxShadow: "0 0 28px rgba(216, 183, 140, 0.25)",
         }}
         aria-hidden="true"
       >
-        <CustomCheckSealIcon size={46} style={{ color: "#ffffff" }} />
+        <CustomCheckSealIcon size={46} style={{ color: "#D8B78C" }} />
       </div>
 
-      {}
       <h1
+        className={glass.pageTitleEditorial}
         style={{
-          fontFamily: "var(--font-serif)",
           fontSize: "clamp(2rem, 4vw, 2.5rem)",
-          fontWeight: 700,
-          background: "linear-gradient(135deg, #ffffff 0%, #ffeaf0 50%, #f7b4c4 100%)",
-          WebkitBackgroundClip: "text",
-          backgroundClip: "text",
-          WebkitTextFillColor: "transparent",
           margin: 0,
-          letterSpacing: "-0.01em",
         }}
       >
         Order Received!
       </h1>
 
-      <p style={{ fontSize: "var(--text-base)", color: "rgba(255, 255, 255, 0.75)", maxWidth: "440px", lineHeight: 1.6, margin: 0 }}>
+      <p style={{ fontSize: "var(--text-base)", color: "rgba(248, 245, 240, 0.82)", maxWidth: "440px", lineHeight: 1.6, margin: 0 }}>
         Your pre-order is in. Send your order details to us on Instagram to confirm.
       </p>
 
-      {
-
-}
       {(reference || orderDetail) && (
         <div
           id="order-summary-card"
           style={{
             width: "100%",
             borderRadius: "var(--radius-xl)",
-            border: "1px solid rgba(255,200,220,0.35)",
-            background: "rgba(168,16,56,0.13)",
+            border: "1px solid rgba(216, 183, 140, 0.35)",
+            background: "rgba(32, 4, 12, 0.65)",
             backdropFilter: "blur(12px)",
             overflow: "hidden",
           }}
         >
-          {}
           <div
             style={{
               display: "flex",
               alignItems: "center",
               gap: "var(--space-2)",
               padding: "var(--space-3) var(--space-4)",
-              background: "rgba(234, 179, 8, 0.18)",
-              borderBottom: "1px solid rgba(234,179,8,0.3)",
+              background: "rgba(216, 183, 140, 0.14)",
+              borderBottom: "1px solid rgba(216, 183, 140, 0.28)",
             }}
           >
             <span style={{ fontSize: "1rem" }}>📸</span>
-            <p style={{ margin: 0, fontSize: "var(--text-xs)", fontWeight: 700, color: "#fde68a", textAlign: "left", lineHeight: 1.4 }}>
-              Screenshot or copy this card.
+            <p style={{ margin: 0, fontSize: "var(--text-xs)", fontWeight: 700, color: "#F3E3C8", textAlign: "left", lineHeight: 1.4 }}>
+              Screenshot or copy this card, then send it to us on Instagram.
             </p>
           </div>
 
-          {}
           <div style={{ padding: "var(--space-4) var(--space-5)" }}>
 
-            {}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-3)" }}>
               <p style={{ margin: 0, fontSize: "var(--text-xs)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.6)" }}>
                 Order Summary

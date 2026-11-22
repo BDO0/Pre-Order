@@ -227,11 +227,9 @@
   transform: translateY(-50%);
   width: 44px;
   height: 44px;
-  border-radius: var(--radius-full);
-  background: rgba(36, 4, 13, 0.82);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(216, 183, 140, 0.4);
+  border-radius: 0;
+  background: transparent;
+  border: none;
   color: #FFF9F2;
   padding: 0;
   margin: 0;
@@ -240,31 +238,31 @@
   justify-content: center;
   cursor: pointer;
   z-index: 10;
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 6px 20px rgba(18, 0, 5, 0.5), inset 0 1px 0 rgba(216, 183, 140, 0.25);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease, opacity 0.2s ease;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.75));
+  opacity: 0.85;
   touch-action: manipulation;
   user-select: none;
 }
 
 .showcaseNavBtnLeft {
-  left: var(--space-3);
+  left: var(--space-1);
 }
 
 .showcaseNavBtnRight {
-  right: var(--space-3);
+  right: var(--space-1);
 }
 
 .showcaseNavBtnLeft:hover,
 .showcaseNavBtnRight:hover {
-  background: rgba(138, 14, 44, 0.95);
-  border-color: rgba(216, 183, 140, 0.8);
-  transform: translateY(-50%) scale(1.08);
-  box-shadow: 0 8px 24px rgba(138, 14, 44, 0.45);
+  color: #D8B78C;
+  opacity: 1;
+  transform: translateY(-50%) scale(1.15);
 }
 
 .showcaseNavBtnLeft:active,
 .showcaseNavBtnRight:active {
-  transform: translateY(-50%) scale(0.96);
+  transform: translateY(-50%) scale(0.95);
 }
 
 @media (max-width: 640px) {
@@ -276,11 +274,11 @@
   }
 
   .showcaseNavBtnLeft {
-    left: var(--space-2);
+    left: 0;
   }
 
   .showcaseNavBtnRight {
-    right: var(--space-2);
+    right: 0;
   }
 }
 
@@ -347,7 +345,8 @@
   object-position: center;
   display: block;
   padding: var(--space-4);
-  transition: opacity 0.3s ease;
+  border-radius: var(--radius-2xl);
+  transition: opacity 0.2s ease;
 }
 
 .showcaseCard:hover .showcaseImg {
@@ -359,8 +358,80 @@
   display: none;
 }
 
-.mediaFrame::after-legacy-unused {
+.howItWorksRibbon {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: #D8B78C;
+}
+
+.mobilePieceStrip {
   display: none;
+}
+
+@media (max-width: 960px) {
+  .mobilePieceStrip {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  .mobilePieceStrip::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.mobilePieceChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 5px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(216, 183, 140, 0.28);
+  background: rgba(36, 4, 13, 0.78);
+  color: #FAF3EC;
+  font-family: var(--font-display);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.activeMobilePieceChip {
+  border-color: #D8B78C;
+  background: linear-gradient(135deg, #8A0E2C 0%, #520014 100%);
+  color: #FFF9F2;
+  box-shadow: 0 4px 14px rgba(138, 14, 44, 0.45);
+}
+
+.mobilePieceThumb,
+.mobilePieceThumbPlaceholder {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: rgba(14, 2, 6, 0.7);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(216, 183, 140, 0.35);
+}
+
+.mobilePieceName {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .placeholderArt {
@@ -589,8 +660,8 @@
 
 @media (max-width: 640px) {
   .actionRow {
-    flex-direction: row;
-    gap: var(--space-2);
+    flex-direction: column;
+    gap: var(--space-3);
   }
 }
 
@@ -611,7 +682,9 @@
 
 @media (max-width: 640px) {
   .qtyBox {
-    height: 52px;
+    height: 46px;
+    width: fit-content;
+    align-self: center;
   }
 }
 
@@ -681,11 +754,13 @@
 
 @media (max-width: 640px) {
   .addToOrderBtn {
-    height: 48px;
-    font-size: clamp(11px, 3.5vw, 13px);
-    padding: 0 var(--space-2);
+    width: 100%;
+    flex: none;
+    height: 50px;
+    font-size: 0.95rem;
+    padding: 0 var(--space-4);
     min-width: 0;
-    line-height: 1.2;
+    line-height: 1.25;
     text-align: center;
   }
 }
@@ -874,12 +949,33 @@
   }
 
   .smallProductName {
-    font-size: 0.76rem;
+    font-size: 0.85rem;
   }
 
   .smallProductPrice {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
   }
+}
+
+.cardSwatches {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.cardSwatchDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+}
+
+.cardSwatchMore {
+  font-size: 10px;
+  font-weight: 700;
+  color: #D8B78C;
 }
 
 .smallProductCard {
@@ -1128,11 +1224,11 @@
 }
 
 .flipForward {
-  animation: flipStageRightToLeft 0.46s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: flipStageRightToLeft 0.32s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 .flipBackward {
-  animation: flipStageLeftToRight 0.46s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: flipStageLeftToRight 0.32s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 @keyframes gentleFloat {
@@ -1341,8 +1437,7 @@
 
   .pedestalGlow,
   .swatchBtn,
-  .thumbBtn,
-  .zoomHintBtn {
+  .thumbBtn {
     transition: none;
   }
 }
@@ -1359,34 +1454,4 @@
   background: transparent;
   cursor: zoom-in;
   color: inherit;
-}
-
-.zoomHintBtn {
-  position: absolute;
-  bottom: var(--space-3);
-  right: var(--space-3);
-  z-index: 9;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: var(--radius-full);
-  background: rgba(24, 3, 10, 0.72);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(216, 183, 140, 0.38);
-  color: #f5e5d8;
-  font-family: var(--font-display);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  cursor: zoom-in;
-  box-shadow: 0 4px 14px rgba(14, 0, 4, 0.45);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.zoomHintBtn:hover {
-  background: rgba(138, 14, 44, 0.9);
-  border-color: #d8b78c;
-  color: #fff9f2;
-  transform: translateY(-1px);
 }

@@ -145,13 +145,13 @@
   min-height: 42px;
 }
 .navBack:hover {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 200, 220, 0.45);
+  background: rgba(72, 10, 26, 0.9);
+  border-color: rgba(216, 183, 140, 0.65);
   color: #fff;
   transform: translateY(-1.5px);
   box-shadow:
-    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.6),
-    0 8px 24px rgba(220, 40, 85, 0.3);
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.3),
+    0 8px 24px rgba(18, 0, 5, 0.45);
 }
 
 .navInner {
@@ -213,13 +213,13 @@
 }
 
 .navGhostBtn:hover {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 200, 220, 0.45);
+  background: rgba(72, 10, 26, 0.9);
+  border-color: rgba(216, 183, 140, 0.65);
   color: #fff;
   transform: translateY(-1.5px);
   box-shadow:
-    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.6),
-    0 8px 24px rgba(220, 40, 85, 0.3);
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.3),
+    0 8px 24px rgba(18, 0, 5, 0.45);
 }
 
 .navCartBtn {
@@ -423,10 +423,10 @@
 
 .glassPage :global(.form-input):focus {
   background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 180, 205, 0.8);
+  border-color: rgba(216, 183, 140, 0.8);
   box-shadow:
-    0 0 0 3px rgba(220, 40, 85, 0.25),
-    0 0 16px rgba(255, 180, 205, 0.25),
+    0 0 0 3px rgba(216, 183, 140, 0.22),
+    0 0 16px rgba(216, 183, 140, 0.2),
     inset 0 1px 1px rgba(255, 255, 255, 0.3);
   outline: none;
 }
@@ -447,13 +447,13 @@
 
 
 .glassPage .btn-primary {
-  background: linear-gradient(135deg, #a81038 0%, #800020 50%, #5e0018 100%);
-  color: #ffffff;
+  background: var(--cta-gold-bg);
+  color: var(--cta-gold-text);
   border-radius: var(--radius-full);
-  border: 1px solid rgba(255, 200, 220, 0.35);
+  border: 1px solid rgba(168, 131, 77, 0.9);
   box-shadow:
-    0 8px 24px rgba(168, 16, 56, 0.45),
-    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.4);
+    0 4px 18px rgba(216, 183, 140, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -463,46 +463,46 @@
 }
 
 .glassPage .btn-primary:hover {
-  background: linear-gradient(135deg, #c01844 0%, #950026 50%, #6e001d 100%);
-  border-color: rgba(255, 220, 235, 0.6);
+  background: var(--cta-gold-hover);
+  color: #1A050B;
+  border-color: rgba(168, 131, 77, 1);
   box-shadow:
-    0 12px 32px rgba(220, 40, 85, 0.55),
-    0 0 24px rgba(255, 180, 205, 0.3),
-    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.6);
+    0 8px 28px rgba(216, 183, 140, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
   transform: translateY(-1.5px);
 }
 
 .glassPage .btn-secondary {
-  background: rgba(255, 255, 255, 0.09);
+  background: rgba(46, 6, 17, 0.7);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  color: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #FAF3EC;
+  border: 1px solid rgba(216, 183, 140, 0.32);
   border-radius: var(--radius-full);
   box-shadow:
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.15),
     0 4px 16px rgba(0, 0, 0, 0.25);
   font-weight: 600;
   transition: all 0.25s ease;
 }
 .glassPage .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 210, 225, 0.45);
+  background: rgba(72, 10, 26, 0.9);
+  border-color: rgba(216, 183, 140, 0.65);
   color: #fff;
   transform: translateY(-1px);
 }
 
 .glassPage .btn-ghost {
-  color: rgba(255, 255, 255, 0.8);
-  border-color: rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.05);
+  color: rgba(248, 245, 240, 0.85);
+  border-color: rgba(216, 183, 140, 0.24);
+  background: rgba(36, 4, 13, 0.5);
   border-radius: var(--radius-full);
   transition: all 0.2s ease;
 }
 .glassPage .btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(72, 10, 26, 0.85);
   color: #fff;
-  border-color: rgba(255, 255, 255, 0.25);
+  border-color: rgba(216, 183, 140, 0.55);
 }
 
 
@@ -511,7 +511,7 @@
   font-family: var(--font-serif);
   font-weight: 700;
   letter-spacing: -0.01em;
-  background: linear-gradient(135deg, #ffffff 0%, #ffeaf0 50%, #f7b4c4 100%);
+  background: linear-gradient(135deg, #FFF9F2 0%, #F5E5D8 50%, #D8B78C 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;

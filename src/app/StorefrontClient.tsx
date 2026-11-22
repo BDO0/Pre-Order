@@ -42,11 +42,26 @@ export interface StorefrontProduct {
 interface Props {
   products: StorefrontProduct[];
   campaignStatus?: string;
+  campaignTitle?: string | null;
+  campaignDescription?: string | null;
+  campaignEndAt?: string | null;
+}
+
+function syncStorefrontUrl(pieceSlug: string | undefined, color: string | null) {
+  if (typeof window === "undefined" || !pieceSlug) return;
+  const url = new URL(window.location.href);
+  url.searchParams.set("piece", pieceSlug);
+  if (color) url.searchParams.set("color", color);
+  else url.searchParams.delete("color");
+  window.history.replaceState(null, "", url.toString());
 }
 
 export default function StorefrontClient({
   products,
   campaignStatus,
+  campaignTitle,
+  campaignDescription,
+  campaignEndAt,
 }: Props) {
   const { addItem, getItemCount, clearCart, items } = useCartStore();
   const [mounted, setMounted] = useState(false);
@@ -101,10 +116,11 @@ export default function StorefrontClient({
     if (selectedSize && !isVariantAvailable(color, selectedSize)) {
       setSelectedSize(null);
     }
+    syncStorefrontUrl(activeProduct?.slug, color);
   };
 
   const handleColorChange = (color: string) => {
-    if (color === selectedColor || isFlipping) return;
+    if (color === selectedColor) return;
 
     // Respect the OS "reduce motion" setting: switch instantly, no flip.
     if (
@@ -124,15 +140,30 @@ export default function StorefrontClient({
     setIsFlipping(true);
 
     flipTimersRef.current.push(
-      setTimeout(() => applyColor(color), 220),
+      setTimeout(() => applyColor(color), 150),
       setTimeout(() => {
         setIsFlipping(false);
         flipTimersRef.current = [];
-      }, 500)
+      }, 320)
     );
   };
 
   const prevProductIdRef = useRef<string>(activeProduct?.id ?? "");
+  useEffect(() => {
+    if (typeof window === "undefined" || products.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const pieceSlug = params.get("piece");
+    const colorParam = params.get("color");
+    if (!pieceSlug) return;
+    const matched = products.find((p) => p.slug === pieceSlug);
+    if (!matched) return;
+    prevProductIdRef.current = matched.id;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedProductId(matched.id);
+    if (colorParam && matched.variants.some((v) => v.color === colorParam)) {
+      setSelectedColor(colorParam);
+    }
+  }, [products]);
   useEffect(() => {
     if (activeProduct && activeProduct.id !== prevProductIdRef.current) {
       prevProductIdRef.current = activeProduct.id;
@@ -197,6 +228,7 @@ export default function StorefrontClient({
     setHeroImageIndex(0);
     setHighlightPulse(true);
     setTimeout(() => setHighlightPulse(false), 800);
+    syncStorefrontUrl(product.slug, null);
     if (autoScroll && typeof window !== "undefined" && window.innerWidth <= 960) {
       showcaseRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
@@ -531,8 +563,78 @@ export default function StorefrontClient({
       </div>
     );
   }
+  const effectiveCampaignTitle = campaignTitle ?? products[0]?.batchName ?? null;
+  const effectiveCampaignEndAt = campaignEndAt ?? products[0]?.batchEndAt ?? null;
   return (
     <div className={`glass-storefront ${styles.storefrontWrap}`}>
+      {effectiveCampaignTitle && (
+        <header className={styles.campaignHeader}>
+          <div className={styles.campaignHeaderLeft}>
+            <div className={styles.campaignBadgeRow}>
+              <span className="badge badge-open">
+                <span className={styles.liveDropDot} aria-hidden="true" />
+                Live Pre-Order Drop
+              </span>
+              {effectiveCampaignEndAt && (
+                <Countdown targetDate={effectiveCampaignEndAt} />
+              )}
+            </div>
+            <h2 className={styles.campaignTitle}>{effectiveCampaignTitle}</h2>
+            <p className={styles.campaignDesc}>
+              {campaignDescription ||
+                "Limited-run pre-order pieces. Reserve your sizes with zero upfront payment, then confirm & settle via Instagram DM."}
+            </p>
+            <div className={styles.howItWorksRibbon}>
+              <span>1. Reserve pieces</span>
+              <span aria-hidden="true">·</span>
+              <span>2. Save your order ref</span>
+              <span aria-hidden="true">·</span>
+              <span>3. Confirm &amp; pay in IG DM</span>
+            </div>
+          </div>
+          <a
+            href={SHOP_INSTAGRAM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.campaignDmLink}
+          >
+            <span>DM @{SHOP_INSTAGRAM_HANDLE}</span>
+            <span className={styles.dmArrow} aria-hidden="true">↗</span>
+          </a>
+        </header>
+      )}
+      {filteredProducts.length > 1 && (
+        <div className={styles.mobilePieceStrip} aria-label="Quick switch piece">
+          {filteredProducts.map((p) => {
+            const isSelected = p.id === activeProduct?.id;
+            const thumb = primaryImageForColor(p, null);
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => handleSelectProduct(p, false)}
+                className={`${styles.mobilePieceChip} ${isSelected ? styles.activeMobilePieceChip : ""}`}
+                aria-current={isSelected ? "true" : undefined}
+              >
+                {thumb ? (
+                  <img
+                    src={imageUrlAtWidth(thumb, 400)}
+                    alt=""
+                    className={styles.mobilePieceThumb}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <span className={styles.mobilePieceThumbPlaceholder} aria-hidden="true">
+                    <GarmentSilhouette category={p.category} name={p.name} size={14} />
+                  </span>
+                )}
+                <span className={styles.mobilePieceName}>{p.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div className={styles.splitLayout}>
         <div className={styles.highlightCol}>
           {activeProduct && (
@@ -616,24 +718,6 @@ export default function StorefrontClient({
                       {activeProduct.category || `${SITE_NAME} Collection`}
                     </span>
                   </div>
-                )}
-                {gallery[safeHeroIndex] && (
-                  <button
-                    type="button"
-                    className={styles.zoomHintBtn}
-                    onClick={() => {
-                      if (!isFlipping) setLightboxOpen(true);
-                    }}
-                    aria-label="Open larger image preview"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                      <line x1="11" y1="8" x2="11" y2="14" />
-                      <line x1="8" y1="11" x2="14" y2="11" />
-                    </svg>
-                    <span>Zoom</span>
-                  </button>
                 )}
                 {(activeProduct.preorderStatus === "COMING_SOON" || activeProduct.preorderStatus === "SOLD_OUT") && (
                   <div className={styles.badgeOverlay}>
@@ -939,6 +1023,31 @@ export default function StorefrontClient({
                   </div>
                   <div className={styles.smallCardBody}>
                     <h4 className={styles.smallProductName}>{p.name}</h4>
+                    {(() => {
+                      const cardColors = [...new Set(p.variants.filter((v) => v.color).map((v) => v.color!))];
+                      if (cardColors.length === 0) return null;
+                      const shown = cardColors.slice(0, 5);
+                      const extra = cardColors.length - shown.length;
+                      return (
+                        <div className={styles.cardSwatches} aria-label={`${cardColors.length} colors available`}>
+                          {shown.map((c) => {
+                            const sw = getColorSwatch(c);
+                            return (
+                              <span
+                                key={c}
+                                className={styles.cardSwatchDot}
+                                title={c}
+                                style={{
+                                  background: sw?.bg ?? "rgba(216, 183, 140, 0.45)",
+                                  borderColor: sw?.border ?? "rgba(255, 255, 255, 0.3)",
+                                }}
+                              />
+                            );
+                          })}
+                          {extra > 0 && <span className={styles.cardSwatchMore}>+{extra}</span>}
+                        </div>
+                      );
+                    })()}
                     <div className={styles.smallPriceRow}>
                       <span className={styles.smallProductPrice}>
                         {formatMoney(p.price)}

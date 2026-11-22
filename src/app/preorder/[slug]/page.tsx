@@ -244,6 +244,9 @@ export default async function PreorderPage({ params }: Props) {
                 <Link href="/" className={glass.navGhostBtn} aria-label="Back to Shop">
                   ← <span className={glass.mobileHideText}>Back to </span>Shop
                 </Link>
+                <Link href="/order-status" className={glass.navGhostBtn} aria-label="Track Order">
+                  Track<span className={glass.mobileHideText}> Order</span>
+                </Link>
                 <Link
                   href="/cart"
                   className={glass.navCartBtn}
@@ -255,17 +258,15 @@ export default async function PreorderPage({ params }: Props) {
               </div>
             </div>
           </nav>
-          {}
           <h1 className="visually-hidden">
             {batchData.batch.name} — {SITE_NAME} pre-order
           </h1>
-          {
-
-
-}
           <StorefrontClient
             products={batchData.products}
             campaignStatus={batchData.batch.status}
+            campaignTitle={batchData.batch.name}
+            campaignDescription={batchData.batch.description}
+            campaignEndAt={batchData.batch.endAt}
           />
           <section style={{ maxWidth: "760px", margin: "var(--space-8) auto var(--space-16)", paddingInline: "var(--space-4)" }}>
             <div

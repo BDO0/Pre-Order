@@ -7,6 +7,7 @@ import styles from "./status.module.css";
 import glass from "../glass.module.css";
 import { customerStatusCopy } from "@/lib/order-status-copy";
 import { formatMoney } from "@/lib/format";
+import { INSTAGRAM_HANDLE_HINT } from "@/lib/instagram";
 import { SHOP_INSTAGRAM_HANDLE, SHOP_INSTAGRAM_URL, SITE_NAME } from "@/lib/site";
 import { BrandLogo } from "@/components/BrandLogo";
 import { CustomAlertIcon } from "@/components/CustomerIcons";
@@ -134,7 +135,7 @@ function OrderTracker() {
         </nav>
         <main className={styles.mainContainer}>
           <div style={{ display: "flex", justifyContent: "center", marginBottom: "var(--space-3)" }}>
-            <BrandLogo variant="monogram" height={44} color="#fca5a5" />
+            <BrandLogo variant="monogram" height={44} color="#D8B78C" />
           </div>
           <h1
             className={glass.pageTitleEditorial}
@@ -152,7 +153,9 @@ function OrderTracker() {
             style={{ textAlign: "center", marginBottom: "var(--space-8)" }}
           >
             {showForm
-              ? "Enter your order number and the Instagram username you ordered with."
+              ? refFromUrl
+                ? `Enter the Instagram username you ordered with to view ${refFromUrl}.`
+                : "Enter your order number and the Instagram username you ordered with."
               : "Here is where your pre-order is right now."}
           </p>
           {loading && (
@@ -169,42 +172,81 @@ function OrderTracker() {
             </p>
           )}
           {showForm && !loading && (
-            <div
-              style={{
-                padding: "var(--space-6)",
-                background: "rgba(255,255,255,.055)",
-                backdropFilter: "blur(20px)",
-                WebkitBackdropFilter: "blur(20px)",
-                border: "1px solid rgba(255,255,255,.1)",
-                borderRadius: "var(--radius-2xl)",
-                textAlign: "center",
-                boxShadow: "0 16px 48px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.07)",
-              }}
-            >
-              <p
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
+              <form onSubmit={handleSearch} className={styles.searchForm}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="track-reference">
+                    Order Number
+                  </label>
+                  <input
+                    id="track-reference"
+                    type="text"
+                    required
+                    className="form-input"
+                    placeholder="PO-20260917-0001"
+                    value={reference}
+                    onChange={(event) => setReference(event.target.value.toUpperCase())}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="track-handle">
+                    Instagram Username
+                  </label>
+                  <input
+                    id="track-handle"
+                    type="text"
+                    required
+                    className="form-input"
+                    placeholder="@juandc"
+                    value={handle}
+                    onChange={(event) => setHandle(event.target.value)}
+                  />
+                  <span className="form-hint">{INSTAGRAM_HANDLE_HINT}</span>
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn btn-primary btn-full btn-lg"
+                  style={{ marginTop: "var(--space-2)" }}
+                >
+                  Track Order →
+                </button>
+              </form>
+              <div
                 style={{
-                  fontSize: "var(--text-base)",
-                  color: "rgba(255,255,255,.7)",
-                  marginBottom: "var(--space-4)",
-                  lineHeight: 1.6,
+                  padding: "var(--space-4) var(--space-5)",
+                  background: "rgba(36, 4, 13, 0.72)",
+                  border: "1px solid rgba(216, 183, 140, 0.2)",
+                  borderRadius: "var(--radius-xl)",
+                  textAlign: "center",
                 }}
               >
-                Lost your order link? Send us a DM on Instagram <strong style={{ color: "#ff8fa0" }}>@{SHOP_INSTAGRAM_HANDLE}</strong> and we&apos;ll send it right to you!
-              </p>
-              <a
-                href={SHOP_INSTAGRAM_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-primary btn-lg"
-              >
-                Message @{SHOP_INSTAGRAM_HANDLE}
-              </a>
+                <p
+                  style={{
+                    fontSize: "var(--text-sm)",
+                    color: "rgba(248, 245, 240, 0.78)",
+                    marginBottom: "var(--space-3)",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Forgot your order number? Send us a DM on Instagram{" "}
+                  <strong style={{ color: "#D8B78C" }}>@{SHOP_INSTAGRAM_HANDLE}</strong> and we&apos;ll send your link right over.
+                </p>
+                <a
+                  href={SHOP_INSTAGRAM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-secondary btn-sm"
+                >
+                  Message @{SHOP_INSTAGRAM_HANDLE}
+                </a>
+              </div>
             </div>
           )}
           {order && (
             <ResultCard
               order={order}
-              showStartOver={!token}
+              showStartOver={true}
               onStartOver={() => {
                 setOrder(null);
                 setError("");

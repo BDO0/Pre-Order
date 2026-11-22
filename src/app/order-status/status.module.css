@@ -20,18 +20,33 @@
 }
 
 .resultCard {
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(32px) saturate(200%);
-  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  background: linear-gradient(180deg, rgba(46, 6, 17, 0.88) 0%, rgba(32, 4, 12, 0.94) 100%);
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
   border-radius: var(--radius-2xl);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(216, 183, 140, 0.32);
   overflow: hidden;
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.6),
-    0 0 32px rgba(255, 175, 200, 0.15),
-    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.45),
-    inset 0 -1px 1px 0 rgba(255, 255, 255, 0.08);
+    0 0 32px rgba(138, 14, 44, 0.2),
+    inset 0 1px 0 rgba(216, 183, 140, 0.28),
+    inset 0 -1px 1px 0 rgba(255, 255, 255, 0.06);
   animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.searchForm {
+  padding: var(--space-6);
+  background: linear-gradient(180deg, rgba(46, 6, 17, 0.86) 0%, rgba(32, 4, 12, 0.92) 100%);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(216, 183, 140, 0.3);
+  border-radius: var(--radius-2xl);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(216, 183, 140, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 @keyframes slideUp {
@@ -119,7 +134,7 @@
 .totalRow span:last-child {
   font-family: var(--font-display);
   font-weight: 800;
-  background: linear-gradient(135deg, #ffffff 0%, #ffc0cb 50%, #f4728d 100%);
+  background: linear-gradient(135deg, #FFFFFF 0%, #F5E5D8 45%, #D8B78C 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -156,13 +171,13 @@
   width: 14px;
   height: 14px;
   border-radius: var(--radius-full);
-  background: linear-gradient(135deg, #a81038, #ff8095);
-  box-shadow: 0 0 12px rgba(255, 128, 149, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  background: linear-gradient(135deg, #F3E3C8, #D8B78C);
+  box-shadow: 0 0 12px rgba(216, 183, 140, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.6);
   margin-top: 4px;
   position: relative;
   z-index: 1;
   flex-shrink: 0;
-  border: 1.5px solid rgba(255, 255, 255, 0.6);
+  border: 1.5px solid rgba(255, 249, 242, 0.7);
 }
 
 .timelineContent {

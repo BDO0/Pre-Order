@@ -28,12 +28,13 @@ export function DeliveryEta({ batchEndAt }: { batchEndAt?: string | null }) {
         marginTop: "var(--space-2)",
         marginBottom: 0,
         fontSize: "var(--text-xs)",
-        color: "rgba(255, 255, 255, 0.7)",
+        color: "rgba(248, 245, 240, 0.78)",
         lineHeight: 1.5,
       }}
     >
-      Made to order — ships within {LEAD_TIME}{" "}
-      {closesOn ? `after this drop closes on ${closesOn}.` : "of drop closure."}
+      Made to order — crafted in {LEAD_TIME}{" "}
+      {closesOn ? `after this drop closes on ${closesOn}` : "after drop closure"}.
+      Courier transit once shipped: &lt;1 day Metro Manila, 5–7 days provincial.
     </p>
   );
 }

@@ -84,7 +84,7 @@ export default function ProductPageClient({ product, batch }: { product: Product
   };
 
   const handleColorChange = (color: string) => {
-    if (color === selectedColor || isFlipping) return;
+    if (color === selectedColor) return;
 
     // Respect the OS "reduce motion" setting: switch instantly, no flip.
     if (
@@ -104,11 +104,11 @@ export default function ProductPageClient({ product, batch }: { product: Product
     setIsFlipping(true);
 
     flipTimersRef.current.push(
-      setTimeout(() => applyColor(color), 220),
+      setTimeout(() => applyColor(color), 150),
       setTimeout(() => {
         setIsFlipping(false);
         flipTimersRef.current = [];
-      }, 500)
+      }, 320)
     );
   };
 
@@ -441,24 +441,6 @@ export default function ProductPageClient({ product, batch }: { product: Product
                   <div className={styles.placeholderArt}>
                     <GarmentSilhouette category={product.name} name={product.name} size={64} />
                   </div>
-                )}
-                {gallery[safeHeroIndex] && (
-                  <button
-                    type="button"
-                    className={styles.zoomHintBtn}
-                    onClick={() => {
-                      if (!isFlipping) setLightboxOpen(true);
-                    }}
-                    aria-label="Open larger image preview"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                      <line x1="11" y1="8" x2="11" y2="14" />
-                      <line x1="8" y1="11" x2="14" y2="11" />
-                    </svg>
-                    <span>Zoom</span>
-                  </button>
                 )}
               </div>
 
