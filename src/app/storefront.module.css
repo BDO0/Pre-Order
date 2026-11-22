@@ -889,9 +889,7 @@
   padding: 6px 16px;
   border-radius: var(--radius-full);
   border: 1px solid rgba(216, 183, 140, 0.28);
-  background: rgba(36, 4, 13, 0.65);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(36, 4, 13, 0.85);
   font-size: var(--text-xs);
   font-weight: 600;
   color: #FAF3EC;
@@ -979,9 +977,7 @@
 }
 
 .smallProductCard {
-  background: linear-gradient(180deg, rgba(46, 6, 17, 0.88) 0%, rgba(32, 4, 12, 0.92) 100%);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: linear-gradient(180deg, rgba(46, 6, 17, 0.92) 0%, rgba(32, 4, 12, 0.96) 100%);
   border-radius: var(--radius-xl);
   border: 1px solid rgba(216, 183, 140, 0.28);
   overflow: hidden;
@@ -1221,6 +1217,7 @@
 
 .levitate {
   animation: gentleFloat 4.8s ease-in-out infinite;
+  will-change: transform;
 }
 
 .flipForward {
@@ -1309,9 +1306,7 @@
   padding: 8px 16px;
   border-radius: var(--radius-full);
   border: 1px solid rgba(216, 183, 140, 0.28);
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(36, 4, 13, 0.78);
   color: #FAF3EC;
   font-family: var(--font-display);
   font-size: var(--text-sm);

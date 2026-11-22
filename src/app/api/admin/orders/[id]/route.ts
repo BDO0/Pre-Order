@@ -10,6 +10,7 @@ import {
 } from "@/lib/order-state-machine";
 import { releaseOrderCapacity } from "@/lib/order-service";
 import { revalidateStorefront } from "@/lib/storefront-cache";
+import { redactCustomerSnapshot, REDACTED_FIELD } from "@/lib/redaction";
 import type { OrderStatus } from "@prisma/client";
 export async function GET(
   request: NextRequest,
@@ -46,7 +47,23 @@ export async function GET(
     const canUpdateOrder = hasPermission(guard.role, "orders.update");
     const canVerifyPayment = hasPermission(guard.role, "payments.verify");
     const canReadCustomer = hasPermission(guard.role, "customers.read");
-    const customerSnapshot = order.customerSnapshot;
+    const canDeleteOrder = guard.role === "SUPER_ADMIN" || guard.role === "ADMIN";
+    const customerSnapshot = canReadCustomer
+      ? order.customerSnapshot
+      : redactCustomerSnapshot(
+          order.customerSnapshot as Record<string, unknown> | null,
+          new Set()
+        );
+    const customer = order.customer
+      ? {
+          ...order.customer,
+          instagramHandle: canReadCustomer
+            ? order.customer.instagramHandle
+            : order.customer.instagramHandle
+            ? REDACTED_FIELD
+            : null,
+        }
+      : null;
     const batch = order.batch
       ? { ...order.batch, etaAt: order.batch.endAt as Date | null }
       : null;
@@ -54,6 +71,7 @@ export async function GET(
       success: true,
       data: {
         ...order,
+        customer,
         batch,
         customerSnapshot,
         allowedTransitions: canUpdateOrder
@@ -63,6 +81,7 @@ export async function GET(
           updateOrder: canUpdateOrder,
           verifyPayment: canVerifyPayment,
           readCustomer: canReadCustomer,
+          deleteOrder: canDeleteOrder,
         },
         viewerRole: guard.role,
       },
@@ -161,6 +180,12 @@ export async function DELETE(
   try {
     const guard = await requirePermission("orders.update", request);
     if (!guard.ok) return guard.response;
+    if (guard.role !== "SUPER_ADMIN" && guard.role !== "ADMIN") {
+      return NextResponse.json(
+        { success: false, error: { code: "FORBIDDEN", message: "Only admins can permanently delete orders." } },
+        { status: 403 }
+      );
+    }
     const { id } = await params;
 
     const order = await prisma.order.findUnique({

@@ -823,33 +823,48 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .admin-layout .badge {
-  font-weight: 700 !important;
-  letter-spacing: 0.03em !important;
+  font-weight: 700;
+  letter-spacing: 0.03em;
 }
 
+.badge-success,
 .admin-layout .badge-paid,
-.admin-layout .badge-confirmed,
 .admin-layout .badge-completed,
 .admin-layout .badge-open {
-  background: #dcfce7 !important;
-  color: #14532d !important;
-  border: 1px solid #86efac !important;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
 }
 
-.admin-layout .badge-unpaid,
+.badge-amber,
 .admin-layout .badge-pending,
-.admin-layout .badge-closed,
-.admin-layout .badge-cancelled,
-.admin-layout .badge-sold-out {
-  background: #fee2e2 !important;
-  color: #991b1b !important;
-  border: 1px solid #fca5a5 !important;
+.admin-layout .badge-coming {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
 }
 
-.admin-layout .badge-coming {
-  background: #fef3c7 !important;
-  color: #78350f !important;
-  border: 1px solid #fcd34d !important;
+.badge-info,
+.admin-layout .badge-confirmed {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.badge-neutral,
+.admin-layout .badge-closed,
+.admin-layout .badge-sold-out {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.badge-danger,
+.admin-layout .badge-unpaid,
+.admin-layout .badge-cancelled {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
 }
 
 .admin-layout .stat-label {

@@ -12,6 +12,7 @@ import {
 import { parseApiResponse } from "@/lib/api-client";
 import { buildColorImageMap, colorImageCoverage, primaryImageForColor } from "@/lib/product-color-images";
 import { copyTextToClipboard } from "@/lib/clipboard";
+import adminStyles from "../admin.module.css";
 
 interface AdminProductRow {
   id: string;
@@ -885,95 +886,17 @@ function ProductTableRow({
 
         {/* Actions */}
         <td>
-          <div
-            style={{
-              display: "flex",
-              gap: "var(--space-1)",
-              alignItems: "center",
-              justifyContent: "flex-end",
-            }}
-          >
-            {/* View Color/Size matrix details */}
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={onToggleExpand}
-              style={{
-                fontWeight: isExpanded ? 700 : 500,
-                color: isExpanded ? "var(--color-brand-600)" : undefined,
-              }}
-              title="View color and size breakdown"
-            >
-              {isExpanded ? "Hide Details ▲" : "Summary ▼"}
-            </button>
-
-            {/* Quick Copy summary text */}
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              style={
-                copiedSummaryId === product.id
-                  ? {
-                      color: "var(--color-success, #16a34a)",
-                      fontWeight: 700,
-                    }
-                  : undefined
-              }
-              title="Copy product listing summary text (colors, sizes, stock, link)"
-              onClick={onCopySummary}
-            >
-              {copiedSummaryId === product.id ? "Copied ✓" : "📋 Copy"}
-            </button>
-
-            {/* Customer Preview */}
-            <Link
-              href={`/preorder/${product.slug}`}
-              target="_blank"
-              className="btn btn-ghost btn-sm"
-              title="View from customer POV"
-            >
-              Preview
-            </Link>
-
-            {/* Edit */}
-            <Link
-              href={`/butigadmin/products/${product.id}/edit`}
-              className="btn btn-ghost btn-sm"
-              title="Edit product & variants"
-            >
-              Edit
-            </Link>
-
-            {/* Copy customer link */}
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              style={
-                copiedProductId === product.id
-                  ? {
-                      color: "var(--color-success, #86efac)",
-                      fontWeight: 700,
-                    }
-                  : undefined
-              }
-              title="Copy customer pre-order link"
-              onClick={onCopyLink}
-            >
-              {copiedProductId === product.id ? "Link ✓" : "Link"}
-            </button>
-
-            {/* Delete button (hard delete) */}
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              style={{ color: "var(--color-error, #dc2626)" }}
-              disabled={deletingId === product.id}
-              title="Permanently delete product"
-              onClick={onDelete}
-            >
-              {deletingId === product.id ? "Deleting..." : "Delete"}
-            </button>
-          </div>
+          <ProductRowActions
+            product={product}
+            isExpanded={isExpanded}
+            copiedProductId={copiedProductId}
+            copiedSummaryId={copiedSummaryId}
+            deletingId={deletingId}
+            onToggleExpand={onToggleExpand}
+            onCopySummary={onCopySummary}
+            onCopyLink={onCopyLink}
+            onDelete={onDelete}
+          />
         </td>
       </tr>
 
@@ -1317,5 +1240,131 @@ function ProductTableRow({
         </tr>
       )}
     </>
+  );
+}
+
+function ProductRowActions({
+  product,
+  isExpanded,
+  copiedProductId,
+  copiedSummaryId,
+  deletingId,
+  onToggleExpand,
+  onCopySummary,
+  onCopyLink,
+  onDelete,
+}: {
+  product: AdminProductRow;
+  isExpanded: boolean;
+  copiedProductId: string | null;
+  copiedSummaryId: string | null;
+  deletingId: string | null;
+  onToggleExpand: () => void;
+  onCopySummary: () => void;
+  onCopyLink: () => void;
+  onDelete: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = () => setMenuOpen(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [menuOpen]);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: "var(--space-1)",
+        alignItems: "center",
+        justifyContent: "flex-end",
+      }}
+    >
+      <button
+        type="button"
+        className="btn btn-ghost btn-sm"
+        onClick={onToggleExpand}
+        style={{
+          fontWeight: isExpanded ? 700 : 500,
+          color: isExpanded ? "var(--color-brand-600)" : undefined,
+        }}
+        title="View color and size breakdown"
+      >
+        {isExpanded ? "Hide ▲" : "Summary ▼"}
+      </button>
+
+      <Link
+        href={`/butigadmin/products/${product.id}/edit`}
+        className="btn btn-secondary btn-sm"
+        title="Edit product & variants"
+      >
+        Edit
+      </Link>
+
+      <div className={adminStyles.overflowWrap} onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          aria-label="More product actions"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((prev) => !prev)}
+        >
+          ⋯
+        </button>
+        {menuOpen && (
+          <div className={adminStyles.overflowMenu} role="menu">
+            <Link
+              href={`/?piece=${product.slug}`}
+              target="_blank"
+              className={adminStyles.overflowItem}
+              onClick={() => setMenuOpen(false)}
+            >
+              Preview in Storefront ↗
+            </Link>
+            <Link
+              href={`/preorder/${product.slug}`}
+              target="_blank"
+              className={adminStyles.overflowItem}
+              onClick={() => setMenuOpen(false)}
+            >
+              Preview Share Page ↗
+            </Link>
+            <button
+              type="button"
+              className={adminStyles.overflowItem}
+              onClick={() => {
+                setMenuOpen(false);
+                onCopyLink();
+              }}
+            >
+              {copiedProductId === product.id ? "Link Copied ✓" : "Copy Share Link"}
+            </button>
+            <button
+              type="button"
+              className={adminStyles.overflowItem}
+              onClick={() => {
+                setMenuOpen(false);
+                onCopySummary();
+              }}
+            >
+              {copiedSummaryId === product.id ? "Summary Copied ✓" : "Copy IG Summary"}
+            </button>
+            <button
+              type="button"
+              className={`${adminStyles.overflowItem} ${adminStyles.overflowItemDanger}`}
+              disabled={deletingId === product.id}
+              onClick={() => {
+                setMenuOpen(false);
+                onDelete();
+              }}
+            >
+              {deletingId === product.id ? "Deleting..." : "Delete Product"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

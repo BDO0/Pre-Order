@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -10,17 +10,86 @@ import {
 } from "@/lib/permissions";
 import { BrandLogo } from "@/components/BrandLogo";
 import type { AdminRole } from "@prisma/client";
+
 const NAV_ITEMS: readonly {
   href: string;
   label: string;
   permission?: Permission;
+  icon: ReactNode;
 }[] = [
-  { href: "/butigadmin/dashboard", label: "Dashboard", permission: "reports.read" },
-  { href: "/butigadmin/orders",    label: "Orders",    permission: "orders.read" },
-  { href: "/butigadmin/batches",   label: "Batches",   permission: "batches.read" },
-  { href: "/butigadmin/products",  label: "Products",  permission: "products.read" },
-  { href: "/butigadmin/account",   label: "Account" },
+  {
+    href: "/butigadmin/dashboard",
+    label: "Dashboard",
+    permission: "reports.read",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3" y="3" width="7" height="9" rx="1" />
+        <rect x="14" y="3" width="7" height="5" rx="1" />
+        <rect x="14" y="12" width="7" height="9" rx="1" />
+        <rect x="3" y="16" width="7" height="5" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    href: "/butigadmin/orders",
+    label: "Orders",
+    permission: "orders.read",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+        <rect x="9" y="3" width="6" height="4" rx="1" />
+        <path d="M9 12h6" />
+        <path d="M9 16h6" />
+      </svg>
+    ),
+  },
+  {
+    href: "/butigadmin/batches",
+    label: "Batches",
+    permission: "batches.read",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+        <line x1="12" y1="22.08" x2="12" y2="12" />
+      </svg>
+    ),
+  },
+  {
+    href: "/butigadmin/products",
+    label: "Products",
+    permission: "products.read",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <path d="M16 10a4 4 0 0 1-8 0" />
+      </svg>
+    ),
+  },
+  {
+    href: "/butigadmin/settings",
+    label: "Settings",
+    permission: "settings.write",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      </svg>
+    ),
+  },
+  {
+    href: "/butigadmin/account",
+    label: "Account",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+    ),
+  },
 ];
+
 export default function AdminLayoutClient({
   children,
   user,
@@ -65,6 +134,23 @@ export default function AdminLayoutClient({
     typeof user.role === "string" && user.role in ROLE_LABELS
       ? ROLE_LABELS[user.role as AdminRole]
       : "Unknown role";
+
+  const renderNavLinks = (closeMobile: boolean) => (
+    <nav className="admin-nav" aria-label="Admin navigation">
+      {visibleItems.map((item) => (
+        <Link
+          key={item.href}
+          href={item.href}
+          onClick={closeMobile ? () => setMobileMenuOpen(false) : undefined}
+          className={`admin-nav-link ${isActiveHref(item.href) ? "active" : ""}`}
+        >
+          <span className="admin-nav-link-icon">{item.icon}</span>
+          <span>{item.label}</span>
+        </Link>
+      ))}
+    </nav>
+  );
+
   return (
     <div className="admin-layout">
       <header className="admin-mobilebar">
@@ -113,18 +199,7 @@ export default function AdminLayoutClient({
             </svg>
           </button>
         </div>
-        <nav className="admin-nav" aria-label="Admin navigation">
-          {visibleItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setMobileMenuOpen(false)}
-              className={`admin-nav-link ${isActiveHref(item.href) ? "active" : ""}`}
-            >
-              <span>{item.label}</span>
-            </Link>
-          ))}
-        </nav>
+        {renderNavLinks(true)}
         <div className="admin-drawer-footer">
           <div style={{ marginBottom: "var(--space-4)" }}>
             <p style={{ color: "white", fontWeight: 600, fontSize: "var(--text-sm)" }}>
@@ -135,13 +210,24 @@ export default function AdminLayoutClient({
             </p>
             <p className="admin-role-pill">{roleLabel}</p>
           </div>
-          <button
-            type="button"
-            className="admin-drawer-signout"
-            onClick={() => signOut({ callbackUrl: "/butigadmin/login" })}
-          >
-            Sign Out
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+            <Link
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="admin-drawer-signout"
+              style={{ textDecoration: "none", display: "block" }}
+            >
+              View Storefront ↗
+            </Link>
+            <button
+              type="button"
+              className="admin-drawer-signout"
+              onClick={() => signOut({ callbackUrl: "/butigadmin/login" })}
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
       </aside>
       <aside className="admin-sidebar">
@@ -151,17 +237,7 @@ export default function AdminLayoutClient({
             Admin Panel
           </span>
         </div>
-        <nav className="admin-nav" aria-label="Admin navigation">
-          {visibleItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`admin-nav-link ${isActiveHref(item.href) ? "active" : ""}`}
-            >
-              <span>{item.label}</span>
-            </Link>
-          ))}
-        </nav>
+        {renderNavLinks(false)}
         <div style={{ marginTop: "auto", paddingTop: "var(--space-6)", borderTop: "1px solid rgb(255 255 255 / 0.15)" }}>
           <div style={{ marginBottom: "var(--space-4)" }}>
             <p style={{ color: "white", fontWeight: 600, fontSize: "var(--text-sm)" }}>
@@ -170,40 +246,27 @@ export default function AdminLayoutClient({
             <p style={{ color: "rgb(255 255 255 / 0.55)", fontSize: "var(--text-xs)", marginTop: "2px" }}>
               {user.email}
             </p>
-            <p
-              style={{
-                display: "inline-block",
-                marginTop: "var(--space-2)",
-                padding: "2px var(--space-2)",
-                borderRadius: "var(--radius-md)",
-                background: "rgb(255 255 255 / 0.12)",
-                color: "rgb(255 255 255 / 0.75)",
-                fontSize: "var(--text-xs)",
-                fontWeight: 600,
-                letterSpacing: "0.02em",
-              }}
-            >
-              {roleLabel}
-            </p>
+            <p className="admin-role-pill">{roleLabel}</p>
           </div>
-          <button
-            style={{
-              width: "100%",
-              padding: "var(--space-2) var(--space-4)",
-              borderRadius: "var(--radius-lg)",
-              background: "rgb(255 255 255 / 0.1)",
-              color: "rgb(255 255 255 / 0.8)",
-              fontSize: "var(--text-sm)",
-              fontWeight: 500,
-              cursor: "pointer",
-              border: "1px solid rgb(255 255 255 / 0.15)",
-              textAlign: "left",
-              transition: "all 150ms ease",
-            }}
-            onClick={() => signOut({ callbackUrl: "/butigadmin/login" })}
-          >
-            Sign Out
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+            <Link
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="admin-drawer-signout"
+              style={{ textDecoration: "none", display: "block", minHeight: "36px", fontSize: "var(--text-xs)" }}
+            >
+              View Storefront ↗
+            </Link>
+            <button
+              type="button"
+              className="admin-drawer-signout"
+              style={{ minHeight: "38px" }}
+              onClick={() => signOut({ callbackUrl: "/butigadmin/login" })}
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
       </aside>
       <main className="admin-main">{children}</main>

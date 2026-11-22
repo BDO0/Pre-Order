@@ -17,13 +17,22 @@ export async function GET(request: NextRequest) {
     const batches = await prisma.batch.findMany({
       include: {
         products: { include: { product: { select: { id: true, name: true } } } },
-        _count: { select: { orders: true } },
+        _count: {
+          select: {
+            orders: {
+              where: { status: { notIn: ["CANCELLED", "REJECTED"] } },
+            },
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
     const tallies = await prisma.order.groupBy({
       by: ["batchId", "paymentStatus"],
-      where: { batchId: { in: batches.map((b) => b.id) } },
+      where: {
+        batchId: { in: batches.map((b) => b.id) },
+        status: { notIn: ["CANCELLED", "REJECTED"] },
+      },
       _sum: { total: true },
       _count: { _all: true },
     });

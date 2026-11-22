@@ -230,7 +230,11 @@ export default function StorefrontClient({
     setTimeout(() => setHighlightPulse(false), 800);
     syncStorefrontUrl(product.slug, null);
     if (autoScroll && typeof window !== "undefined" && window.innerWidth <= 960) {
-      showcaseRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const target = showcaseRef.current;
+      if (target) {
+        const y = target.getBoundingClientRect().top + window.scrollY - 76;
+        window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+      }
     }
   };
   const selectedVariant = useMemo(() => {

@@ -20,6 +20,7 @@ import {
 } from "@/lib/client-image-compression";
 import { parseApiResponse } from "@/lib/api-client";
 import ColorImageEditor from "@/components/ColorImageEditor";
+import { VariantChipInput } from "@/components/VariantChipInput";
 import {
   clearedColorLabels,
   colorImageDraftsFromRows,
@@ -64,10 +65,21 @@ export default function EditProductPage({
     price: "",
     preorderStatus: "OPEN",
     active: true,
-    sizes: "",
-    colors: "",
+    sizes: [] as string[],
+    colors: [] as string[],
     preorderLimit: "",
   });
+  const [isDirty, setIsDirty] = useState(false);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
 
   const handleDelete = async () => {
     const confirmed = window.confirm(
@@ -160,11 +172,12 @@ export default function EditProductPage({
           price: String(p.price),
           preorderStatus: p.preorderStatus,
           active: p.active,
-          sizes: sizes.join(", "),
-          colors: colors.join(", "),
+          sizes,
+          colors,
           preorderLimit:
             p.preorderLimit === null ? "" : String(p.preorderLimit),
         });
+        setIsDirty(false);
         setStock(seeded);
         setStoredVariants(
           variants.map((variant) => ({
@@ -190,8 +203,8 @@ export default function EditProductPage({
     };
     fetchProduct();
   }, [id]);
-  const parsedSizes = parseVariantList(formData.sizes);
-  const parsedColors = parseVariantList(formData.colors);
+  const parsedSizes = formData.sizes;
+  const parsedColors = formData.colors;
   const baseRows = buildVariantMatrix(parsedSizes, parsedColors);
   const rows: VariantFormRow[] = (
     baseRows.length > 0 ? baseRows : [{ size: null, color: null }]
@@ -207,6 +220,7 @@ export default function EditProductPage({
   const setStockFor = (row: VariantFormRow, value: string) => {
     const key = variantKey(row.size, row.color);
     setStock((previous) => ({ ...previous, [key]: value }));
+    setIsDirty(true);
   };
   const fillEveryBox = () => {
     const parsed = parseCapacityInput(fillValue);
@@ -313,6 +327,7 @@ export default function EditProductPage({
       if (added > 0)
         did.push(`${added} new option${added === 1 ? "" : "s"} added`);
       if (retired > 0) did.push(`${retired} retired`);
+      setIsDirty(false);
       setSuccess(
         did.length > 0
           ? `Product updated. ${did.join(", ")}; past orders are untouched.`
@@ -477,34 +492,29 @@ export default function EditProductPage({
                 </option>
               </select>
             </div>
-            <div style={{ display: "flex", gap: "var(--space-4)" }}>
-              <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label">Sizes (comma separated)</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={formData.sizes}
-                  onChange={(e) =>
-                    setFormData({ ...formData, sizes: e.target.value })
-                  }
-                  placeholder="S, M, L, XL"
-                />
-              </div>
-              <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label">Colours (comma separated)</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={formData.colors}
-                  onChange={(e) =>
-                    setFormData({ ...formData, colors: e.target.value })
-                  }
-                  placeholder="Black, White"
-                />
-                <span className="form-hint">
-                  Every colour is paired with every size.
-                </span>
-              </div>
+            <div style={{ display: "flex", gap: "var(--space-4)", flexWrap: "wrap" }}>
+              <VariantChipInput
+                label="Sizes"
+                placeholder="S, M, L, XL"
+                hint="Type a size and press Enter or comma."
+                values={formData.sizes}
+                onChange={(sizes) => {
+                  setFormData({ ...formData, sizes });
+                  setIsDirty(true);
+                }}
+                disabled={loading || deleting}
+              />
+              <VariantChipInput
+                label="Colours"
+                placeholder="Black, White"
+                hint="Every colour is paired with every size."
+                values={formData.colors}
+                onChange={(colors) => {
+                  setFormData({ ...formData, colors });
+                  setIsDirty(true);
+                }}
+                disabled={loading || deleting}
+              />
             </div>
             {}
             <div className="form-group">

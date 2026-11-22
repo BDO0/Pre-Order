@@ -7,7 +7,6 @@ import {
   buildVariantPayload,
   describeVariant,
   parseCapacityInput,
-  parseVariantList,
   variantKey,
   type VariantFormRow,
 } from "@/lib/variant-plan";
@@ -18,6 +17,7 @@ import {
 } from "@/lib/client-image-compression";
 import { parseApiResponse } from "@/lib/api-client";
 import ColorImageEditor from "@/components/ColorImageEditor";
+import { VariantChipInput } from "@/components/VariantChipInput";
 import {
   colorImagePayload,
   type ColorImageDraft,
@@ -31,8 +31,8 @@ export default function NewProductPage() {
     name: "",
     category: "",
     price: "",
-    sizes: "S, M, L, XL",
-    colors: "Black",
+    sizes: ["S", "M", "L", "XL"] as string[],
+    colors: ["Black"] as string[],
     preorderLimit: "",
   });
   const [stock, setStock] = useState<Record<string, string>>({});
@@ -50,8 +50,8 @@ export default function NewProductPage() {
   const [compressing, setCompressing] = useState(false);
   const [colorImageDrafts, setColorImageDrafts] = useState<ColorImageDraft[]>([]);
 
-  const parsedSizes = parseVariantList(formData.sizes);
-  const parsedColors = parseVariantList(formData.colors);
+  const parsedSizes = formData.sizes;
+  const parsedColors = formData.colors;
   const baseRows = buildVariantMatrix(parsedSizes, parsedColors);
   const rows: VariantFormRow[] = (
     baseRows.length > 0 ? baseRows : [{ size: null, color: null }]
@@ -149,17 +149,23 @@ export default function NewProductPage() {
                 <input required type="number" min="0" className="form-input" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} placeholder="500" />
               </div>
             </div>
-            <div style={{ display: "flex", gap: "var(--space-4)" }}>
-              <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label">Sizes (comma separated)</label>
-                <input type="text" className="form-input" value={formData.sizes} onChange={e => setFormData({ ...formData, sizes: e.target.value })} placeholder="S, M, L, XL" />
-                <span className="form-hint">Customers pick one of these.</span>
-              </div>
-              <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label">Colours (comma separated)</label>
-                <input type="text" className="form-input" value={formData.colors} onChange={e => setFormData({ ...formData, colors: e.target.value })} placeholder="Black, White" />
-                <span className="form-hint">Optional. Each colour is paired with every size.</span>
-              </div>
+            <div style={{ display: "flex", gap: "var(--space-4)", flexWrap: "wrap" }}>
+              <VariantChipInput
+                label="Sizes"
+                placeholder="S, M, L, XL"
+                hint="Type a size and press Enter or comma."
+                values={formData.sizes}
+                onChange={(sizes) => setFormData({ ...formData, sizes })}
+                disabled={loading}
+              />
+              <VariantChipInput
+                label="Colours"
+                placeholder="Black, White"
+                hint="Optional. Each colour is paired with every size."
+                values={formData.colors}
+                onChange={(colors) => setFormData({ ...formData, colors })}
+                disabled={loading}
+              />
             </div>
             {}
             <div className="form-group">

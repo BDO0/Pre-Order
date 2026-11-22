@@ -1,4 +1,4 @@
-﻿import type { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import type { OrderStatus, PaymentStatus } from "@prisma/client";
 const ORDER_STATUSES: readonly OrderStatus[] = [
   "PENDING",
@@ -17,8 +17,16 @@ function oneOf<T extends string>(value: string | null, allowed: readonly T[]): T
   const listed: readonly string[] = allowed;
   return value !== null && listed.includes(value) ? (value as T) : undefined;
 }
+function manyOf<T extends string>(value: string | null, allowed: readonly T[]): T[] {
+  if (!value) return [];
+  const listed: readonly string[] = allowed;
+  return value
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part): part is T => listed.includes(part));
+}
 export function buildOrderWhere(searchParams: URLSearchParams): Prisma.OrderWhereInput {
-  const status = oneOf(searchParams.get("status"), ORDER_STATUSES);
+  const statuses = manyOf(searchParams.get("status"), ORDER_STATUSES);
   const paymentStatus = oneOf(searchParams.get("paymentStatus"), PAYMENT_STATUSES);
   const batchId = searchParams.get("batchId") ?? undefined;
   const customerType = searchParams.get("customerType") ?? undefined;
@@ -42,8 +50,14 @@ export function buildOrderWhere(searchParams: URLSearchParams): Prisma.OrderWher
         ],
       }
     : {};
+  const statusFilter: Prisma.OrderWhereInput =
+    statuses.length === 1
+      ? { status: statuses[0] }
+      : statuses.length > 1
+      ? { status: { in: statuses } }
+      : {};
   return {
-    ...(status ? { status } : {}),
+    ...statusFilter,
     ...(paymentStatus ? { paymentStatus } : {}),
     ...(batchId ? { batchId } : {}),
     ...(customerType === "new" ? { isNewCustomer: true } : {}),

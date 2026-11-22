@@ -1,11 +1,16 @@
 "use client";
 import { formatMoney } from "@/lib/format";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import type { OrderStatus, PaymentStatus } from "@prisma/client";
 import { parseApiResponse } from "@/lib/api-client";
+import { getOrderStatusMeta } from "@/lib/order-status-meta";
+import { isRedacted } from "@/lib/redaction";
+import { formatInstagramHandle, instagramProfileUrl } from "@/lib/instagram";
+import { copyTextToClipboard } from "@/lib/clipboard";
+import adminStyles from "../admin.module.css";
 
 interface AdminOrderRow {
   id: string;
@@ -21,6 +26,7 @@ interface AdminOrderRow {
   items: {
     quantity: number;
     productNameSnapshot: string;
+    variantSnapshot?: { color?: string | null; size?: string | null } | null;
     unitPriceAtPurchase: string | number;
   }[];
 }
@@ -31,51 +37,136 @@ interface BatchOption {
   status: string;
 }
 
-type TabKey = "new" | "approved" | "approved-unpaid" | "cancelled";
+interface TabCounts {
+  all: number;
+  new: number;
+  awaitingPayment: number;
+  approvedPaid: number;
+  fulfillment: number;
+  shipped: number;
+  completed: number;
+  cancelled: number;
+}
+
+type TabKey =
+  | "new"
+  | "awaiting-payment"
+  | "approved"
+  | "fulfillment"
+  | "shipped"
+  | "completed"
+  | "cancelled"
+  | "all";
 
 const TABS: {
   key: TabKey;
   label: string;
-  statusFilter: OrderStatus | "";
+  statusFilter: string;
   paymentFilter: string;
+  countKey: keyof TabCounts;
 }[] = [
   {
     key: "new",
     label: "New Orders",
     statusFilter: "PENDING",
     paymentFilter: "",
+    countKey: "new",
+  },
+  {
+    key: "awaiting-payment",
+    label: "Awaiting Payment",
+    statusFilter: "AWAITING_PAYMENT,PAYMENT_REVIEW,CONFIRMED",
+    paymentFilter: "UNPAID",
+    countKey: "awaitingPayment",
   },
   {
     key: "approved",
-    label: "Approved",
+    label: "Confirmed (Paid)",
     statusFilter: "CONFIRMED",
     paymentFilter: "PAID",
+    countKey: "approvedPaid",
   },
   {
-    key: "approved-unpaid",
-    label: "Approved (Unpaid)",
-    statusFilter: "CONFIRMED",
-    paymentFilter: "UNPAID",
+    key: "fulfillment",
+    label: "In Fulfillment",
+    statusFilter: "PROCESSING,READY",
+    paymentFilter: "",
+    countKey: "fulfillment",
+  },
+  {
+    key: "shipped",
+    label: "Shipped",
+    statusFilter: "SHIPPED",
+    paymentFilter: "",
+    countKey: "shipped",
+  },
+  {
+    key: "completed",
+    label: "Completed",
+    statusFilter: "COMPLETED",
+    paymentFilter: "",
+    countKey: "completed",
   },
   {
     key: "cancelled",
     label: "Cancelled",
-    statusFilter: "CANCELLED",
+    statusFilter: "CANCELLED,REJECTED",
     paymentFilter: "",
+    countKey: "cancelled",
+  },
+  {
+    key: "all",
+    label: "All Orders",
+    statusFilter: "",
+    paymentFilter: "",
+    countKey: "all",
   },
 ];
+
+function rowMatchesTab(
+  status: OrderStatus,
+  paymentStatus: PaymentStatus,
+  tab: (typeof TABS)[number]
+): boolean {
+  if (tab.statusFilter) {
+    const allowed = tab.statusFilter.split(",");
+    if (!allowed.includes(status)) return false;
+  }
+  if (tab.paymentFilter && paymentStatus !== tab.paymentFilter) {
+    return false;
+  }
+  return true;
+}
+
+function nextLifecycleStep(status: OrderStatus): { label: string; next: OrderStatus } | null {
+  switch (status) {
+    case "CONFIRMED":
+      return { label: "Start Production", next: "PROCESSING" };
+    case "PROCESSING":
+      return { label: "Mark Ready", next: "READY" };
+    case "READY":
+      return { label: "Mark Shipped", next: "SHIPPED" };
+    case "SHIPPED":
+      return { label: "Mark Completed", next: "COMPLETED" };
+    default:
+      return null;
+  }
+}
 
 export default function AdminOrdersPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
-  const activeTab = (searchParams.get("tab") as TabKey) ?? "new";
+  const rawTab = searchParams.get("tab") as TabKey | null;
+  const activeTab: TabKey = TABS.some((t) => t.key === rawTab) ? (rawTab as TabKey) : "new";
   const batchFilter = searchParams.get("batchId") ?? "";
-  const [search, setSearch] = useState(searchParams.get("search") ?? "");
+  const [searchInput, setSearchInput] = useState(searchParams.get("search") ?? "");
+  const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get("search") ?? "");
   const [page, setPage] = useState(1);
 
   const [orders, setOrders] = useState<AdminOrderRow[]>([]);
+  const [counts, setCounts] = useState<TabCounts | null>(null);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -85,6 +176,26 @@ export default function AdminOrdersPage() {
   const [actionError, setActionError] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [clearLoading, setClearLoading] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminOrderRow | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [refreshTick, setRefreshTick] = useState(0);
+  const refreshOrders = () => setRefreshTick((t) => t + 1);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+      setPage(1);
+    }, 260);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    const close = () => setOpenMenuId(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [openMenuId]);
 
   const flash = (msg: string) => {
     setNotice(msg);
@@ -108,21 +219,16 @@ export default function AdminOrdersPage() {
     params.set("tab", tab);
     if (batchFilter) params.set("batchId", batchFilter);
     setPage(1);
-    setSearch("");
+    setSearchInput("");
+    setDebouncedSearch("");
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   const exportHref = (() => {
     const params = new URLSearchParams();
     if (batchFilter) params.set("batchId", batchFilter);
-    if (currentTab.key === "cancelled") {
-      params.set("status", "CANCELLED");
-    } else {
-      params.set("status", "CONFIRMED");
-      if (currentTab.key === "approved") params.set("paymentStatus", "PAID");
-      if (currentTab.key === "approved-unpaid")
-        params.set("paymentStatus", "UNPAID");
-    }
+    if (currentTab.statusFilter) params.set("status", currentTab.statusFilter);
+    if (currentTab.paymentFilter) params.set("paymentStatus", currentTab.paymentFilter);
     return `/api/admin/orders/export?${params.toString()}`;
   })();
 
@@ -136,79 +242,117 @@ export default function AdminOrdersPage() {
               id: b.id,
               name: b.name,
               status: b.status,
-            })),
+            }))
           );
         }
       })
       .catch(() => {});
   }, []);
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: "20",
-        status: currentTab.statusFilter || "",
-      });
-      if (currentTab.paymentFilter)
-        params.set("paymentStatus", currentTab.paymentFilter);
-      if (currentTab.key === "cancelled") {
-        params.set("status", "CANCELLED");
-      }
-      if (batchFilter) params.set("batchId", batchFilter);
-      if (search) params.set("search", search);
-
-      const res = await fetch(`/api/admin/orders?${params}`);
-      const { ok, data } = await parseApiResponse(res);
-      if (ok && data) {
-        setOrders(data.orders);
-        setTotalPages(data.pagination.totalPages);
-        setTotalCount(data.pagination.total);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
-  }, [page, search, currentTab, batchFilter]);
+  const tabStatusFilter = currentTab.statusFilter;
+  const tabPaymentFilter = currentTab.paymentFilter;
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void fetchOrders();
-  }, [fetchOrders]);
+    const controller = new AbortController();
+    let active = true;
+    (async () => {
+      try {
+        const params = new URLSearchParams({
+          page: page.toString(),
+          limit: "20",
+        });
+        if (tabStatusFilter) params.set("status", tabStatusFilter);
+        if (tabPaymentFilter) params.set("paymentStatus", tabPaymentFilter);
+        if (batchFilter) params.set("batchId", batchFilter);
+        if (debouncedSearch) params.set("search", debouncedSearch);
+
+        const res = await fetch(`/api/admin/orders?${params}`, {
+          signal: controller.signal,
+        });
+        const { ok, data } = await parseApiResponse(res);
+        if (active && ok && data) {
+          setOrders(data.orders);
+          if (data.counts) setCounts(data.counts);
+          setTotalPages(Math.max(1, data.pagination.totalPages));
+          setTotalCount(data.pagination.total);
+        }
+      } catch (e) {
+        if ((e as { name?: string })?.name !== "AbortError") {
+          console.error(e);
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [page, debouncedSearch, tabStatusFilter, tabPaymentFilter, batchFilter, refreshTick]);
 
   const handleUpdateStatus = async (
     orderId: string,
     reference: string,
-    newStatus: OrderStatus,
+    newStatus: OrderStatus
   ) => {
     setActionLoading(orderId);
     setActionError("");
     const prev = orders;
+    const targetRow = orders.find((r) => r.id === orderId);
+    const keepInTab = targetRow
+      ? rowMatchesTab(newStatus, targetRow.paymentStatus, currentTab)
+      : true;
+
     setOrders((o) =>
-      o.map((r) => (r.id === orderId ? { ...r, status: newStatus } : r)),
+      keepInTab
+        ? o.map((r) => (r.id === orderId ? { ...r, status: newStatus } : r))
+        : o.filter((r) => r.id !== orderId)
     );
-    flash(`Order ${reference} marked as ${newStatus}.`);
+    flash(`Order ${reference} marked as ${getOrderStatusMeta(newStatus).label}.`);
     try {
       const res = await fetch(`/api/admin/orders/${orderId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      const { ok, error } = await parseApiResponse(
-        res,
-        "Failed to update order",
-      );
+      const { ok, error } = await parseApiResponse(res, "Failed to update order");
       if (!ok) throw new Error(error || "Failed to update order");
+      refreshOrders();
     } catch (err) {
       setOrders(prev);
       setNotice("");
-      setActionError(
-        err instanceof Error ? err.message : "Failed to update order",
-      );
+      setActionError(err instanceof Error ? err.message : "Failed to update order");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleConfirmAndPay = async (orderId: string, reference: string) => {
+    setActionLoading(orderId);
+    setActionError("");
+    const prev = orders;
+    const keepInTab = rowMatchesTab("CONFIRMED", "PAID", currentTab);
+    setOrders((o) =>
+      keepInTab
+        ? o.map((r) =>
+            r.id === orderId ? { ...r, status: "CONFIRMED", paymentStatus: "PAID" } : r
+          )
+        : o.filter((r) => r.id !== orderId)
+    );
+    flash(`Order ${reference} approved & marked as PAID.`);
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/confirm-and-pay`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: "Approved & payment recorded" }),
+      });
+      const { ok, error } = await parseApiResponse(res, "Failed to approve & mark paid");
+      if (!ok) throw new Error(error || "Failed to approve & mark paid");
+      refreshOrders();
+    } catch (err) {
+      setOrders(prev);
+      setNotice("");
+      setActionError(err instanceof Error ? err.message : "Failed to approve & mark paid");
     } finally {
       setActionLoading(null);
     }
@@ -217,76 +361,88 @@ export default function AdminOrdersPage() {
   const handleTogglePaid = async (
     orderId: string,
     reference: string,
-    currentlyPaid: boolean,
+    currentlyPaid: boolean
   ) => {
     const nextPaid = !currentlyPaid;
+    const nextPaymentStatus: PaymentStatus = nextPaid ? "PAID" : "UNPAID";
     setActionLoading(orderId);
     setActionError("");
     const prev = orders;
+    const targetRow = orders.find((r) => r.id === orderId);
+    const keepInTab = targetRow
+      ? rowMatchesTab(targetRow.status, nextPaymentStatus, currentTab)
+      : true;
+
     setOrders((o) =>
-      o.map((r) =>
-        r.id === orderId
-          ? { ...r, paymentStatus: nextPaid ? "PAID" : "UNPAID" }
-          : r,
-      ),
+      keepInTab
+        ? o.map((r) => (r.id === orderId ? { ...r, paymentStatus: nextPaymentStatus } : r))
+        : o.filter((r) => r.id !== orderId)
     );
-    flash(`Order ${reference} marked as ${nextPaid ? "PAID" : "UNPAID"}.`);
+    flash(`Order ${reference} marked as ${nextPaymentStatus}.`);
     try {
       const res = await fetch(`/api/admin/orders/${orderId}/payment`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ paid: nextPaid }),
       });
-      const { ok, error } = await parseApiResponse(
-        res,
-        "Failed to update payment",
-      );
+      const { ok, error } = await parseApiResponse(res, "Failed to update payment");
       if (!ok) throw new Error(error || "Failed to update payment");
+      refreshOrders();
     } catch (err) {
       setOrders(prev);
       setNotice("");
-      setActionError(
-        err instanceof Error ? err.message : "Failed to update payment",
-      );
+      setActionError(err instanceof Error ? err.message : "Failed to update payment");
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handleDeleteOrder = async (orderId: string, reference: string) => {
-    const confirmed = window.confirm(
-      `Permanently delete order ${reference}?\n\nThis will remove the order and all its items and history from the database. This cannot be undone.`
-    );
-    if (!confirmed) return;
+  const handleCopyDmMessage = async (order: AdminOrderRow) => {
+    const snapshot = order.customerSnapshot as { fullName?: string; instagramHandle?: string };
+    const name = snapshot.fullName || "there";
+    const itemsList = order.items
+      .map((i) => {
+        const v = [i.variantSnapshot?.color, i.variantSnapshot?.size].filter(Boolean).join(" / ");
+        return `• ${i.quantity}x ${i.productNameSnapshot}${v ? ` (${v})` : ""}`;
+      })
+      .join("\n");
+    const msg =
+      `Hi ${name}! Thank you for your pre-order (${order.reference}).\n\n` +
+      `${itemsList}\n` +
+      `Total: ${formatMoney(Number(order.total))}\n\n` +
+      `Please reply here to confirm your order and settle payment so we can lock in your slot!`;
+    const ok = await copyTextToClipboard(msg);
+    if (ok) flash(`Copied IG DM confirmation message for ${order.reference}.`);
+    else setActionError("Could not copy DM message to clipboard.");
+  };
 
-    setActionLoading(orderId);
+  const confirmDeleteOrder = async () => {
+    if (!deleteTarget) return;
+    setActionLoading(deleteTarget.id);
     setActionError("");
     try {
-      const res = await fetch(`/api/admin/orders/${orderId}`, {
+      const res = await fetch(`/api/admin/orders/${deleteTarget.id}`, {
         method: "DELETE",
       });
-      const { ok, error } = await parseApiResponse(
-        res,
-        "Failed to delete order",
-      );
+      const { ok, error } = await parseApiResponse(res, "Failed to delete order");
       if (!ok) throw new Error(error || "Failed to delete order");
-      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setOrders((prev) => prev.filter((o) => o.id !== deleteTarget.id));
       setTotalCount((c) => Math.max(0, c - 1));
-      flash(`Order ${reference} deleted permanently.`);
+      flash(`Order ${deleteTarget.reference} deleted permanently.`);
+      setDeleteTarget(null);
+      setDeleteConfirmText("");
+      refreshOrders();
     } catch (err) {
-      setActionError(
-        err instanceof Error ? err.message : "Failed to delete order",
-      );
+      setActionError(err instanceof Error ? err.message : "Failed to delete order");
     } finally {
       setActionLoading(null);
     }
   };
-
 
   const handleClearCancelled = async () => {
     const scope = batchFilter ? "this batch" : "ALL batches";
     const confirmed = window.confirm(
-      `Permanently delete ALL cancelled orders from ${scope}?\n\nThis cannot be undone.`,
+      `Permanently delete ALL cancelled orders from ${scope}?\n\nThis cannot be undone.`
     );
     if (!confirmed) return;
 
@@ -295,48 +451,27 @@ export default function AdminOrdersPage() {
     try {
       const params = new URLSearchParams();
       if (batchFilter) params.set("batchId", batchFilter);
-      const res = await fetch(
-        `/api/admin/orders/cancelled?${params.toString()}`,
-        { method: "DELETE" },
-      );
+      const res = await fetch(`/api/admin/orders/cancelled?${params.toString()}`, {
+        method: "DELETE",
+      });
       const { ok, data, error } = await parseApiResponse(
         res,
-        "Failed to clear cancelled orders",
+        "Failed to clear cancelled orders"
       );
       if (!ok) throw new Error(error || "Failed to clear cancelled orders");
-      flash(
-        `Cleared ${(data as { deleted: number }).deleted} cancelled order(s).`,
-      );
-      setOrders([]);
-      setTotalCount(0);
+      flash(`Cleared ${(data as { deleted: number }).deleted} cancelled order(s).`);
+      refreshOrders();
     } catch (err) {
       setActionError(
-        err instanceof Error ? err.message : "Failed to clear cancelled orders",
+        err instanceof Error ? err.message : "Failed to clear cancelled orders"
       );
     } finally {
       setClearLoading(false);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const map: Record<string, string> = {
-      PENDING: "badge-pending",
-      AWAITING_PAYMENT: "badge-pending",
-      PAYMENT_REVIEW: "badge-coming",
-      CONFIRMED: "badge-confirmed",
-      PROCESSING: "badge-confirmed",
-      READY: "badge-confirmed",
-      SHIPPED: "badge-confirmed",
-      COMPLETED: "badge-completed",
-      CANCELLED: "badge-cancelled",
-      REJECTED: "badge-cancelled",
-    };
-    return `badge ${map[status] || "badge-closed"}`;
-  };
-
   return (
     <div>
-      {}
       <div
         className="admin-page-title"
         style={{
@@ -347,24 +482,13 @@ export default function AdminOrdersPage() {
         }}
       >
         <span>Orders</span>
-        <div
-          style={{
-            display: "flex",
-            gap: "var(--space-2)",
-            alignItems: "center",
-          }}
-        >
-          {(currentTab.key === "approved" ||
-            currentTab.key === "approved-unpaid" ||
-            currentTab.key === "cancelled") && (
-            <a href={exportHref} className="btn btn-secondary btn-sm">
-              Export CSV{batchFilter ? " (this batch)" : " (all batches)"}
-            </a>
-          )}
+        <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+          <a href={exportHref} className="btn btn-secondary btn-sm">
+            Export CSV{batchFilter ? " (this batch)" : ""}
+          </a>
         </div>
       </div>
 
-      {}
       {notice && (
         <div
           style={{
@@ -397,7 +521,6 @@ export default function AdminOrdersPage() {
         </div>
       )}
 
-      {}
       <div
         style={{
           display: "flex",
@@ -427,8 +550,7 @@ export default function AdminOrdersPage() {
           <option value="">All Batches</option>
           {batches.map((b) => (
             <option key={b.id} value={b.id}>
-              {b.name}
-              {b.status === "OPEN" ? " 🟢" : b.status === "CLOSED" ? " 🔒" : ""}
+              {b.name} ({b.status})
             </option>
           ))}
         </select>
@@ -443,7 +565,6 @@ export default function AdminOrdersPage() {
         )}
       </div>
 
-      {}
       <div
         style={{
           display: "flex",
@@ -455,18 +576,17 @@ export default function AdminOrdersPage() {
       >
         {TABS.map((tab) => {
           const isActive = tab.key === activeTab;
+          const tabCount = counts ? counts[tab.countKey] : null;
           return (
             <button
               key={tab.key}
               type="button"
               onClick={() => switchTab(tab.key)}
               style={{
-                padding: "var(--space-3) var(--space-5)",
+                padding: "var(--space-3) var(--space-4)",
                 fontWeight: isActive ? 700 : 500,
                 fontSize: "var(--text-sm)",
-                color: isActive
-                  ? "var(--color-brand-700)"
-                  : "var(--color-neutral-600)",
+                color: isActive ? "var(--color-brand-700)" : "var(--color-neutral-600)",
                 background: "none",
                 border: "none",
                 borderBottom: isActive
@@ -475,16 +595,32 @@ export default function AdminOrdersPage() {
                 marginBottom: "-2px",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
                 transition: "all 150ms ease",
               }}
             >
-              {tab.label}
+              <span>{tab.label}</span>
+              {tabCount !== null && (
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    padding: "1px 6px",
+                    borderRadius: "var(--radius-full)",
+                    background: isActive ? "var(--color-brand-100)" : "var(--color-neutral-100)",
+                    color: isActive ? "var(--color-brand-700)" : "var(--color-neutral-600)",
+                  }}
+                >
+                  {tabCount}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
 
-      {}
       <div
         style={{
           display: "flex",
@@ -499,11 +635,8 @@ export default function AdminOrdersPage() {
           placeholder="Search by name, Instagram handle, or reference..."
           className="form-input"
           style={{ flex: "1 1 240px", maxWidth: "420px" }}
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
         />
         {activeTab === "cancelled" && (
           <button
@@ -526,7 +659,6 @@ export default function AdminOrdersPage() {
         )}
       </div>
 
-      {}
       {!loading && (
         <p
           style={{
@@ -541,7 +673,6 @@ export default function AdminOrdersPage() {
         </p>
       )}
 
-      {}
       <div className="table-wrapper">
         <div className="table-scroll">
           <table className="data-table">
@@ -553,6 +684,7 @@ export default function AdminOrdersPage() {
                 <th>Items</th>
                 <th>Total</th>
                 <th>Payment</th>
+                <th>Status</th>
                 <th>Date</th>
                 <th></th>
               </tr>
@@ -560,17 +692,14 @@ export default function AdminOrdersPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td
-                    colSpan={8}
-                    style={{ textAlign: "center", padding: "var(--space-8)" }}
-                  >
+                  <td colSpan={9} style={{ textAlign: "center", padding: "var(--space-8)" }}>
                     Loading...
                   </td>
                 </tr>
               ) : orders.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     style={{
                       textAlign: "center",
                       padding: "var(--space-8)",
@@ -578,7 +707,7 @@ export default function AdminOrdersPage() {
                     }}
                   >
                     {activeTab === "cancelled"
-                      ? "No cancelled orders — all clear! ✓"
+                      ? "No cancelled orders — all clear!"
                       : "No orders found."}
                   </td>
                 </tr>
@@ -588,31 +717,27 @@ export default function AdminOrdersPage() {
                     fullName?: string;
                     instagramHandle?: unknown;
                   };
-                  const itemCount = order.items.reduce(
-                    (s, i) => s + i.quantity,
-                    0,
-                  );
+                  const itemCount = order.items.reduce((s, i) => s + i.quantity, 0);
                   const isPaid = order.paymentStatus === "PAID";
-                  const handle =
+                  const rawHandle =
                     typeof snapshot?.instagramHandle === "string"
                       ? snapshot.instagramHandle
                       : null;
+                  const handleRedacted = isRedacted(rawHandle);
+                  const statusMeta = getOrderStatusMeta(order.status);
+                  const nextStep = nextLifecycleStep(order.status);
+                  const canDeleteRow =
+                    order.status === "CANCELLED" || order.status === "REJECTED";
+                  const isMenuOpen = openMenuId === order.id;
 
                   return (
                     <tr key={order.id}>
-                      {}
                       <td>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "var(--space-2)",
-                          }}
-                        >
+                        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
                           <Link
                             href={`/butigadmin/orders/${order.id}`}
                             style={{
-                              fontSize: "var(--text-lg)",
+                              fontSize: "var(--text-base)",
                               fontWeight: 700,
                               color: "var(--color-neutral-900)",
                               textDecoration: "none",
@@ -622,15 +747,7 @@ export default function AdminOrdersPage() {
                             {snapshot.fullName || "—"}
                           </Link>
                           {order.isNewCustomer && (
-                            <span
-                              className="badge"
-                              style={{
-                                background: "#eff6ff",
-                                color: "#1d4ed8",
-                                border: "1px solid #bfdbfe",
-                                fontSize: "10px",
-                              }}
-                            >
+                            <span className="badge badge-info" style={{ fontSize: "10px" }}>
                               New
                             </span>
                           )}
@@ -642,11 +759,23 @@ export default function AdminOrdersPage() {
                             marginTop: "2px",
                           }}
                         >
-                          {handle ? `@${handle}` : "no handle"}
+                          {handleRedacted ? (
+                            <span>{rawHandle}</span>
+                          ) : rawHandle ? (
+                            <a
+                              href={instagramProfileUrl(rawHandle)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: "var(--color-brand-600)", fontWeight: 600 }}
+                            >
+                              @{formatInstagramHandle(rawHandle)}
+                            </a>
+                          ) : (
+                            <span>no handle</span>
+                          )}
                         </div>
                       </td>
 
-                      {}
                       <td>
                         <span
                           style={{
@@ -667,6 +796,7 @@ export default function AdminOrdersPage() {
                               color: "var(--color-warning)",
                               fontSize: "11px",
                               marginLeft: "4px",
+                              fontWeight: 600,
                             }}
                             title="Possible duplicate"
                           >
@@ -675,39 +805,23 @@ export default function AdminOrdersPage() {
                         )}
                       </td>
 
-                      {}
                       <td>
-                        <span style={{ fontWeight: 500 }}>
-                          {order.batch.name}
-                        </span>
+                        <span style={{ fontWeight: 500 }}>{order.batch.name}</span>
                       </td>
 
-                      {}
                       <td>
                         {itemCount} item{itemCount !== 1 ? "s" : ""}
                       </td>
 
-                      {}
                       <td style={{ fontWeight: 600 }}>
                         {formatMoney(Number(order.total))}
                       </td>
 
-                      {}
                       <td>
                         {order.status === "PENDING" ? (
-                          <span
-                            className="badge"
-                            style={{
-                              background: "#fef3c7",
-                              color: "#92400e",
-                              border: "1px solid #fcd34d",
-                              fontWeight: 700,
-                            }}
-                          >
-                            Waiting
-                          </span>
+                          <span className="badge badge-amber">Waiting</span>
                         ) : ["CANCELLED", "REJECTED"].includes(order.status) ? (
-                          <span className="badge badge-cancelled">—</span>
+                          <span className="badge badge-neutral">—</span>
                         ) : (
                           <label
                             style={{
@@ -722,11 +836,7 @@ export default function AdminOrdersPage() {
                               checked={isPaid}
                               disabled={actionLoading === order.id}
                               onChange={() =>
-                                handleTogglePaid(
-                                  order.id,
-                                  order.reference,
-                                  isPaid,
-                                )
+                                handleTogglePaid(order.id, order.reference, isPaid)
                               }
                               style={{
                                 accentColor: "var(--color-brand-600)",
@@ -735,17 +845,7 @@ export default function AdminOrdersPage() {
                               }}
                             />
                             <span
-                              className="badge"
-                              style={{
-                                background: isPaid ? "#dcfce7" : "#fee2e2",
-                                color: isPaid ? "#14532d" : "#991b1b",
-                                border: isPaid
-                                  ? "1px solid #86efac"
-                                  : "1px solid #fca5a5",
-                                fontWeight: 700,
-                                fontSize: "12px",
-                                padding: "2px 8px",
-                              }}
+                              className={`badge ${isPaid ? "badge-success" : "badge-danger"}`}
                             >
                               {isPaid ? "PAID" : "UNPAID"}
                             </span>
@@ -753,20 +853,22 @@ export default function AdminOrdersPage() {
                         )}
                       </td>
 
-                      {}
+                      <td>
+                        <span className={`badge ${statusMeta.badgeClass}`}>
+                          {statusMeta.label}
+                        </span>
+                      </td>
+
                       <td
                         style={{
                           fontSize: "var(--text-xs)",
                           color: "var(--color-neutral-500)",
+                          whiteSpace: "nowrap",
                         }}
                       >
-                        {format(
-                          new Date(order.createdAt),
-                          "MMM d, yyyy h:mm a",
-                        )}
+                        {format(new Date(order.createdAt), "MMM d, yyyy h:mm a")}
                       </td>
 
-                      {}
                       <td>
                         <div
                           style={{
@@ -784,37 +886,36 @@ export default function AdminOrdersPage() {
                                 style={{ whiteSpace: "nowrap" }}
                                 disabled={actionLoading === order.id}
                                 onClick={() =>
-                                  handleUpdateStatus(
-                                    order.id,
-                                    order.reference,
-                                    "CONFIRMED",
-                                  )
+                                  handleUpdateStatus(order.id, order.reference, "CONFIRMED")
                                 }
                               >
                                 Approve
                               </button>
                               <button
                                 type="button"
-                                className="btn btn-ghost btn-sm"
-                                style={{ color: "var(--color-error)" }}
+                                className="btn btn-secondary btn-sm"
+                                style={{ whiteSpace: "nowrap", color: "var(--color-success)" }}
                                 disabled={actionLoading === order.id}
-                                onClick={() => {
-                                  if (
-                                    window.confirm(
-                                      "Cancel this order? Stock will be returned.",
-                                    )
-                                  ) {
-                                    handleUpdateStatus(
-                                      order.id,
-                                      order.reference,
-                                      "CANCELLED",
-                                    );
-                                  }
-                                }}
+                                onClick={() =>
+                                  handleConfirmAndPay(order.id, order.reference)
+                                }
                               >
-                                Cancel
+                                Approve & Paid
                               </button>
                             </>
+                          )}
+                          {nextStep && (
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              style={{ whiteSpace: "nowrap" }}
+                              disabled={actionLoading === order.id}
+                              onClick={() =>
+                                handleUpdateStatus(order.id, order.reference, nextStep.next)
+                              }
+                            >
+                              {nextStep.label}
+                            </button>
                           )}
                           <Link
                             href={`/butigadmin/orders/${order.id}`}
@@ -822,18 +923,75 @@ export default function AdminOrdersPage() {
                           >
                             View
                           </Link>
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-sm"
-                            style={{ color: "var(--color-error, #dc2626)" }}
-                            disabled={actionLoading === order.id}
-                            title="Delete order permanently"
-                            onClick={() =>
-                              handleDeleteOrder(order.id, order.reference)
-                            }
+
+                          <div
+                            className={adminStyles.overflowWrap}
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            {actionLoading === order.id ? "Deleting..." : "Delete"}
-                          </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              aria-label="More order actions"
+                              aria-expanded={isMenuOpen}
+                              onClick={() =>
+                                setOpenMenuId(isMenuOpen ? null : order.id)
+                              }
+                            >
+                              ⋯
+                            </button>
+                            {isMenuOpen && (
+                              <div className={adminStyles.overflowMenu} role="menu">
+                                <button
+                                  type="button"
+                                  className={adminStyles.overflowItem}
+                                  onClick={() => {
+                                    setOpenMenuId(null);
+                                    void handleCopyDmMessage(order);
+                                  }}
+                                >
+                                  Copy IG DM Message
+                                </button>
+                                {!["CANCELLED", "REJECTED", "COMPLETED", "SHIPPED"].includes(
+                                  order.status
+                                ) && (
+                                  <button
+                                    type="button"
+                                    className={`${adminStyles.overflowItem} ${adminStyles.overflowItemDanger}`}
+                                    disabled={actionLoading === order.id}
+                                    onClick={() => {
+                                      setOpenMenuId(null);
+                                      if (
+                                        window.confirm(
+                                          `Cancel order ${order.reference}? Reserved stock will be returned.`
+                                        )
+                                      ) {
+                                        void handleUpdateStatus(
+                                          order.id,
+                                          order.reference,
+                                          "CANCELLED"
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    Cancel Order
+                                  </button>
+                                )}
+                                {canDeleteRow && (
+                                  <button
+                                    type="button"
+                                    className={`${adminStyles.overflowItem} ${adminStyles.overflowItemDanger}`}
+                                    onClick={() => {
+                                      setOpenMenuId(null);
+                                      setDeleteConfirmText("");
+                                      setDeleteTarget(order);
+                                    }}
+                                  >
+                                    Delete Permanently
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -845,7 +1003,6 @@ export default function AdminOrdersPage() {
         </div>
       </div>
 
-      {}
       {totalPages > 1 && (
         <div
           style={{
@@ -879,6 +1036,74 @@ export default function AdminOrdersPage() {
           >
             Next
           </button>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div
+          className={adminStyles.modalBackdrop}
+          onClick={() => setDeleteTarget(null)}
+        >
+          <div
+            className={adminStyles.modalCard}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-order-title"
+          >
+            <h3
+              id="delete-order-title"
+              style={{ fontSize: "var(--text-lg)", fontWeight: 700, color: "var(--color-error)" }}
+            >
+              Permanently delete {deleteTarget.reference}?
+            </h3>
+            <p
+              style={{
+                fontSize: "var(--text-sm)",
+                color: "var(--color-neutral-600)",
+                marginTop: "var(--space-2)",
+              }}
+            >
+              This removes the order, its items, and its audit history forever. Type{" "}
+              <strong>{deleteTarget.reference}</strong> to confirm.
+            </p>
+            <input
+              type="text"
+              className="form-input"
+              style={{ marginTop: "var(--space-3)" }}
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder={deleteTarget.reference}
+              autoFocus
+            />
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "var(--space-2)",
+                marginTop: "var(--space-4)",
+              }}
+            >
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                disabled={
+                  deleteConfirmText.trim() !== deleteTarget.reference ||
+                  actionLoading === deleteTarget.id
+                }
+                onClick={() => void confirmDeleteOrder()}
+              >
+                {actionLoading === deleteTarget.id ? "Deleting..." : "Delete Permanently"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
