@@ -291,10 +291,10 @@ export default function AdminProductsPage() {
           <div style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em" }}>
             Open Pre-Orders
           </div>
-          <div style={{ fontSize: "var(--text-3xl)", fontWeight: 800, color: "var(--color-brand-600)", marginTop: "4px" }}>
+          <div style={{ fontSize: "var(--text-3xl)", fontWeight: 800, color: "var(--color-neutral-900)", marginTop: "4px" }}>
             {summaryMetrics.activePOCount}
           </div>
-          <div style={{ fontSize: "var(--text-xs)", color: "var(--color-success)", fontWeight: 600, marginTop: "4px" }}>
+          <div style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-600)", fontWeight: 600, marginTop: "4px" }}>
             Accepting customer orders
           </div>
         </div>
@@ -335,7 +335,7 @@ export default function AdminProductsPage() {
           <div style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em" }}>
             Inventory Health
           </div>
-          <div style={{ fontSize: "var(--text-3xl)", fontWeight: 800, color: summaryMetrics.soldOutCount > 0 ? "var(--color-error)" : "var(--color-success)", marginTop: "4px" }}>
+          <div style={{ fontSize: "var(--text-3xl)", fontWeight: 800, color: "var(--color-neutral-900)", marginTop: "4px" }}>
             {summaryMetrics.totalRemainingUnits}
             <span style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-neutral-500)", marginLeft: "4px" }}>
               units left

@@ -1,4 +1,5 @@
 "use client";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -7,7 +8,6 @@ import {
   ROLE_LABELS,
   type Permission,
 } from "@/lib/permissions";
-import { SITE_NAME } from "@/lib/site";
 import { BrandLogo } from "@/components/BrandLogo";
 import type { AdminRole } from "@prisma/client";
 const NAV_ITEMS: readonly {
@@ -33,6 +33,27 @@ export default function AdminLayoutClient({
   };
 }) {
   const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileMenuOpen(false);
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [mobileMenuOpen]);
+
   const visibleItems = NAV_ITEMS.filter((item) =>
     item.permission ? hasPermission(user.role, item.permission) : true
   );
@@ -46,30 +67,83 @@ export default function AdminLayoutClient({
       : "Unknown role";
   return (
     <div className="admin-layout">
-      {}
       <header className="admin-mobilebar">
         <div className="admin-mobilebar-top">
-          <BrandLogo variant="horizontal" height={22} color="#fff" textColor="#fff" subtextColor="rgba(255, 255, 255, 0.7)" />
           <button
             type="button"
-            className="admin-mobilebar-signout"
-            onClick={() => signOut({ callbackUrl: "/butigadmin/login" })}
+            className="admin-mobilebar-menu-btn"
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Open navigation menu"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="admin-mobile-drawer"
           >
-            Sign Out
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+          <Link href="/butigadmin/dashboard" className="admin-mobilebar-brand-link" aria-label="Admin Dashboard">
+            <BrandLogo variant="horizontal" height={24} color="#fff" textColor="#fff" subtextColor="rgba(255, 255, 255, 0.72)" />
+          </Link>
+        </div>
+      </header>
+      <div
+        className={`admin-mobile-backdrop ${mobileMenuOpen ? "is-open" : ""}`}
+        onClick={() => setMobileMenuOpen(false)}
+        aria-hidden={!mobileMenuOpen}
+      />
+      <aside
+        id="admin-mobile-drawer"
+        className={`admin-mobile-drawer ${mobileMenuOpen ? "is-open" : ""}`}
+        aria-label="Mobile admin navigation"
+        aria-hidden={!mobileMenuOpen}
+      >
+        <div className="admin-mobile-drawer-header">
+          <BrandLogo variant="horizontal" height={26} color="#fff" textColor="#fff" subtextColor="rgba(255, 255, 255, 0.72)" />
+          <button
+            type="button"
+            className="admin-mobile-drawer-close"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close navigation menu"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
-        <nav className="admin-mobilebar-nav" aria-label="Admin navigation">
+        <nav className="admin-nav" aria-label="Admin navigation">
           {visibleItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className={`admin-mobilebar-link ${isActiveHref(item.href) ? "active" : ""}`}
+              onClick={() => setMobileMenuOpen(false)}
+              className={`admin-nav-link ${isActiveHref(item.href) ? "active" : ""}`}
             >
               <span>{item.label}</span>
             </Link>
           ))}
         </nav>
-      </header>
+        <div className="admin-drawer-footer">
+          <div style={{ marginBottom: "var(--space-4)" }}>
+            <p style={{ color: "white", fontWeight: 600, fontSize: "var(--text-sm)" }}>
+              {user.name ?? "Admin"}
+            </p>
+            <p style={{ color: "rgb(255 255 255 / 0.6)", fontSize: "var(--text-xs)", marginTop: "2px", wordBreak: "break-all" }}>
+              {user.email}
+            </p>
+            <p className="admin-role-pill">{roleLabel}</p>
+          </div>
+          <button
+            type="button"
+            className="admin-drawer-signout"
+            onClick={() => signOut({ callbackUrl: "/butigadmin/login" })}
+          >
+            Sign Out
+          </button>
+        </div>
+      </aside>
       <aside className="admin-sidebar">
         <div className="admin-sidebar-brand" style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
           <BrandLogo variant="stacked" height={42} color="#fff" textColor="#fff" subtextColor="rgba(255, 255, 255, 0.7)" />

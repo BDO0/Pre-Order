@@ -143,12 +143,7 @@ export default async function DashboardPage() {
                 key={action.href}
                 href={action.href}
                 className="card"
-                style={{
-                  textDecoration: "none",
-                  borderLeft: `4px solid ${
-                    action.tone === "warn" ? "var(--color-warning)" : "var(--color-brand-400)"
-                  }`,
-                }}
+                style={{ textDecoration: "none" }}
               >
                 <div
                   className="card-body"
@@ -210,15 +205,15 @@ export default async function DashboardPage() {
         </div>
         <div className="stat-card">
           <p className="stat-label">Pending</p>
-          <p className="stat-value" style={{ color: "var(--color-warning)" }}>{stats.pendingOrders}</p>
+          <p className="stat-value">{stats.pendingOrders}</p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Confirmed</p>
-          <p className="stat-value" style={{ color: "var(--color-info)" }}>{stats.confirmedOrders}</p>
+          <p className="stat-value">{stats.confirmedOrders}</p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Completed</p>
-          <p className="stat-value" style={{ color: "var(--color-success)" }}>{stats.completedOrders}</p>
+          <p className="stat-value">{stats.completedOrders}</p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Active Batches</p>
@@ -232,7 +227,7 @@ export default async function DashboardPage() {
         </div>
         <div className="stat-card">
           <p className="stat-label">Gross Order Value</p>
-          <p className="stat-value" style={{ fontSize: "var(--text-xl)", color: "var(--color-neutral-500)" }}>
+          <p className="stat-value" style={{ fontSize: "var(--text-xl)" }}>
             {formatMoney(Number(stats.grossValue))}
           </p>
         </div>
