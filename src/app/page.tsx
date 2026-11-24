@@ -109,7 +109,7 @@ export default async function HomePage() {
             </div>
           </div>
         </nav>
-        <main style={{ flex: 1 }}>
+        <main style={{ flex: 1, minWidth: 0, width: "100%" }}>
           <h1 className="visually-hidden">
             {SITE_NAME} — limited pre-order drops
           </h1>

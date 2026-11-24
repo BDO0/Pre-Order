@@ -221,6 +221,9 @@
   border: 1px solid rgba(216, 183, 140, 0.3);
   box-shadow: 0 8px 24px rgba(14, 0, 4, 0.55);
   z-index: 2;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .thumbBtn {
