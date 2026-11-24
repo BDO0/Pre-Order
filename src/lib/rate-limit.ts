@@ -111,9 +111,11 @@ export function clientIp(request: Request): string {
 
 export async function enforceRateLimit(
   request: Request,
-  options: RateLimitOptions
+  options: RateLimitOptions,
+  keyOverride?: string
 ): Promise<NextResponse | null> {
-  const result = await rateLimit(clientIp(request), options);
+  const key = keyOverride && keyOverride.trim() !== "" ? keyOverride.trim() : clientIp(request);
+  const result = await rateLimit(key, options);
   if (result.allowed) return null;
 
   return NextResponse.json(
@@ -136,8 +138,8 @@ export async function enforceRateLimit(
 }
 
 export const RATE_LIMITS = {
-  checkout: { bucket: "checkout", limit: 10, windowMs: 5 * 60_000, failClosed: true },
-  upload: { bucket: "upload", limit: 20, windowMs: 5 * 60_000, failClosed: true },
+  checkout: { bucket: "checkout", limit: 30, windowMs: 5 * 60_000, failClosed: false },
+  upload: { bucket: "upload", limit: 150, windowMs: 5 * 60_000, failClosed: true },
   orderLookup: { bucket: "order-lookup", limit: 30, windowMs: 5 * 60_000, failClosed: true },
   passwordChange: { bucket: "password-change", limit: 10, windowMs: 15 * 60_000, failClosed: true },
   login: { bucket: "login", limit: 10, windowMs: 5 * 60_000, failClosed: true },

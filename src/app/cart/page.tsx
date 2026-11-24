@@ -1,17 +1,114 @@
 "use client";
-import { useState } from "react";
-import { useCartStore } from "@/store/cart";
+import { useState, useEffect } from "react";
+import { useCartStore, type FreshVariantInfo } from "@/store/cart";
 import Link from "next/link";
 import { SITE_NAME } from "@/lib/site";
 import { formatMoney } from "@/lib/format";
+import { parseApiResponse } from "@/lib/api-client";
+import { primaryImageForColor } from "@/lib/product-color-images";
 import { imageSrcSet, imageUrlAtWidth } from "@/lib/image-geometry";
 import { BrandLogo } from "@/components/BrandLogo";
-import { CustomBagIcon, GarmentSilhouette } from "@/components/CustomerIcons";
+import { CustomBagIcon, CustomAlertIcon, GarmentSilhouette } from "@/components/CustomerIcons";
 import styles from "./cart.module.css";
 import glass from "../glass.module.css";
+
+interface BatchCatalogProduct {
+  id: string;
+  name: string;
+  price: number | string;
+  images: string[];
+  colorImages?: Record<string, string[]>;
+  preorderStatus: string;
+  preorderRemaining: number | null;
+  variants: {
+    id: string;
+    size: string | null;
+    color: string | null;
+    priceOverride: number | string | null;
+    remainingCapacity: number | null;
+    active: boolean;
+  }[];
+}
+
+interface BatchCatalogPayload {
+  id: string;
+  status: string;
+  products: BatchCatalogProduct[];
+}
+
 export default function CartPage() {
-  const { items, updateQuantity, removeItem, clearCart, getSubtotal, batchSlug } = useCartStore();
+  const { items, updateQuantity, removeItem, clearCart, getSubtotal, batchSlug, syncWithCatalog } = useCartStore();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [unavailableVariantIds, setUnavailableVariantIds] = useState<Record<string, string>>({});
+  const [batchClosedNotice, setBatchClosedNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!batchSlug || items.length === 0) return;
+    let cancelled = false;
+    fetch(`/api/batches/${encodeURIComponent(batchSlug)}`)
+      .then((res) => parseApiResponse<BatchCatalogPayload>(res))
+      .then(({ ok, data }) => {
+        if (cancelled || !ok || !data) return;
+        const freshMap = new Map<string, FreshVariantInfo>();
+        const unavailable: Record<string, string> = {};
+        for (const product of data.products ?? []) {
+          const productPrice = Number(product.price);
+          const productOpen = product.preorderStatus === "OPEN";
+          for (const variant of product.variants ?? []) {
+            if (!variant.active) continue;
+            const unitPrice =
+              variant.priceOverride !== null && variant.priceOverride !== undefined
+                ? Number(variant.priceOverride)
+                : productPrice;
+            const effectiveRemaining =
+              variant.remainingCapacity !== null && product.preorderRemaining !== null
+                ? Math.min(variant.remainingCapacity, product.preorderRemaining)
+                : variant.remainingCapacity ?? product.preorderRemaining;
+            freshMap.set(variant.id, {
+              variantId: variant.id,
+              unitPrice,
+              remainingCapacity: effectiveRemaining,
+              productName: product.name,
+              productPrice,
+              productImages: Array.isArray(product.images) ? product.images : [],
+              imageUrl: primaryImageForColor(
+                { images: product.images, colorImages: product.colorImages },
+                variant.color
+              ),
+              size: variant.size,
+              color: variant.color,
+            });
+            if (!productOpen) {
+              unavailable[variant.id] = "No longer accepting pre-orders";
+            } else if (effectiveRemaining !== null && effectiveRemaining <= 0) {
+              unavailable[variant.id] = "Sold out";
+            }
+          }
+        }
+        if (freshMap.size > 0) {
+          syncWithCatalog(freshMap);
+        }
+        if (data.status !== "OPEN") {
+          setBatchClosedNotice(
+            data.status === "SCHEDULED"
+              ? "This pre-order batch has not opened for orders yet."
+              : "This pre-order batch is not currently accepting orders."
+          );
+          return;
+        }
+        setBatchClosedNotice(null);
+        for (const item of useCartStore.getState().items) {
+          if (!freshMap.has(item.variantId)) {
+            unavailable[item.variantId] = "Option was updated or retired — please remove and re-select";
+          }
+        }
+        setUnavailableVariantIds(unavailable);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [batchSlug, items.length, syncWithCatalog]);
   const subtotal = getSubtotal();
   const total = subtotal;
   if (items.length === 0) {
@@ -143,6 +240,26 @@ export default function CartPage() {
           >
             Your Cart
           </h1>
+          {batchClosedNotice && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: "var(--space-5)",
+                padding: "var(--space-3) var(--space-4)",
+                background: "rgba(220, 38, 38, 0.16)",
+                border: "1px solid rgba(248, 113, 113, 0.35)",
+                borderRadius: "var(--radius-lg)",
+                color: "#fca5a5",
+                fontSize: "var(--text-sm)",
+                fontWeight: 500,
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <CustomAlertIcon size={18} /> {batchClosedNotice}
+            </div>
+          )}
           <div className={styles.layout}>
             <div className={styles.items}>
               {items.map((item) => {
@@ -150,6 +267,7 @@ export default function CartPage() {
                 // persisted carts fall back to the default gallery. The 64px tile
                 // renders the 400w derivative rather than the 1320w hero.
                 const thumbnail = item.product.imageUrl ?? item.product.images[0];
+                const unavailableReason = unavailableVariantIds[item.variantId];
                 return (
                   <div key={item.id} className={styles.item}>
                     <div className={styles.itemImage}>
@@ -171,6 +289,18 @@ export default function CartPage() {
                       <p className={styles.itemVariant}>
                         {[item.variant.color, item.variant.size].filter(Boolean).join(" • ")}
                       </p>
+                      {unavailableReason && (
+                        <p
+                          style={{
+                            color: "#f87171",
+                            fontSize: "var(--text-xs)",
+                            fontWeight: 600,
+                            margin: "4px 0 0",
+                          }}
+                        >
+                          ⚠ {unavailableReason}
+                        </p>
+                      )}
                       <p className={styles.itemPrice}>
                         {formatMoney(item.unitPrice * item.quantity)}
                       </p>

@@ -9,6 +9,7 @@ import { DeliveryEta } from "@/components/DeliveryEta";
 import { Countdown } from "@/components/Countdown";
 import { ProductLightbox } from "@/components/ProductLightbox";
 import { formatMoney } from "@/lib/format";
+import { getBatchWindowState } from "@/lib/batches";
 import { quantityCap } from "@/lib/variant-stock";
 import styles from "./storefront.module.css";
 import { CARD_SIZES, HERO_HEIGHT, HERO_SIZES, HERO_WIDTH, imageSrcSet, imageUrlAtWidth } from "@/lib/image-geometry";
@@ -34,6 +35,8 @@ export interface StorefrontProduct {
   batchId: string;
   batchName: string;
   batchSlug: string;
+  batchStatus?: string | null;
+  batchStartAt?: string | null;
   batchEndAt: string | null;
   preorderStatus: string;
   preorderRemaining: number | null;
@@ -44,6 +47,7 @@ interface Props {
   campaignStatus?: string;
   campaignTitle?: string | null;
   campaignDescription?: string | null;
+  campaignStartAt?: string | null;
   campaignEndAt?: string | null;
 }
 
@@ -61,16 +65,20 @@ export default function StorefrontClient({
   campaignStatus,
   campaignTitle,
   campaignDescription,
+  campaignStartAt,
   campaignEndAt,
 }: Props) {
   const { addItem, getItemCount, clearCart, items } = useCartStore();
   const [mounted, setMounted] = useState(false);
+  const [nowTick, setNowTick] = useState(() => new Date());
   const showcaseRef = useRef<HTMLDivElement>(null);
   const [highlightPulse, setHighlightPulse] = useState(false);
   const [showAllCatalogue, setShowAllCatalogue] = useState(false);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
+    const timer = setInterval(() => setNowTick(new Date()), 5000);
+    return () => clearInterval(timer);
   }, []);
   const itemCount = mounted ? getItemCount() : 0;
   const [selectedProductId, setSelectedProductId] = useState<string>(
@@ -271,8 +279,16 @@ export default function StorefrontClient({
   // from an effect: `qty` is only what the shopper asked for, `cappedQty` is real.
   const maxQty = Math.max(1, qtyCap);
   const cappedQty = Math.min(qty, maxQty);
+  const batchWindowState = getBatchWindowState(
+    {
+      status: activeProduct?.batchStatus ?? campaignStatus ?? "OPEN",
+      startAt: activeProduct?.batchStartAt ?? campaignStartAt ?? null,
+      endAt: activeProduct?.batchEndAt ?? campaignEndAt ?? null,
+    },
+    nowTick
+  );
   const isClosed =
-    campaignStatus === "CLOSED" ||
+    batchWindowState !== "open" ||
     activeProduct?.preorderStatus === "CLOSED" ||
     activeProduct?.preorderStatus === "SOLD_OUT";
   const isOrderable =
@@ -801,8 +817,10 @@ export default function StorefrontClient({
                         marginBottom: "var(--space-2)",
                       }}
                     >
-                      {activeProduct.preorderStatus === "COMING_SOON"
+                      {activeProduct.preorderStatus === "COMING_SOON" || batchWindowState === "not_started"
                         ? "Coming soon to pre-order"
+                        : batchWindowState === "expired"
+                        ? "Pre-order window has ended"
                         : "Item currently unavailable"}
                     </div>
                   )}

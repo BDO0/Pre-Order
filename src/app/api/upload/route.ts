@@ -33,8 +33,6 @@ function failure(status: number, code: string, message: string) {
 }
 export async function POST(request: NextRequest) {
   try {
-    const limited = await enforceRateLimit(request, RATE_LIMITS.upload);
-    if (limited) return limited;
     if (!isSameOrigin(request)) {
       return failure(403, "CROSS_ORIGIN_BLOCKED", "This request did not come from this site.");
     }
@@ -59,6 +57,12 @@ export async function POST(request: NextRequest) {
     const purpose = rawPurpose;
     const guard = await requirePermission(PURPOSE_PERMISSION[purpose], request);
     if (!guard.ok) return guard.response;
+    const limited = await enforceRateLimit(
+      request,
+      RATE_LIMITS.upload,
+      guard.userId ?? guard.actor
+    );
+    if (limited) return limited;
     if (file.size > MAX_UPLOAD_BYTES) {
       return failure(400, "FILE_TOO_LARGE", "File must be less than 25MB.");
     }

@@ -56,6 +56,8 @@ const loadBatch = cache(async (slug: string) => {
       batchId: batch.id,
       batchName: batch.name,
       batchSlug: batch.slug,
+      batchStatus: batch.status,
+      batchStartAt: batch.startAt ? batch.startAt.toISOString() : null,
       batchEndAt: batch.endAt ? batch.endAt.toISOString() : null,
       preorderStatus: p.preorderStatus,
       preorderRemaining:
@@ -81,6 +83,7 @@ const loadBatch = cache(async (slug: string) => {
       description: batch.description,
       status: batch.status,
       coverImage: batch.coverImage,
+      startAt: batch.startAt ? batch.startAt.toISOString() : null,
       endAt: batch.endAt ? batch.endAt.toISOString() : null,
     },
     products,
@@ -146,6 +149,7 @@ const loadProduct = cache(async (slug: string) => {
       name: batch.name,
       slug: batch.slug,
       status: batch.status,
+      startAt: batch.startAt ? batch.startAt.toISOString() : null,
       endAt: batch.endAt ? batch.endAt.toISOString() : null,
     },
   };
@@ -266,6 +270,7 @@ export default async function PreorderPage({ params }: Props) {
             campaignStatus={batchData.batch.status}
             campaignTitle={batchData.batch.name}
             campaignDescription={batchData.batch.description}
+            campaignStartAt={batchData.batch.startAt}
             campaignEndAt={batchData.batch.endAt}
           />
           <section style={{ maxWidth: "760px", margin: "var(--space-8) auto var(--space-16)", paddingInline: "var(--space-4)" }}>

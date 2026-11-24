@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/api-guard";
 import { productUpdateSchema } from "@/lib/validation";
-import { ensureProductInOpenBatch } from "@/lib/batch-service";
 import { uniqueViolationTarget } from "@/lib/prisma-errors";
 import { syncProductColorImages, ColorImageSyncError } from "@/lib/product-color-image-sync";
 import { revalidateStorefront } from "@/lib/storefront-cache";
@@ -54,6 +53,30 @@ export async function PATCH(
       );
     }
     const { variants, images, colorImages, removeColorImages, ...columns } = parsed.data;
+    if (columns.preorderLimit !== undefined && columns.preorderLimit !== null) {
+      const existingProduct = await prisma.product.findUnique({
+        where: { id },
+        select: { preorderReserved: true },
+      });
+      if (!existingProduct) {
+        return NextResponse.json(
+          { success: false, error: { code: "NOT_FOUND", message: "Product not found." } },
+          { status: 404 }
+        );
+      }
+      if (columns.preorderLimit < existingProduct.preorderReserved) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message: `Cannot set the total pre-order limit to ${columns.preorderLimit}: ${existingProduct.preorderReserved} unit(s) are already reserved. A limit cannot be set below what has been sold.`,
+            },
+          },
+          { status: 400 }
+        );
+      }
+    }
     const result = await prisma.$transaction(async (tx) => {
       const product = await tx.product.update({
         where: { id },
@@ -71,7 +94,6 @@ export async function PATCH(
         colorImages === undefined && removeColorImages === undefined
           ? null
           : await syncProductColorImages(tx, id, colorImages, removeColorImages);
-      const batchId = await ensureProductInOpenBatch(tx, id);
       await tx.auditLog.create({
         data: {
           actor: guard.actor,
@@ -84,14 +106,13 @@ export async function PATCH(
           },
         },
       });
-      return { product, variantChanges, colorImageChanges, batchId };
+      return { product, variantChanges, colorImageChanges };
     }, { maxWait: 15_000, timeout: 30_000 });
     revalidateStorefront();
     return NextResponse.json({
       success: true,
       data: result.product,
       meta: {
-        batchId: result.batchId,
         variantChanges: result.variantChanges,
         colorImageChanges: result.colorImageChanges,
       },

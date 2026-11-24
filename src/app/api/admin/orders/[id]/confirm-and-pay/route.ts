@@ -66,14 +66,19 @@ export async function PATCH(
       assertValidTransition(currentStatus, "CONFIRMED");
     }
     const noteText = body.note?.trim() || "Confirmed and payment recorded via Instagram DM";
-    await prisma.$transaction(async (tx) => {
-      await tx.order.update({
-        where: { id },
+    const applied = await prisma.$transaction(async (tx) => {
+      const claim = await tx.order.updateMany({
+        where: {
+          id,
+          status: currentStatus,
+          paymentStatus: currentPayment,
+        },
         data: {
           status: "CONFIRMED",
           paymentStatus: "PAID",
         },
       });
+      if (claim.count !== 1) return false;
       if (currentStatus !== "CONFIRMED") {
         await tx.orderStatusHistory.create({
           data: {
@@ -113,7 +118,20 @@ export async function PATCH(
           metadata: { note: noteText, role: guard.role },
         },
       });
+      return true;
     });
+    if (!applied) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "ORDER_CHANGED",
+            message: "This order was changed by someone else. Reload it and try again.",
+          },
+        },
+        { status: 409 }
+      );
+    }
     return NextResponse.json({
       success: true,
       data: {

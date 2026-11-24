@@ -1,13 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/db", () => ({ prisma: {} }));
+
 import {
   describeEta,
   etaState,
   fromDateTimeInputValue,
+  getBatchWindowState,
+  isBatchAcceptingOrders,
   parseEta,
   slugifyBatchName,
   toDateTimeInputValue,
   ETA_SOON_DAYS,
 } from "@/lib/batches";
+import { formatManilaDateParts } from "@/lib/order-number";
 
 describe("parseEta", () => {
   it("treats a cleared form input as no ETA, not as a bad date", () => {
@@ -113,5 +119,60 @@ describe("datetime-local conversion", () => {
   it("reports a missed date as overdue", () => {
     expect(describeEta("2026-09-12T12:00:00.000Z", now)).toBe("Was due 1 day ago");
     expect(describeEta("2026-09-10T12:00:00.000Z", now)).toBe("Was due 3 days ago");
+  });
+});
+
+describe("isBatchAcceptingOrders & getBatchWindowState", () => {
+  const now = new Date("2026-09-13T12:00:00.000Z");
+
+  it("allows ordering when status is OPEN and within startAt/endAt window", () => {
+    expect(isBatchAcceptingOrders({ status: "OPEN" }, now)).toBe(true);
+    expect(
+      isBatchAcceptingOrders(
+        {
+          status: "OPEN",
+          startAt: "2026-09-10T00:00:00.000Z",
+          endAt: "2026-09-20T00:00:00.000Z",
+        },
+        now
+      )
+    ).toBe(true);
+  });
+
+  it("rejects ordering before startAt or after endAt even if status is still OPEN", () => {
+    expect(
+      getBatchWindowState(
+        { status: "OPEN", startAt: "2026-09-14T00:00:00.000Z" },
+        now
+      )
+    ).toBe("not_started");
+    expect(
+      getBatchWindowState(
+        { status: "OPEN", endAt: "2026-09-13T11:59:59.000Z" },
+        now
+      )
+    ).toBe("expired");
+    expect(
+      isBatchAcceptingOrders(
+        { status: "OPEN", endAt: "2026-09-13T11:59:59.000Z" },
+        now
+      )
+    ).toBe(false);
+  });
+
+  it("rejects ordering when status is not OPEN", () => {
+    expect(getBatchWindowState({ status: "CLOSED" }, now)).toBe("closed");
+    expect(getBatchWindowState({ status: "DRAFT" }, now)).toBe("closed");
+    expect(isBatchAcceptingOrders(null, now)).toBe(false);
+  });
+});
+
+describe("formatManilaDateParts (Asia/Manila order reference date)", () => {
+  it("uses Asia/Manila date for early morning PH orders (00:00–07:59 PH / 16:00–23:59 previous day UTC)", () => {
+    // 2026-11-24 18:30:00 UTC is 2026-11-25 02:30:00 in Asia/Manila (UTC+8)
+    const earlyMorningPh = new Date("2026-11-24T18:30:00.000Z");
+    const parts = formatManilaDateParts(earlyMorningPh);
+    expect(parts.compact).toBe("20261125");
+    expect(parts.isoDay).toBe("2026-11-25");
   });
 });

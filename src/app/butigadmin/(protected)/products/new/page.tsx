@@ -12,6 +12,7 @@ import {
 import {
   compressImageClient,
   formatFileSize,
+  heifUploadHint,
   type CompressionResult,
 } from "@/lib/client-image-compression";
 import { parseApiResponse } from "@/lib/api-client";
@@ -407,7 +408,15 @@ export default function NewProductPage() {
                     setCompressionInfo(result);
                   } catch (err) {
                     console.error("Compression error:", err);
-                    setImageFile(file);
+                    const hint = heifUploadHint(file);
+                    if (hint) {
+                      reportError(hint);
+                      setImageFile(null);
+                      setCompressionInfo(null);
+                      e.target.value = "";
+                    } else {
+                      setImageFile(file);
+                    }
                   } finally {
                     setCompressing(false);
                   }

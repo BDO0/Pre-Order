@@ -28,6 +28,17 @@ export interface CartItem {
   quantity: number;
   unitPrice: number; 
 }
+export interface FreshVariantInfo {
+  variantId: string;
+  unitPrice: number;
+  remainingCapacity: number | null;
+  productName: string;
+  productPrice: number;
+  productImages: string[];
+  imageUrl?: string | null;
+  size: string | null;
+  color: string | null;
+}
 interface CartState {
   batchId: string | null;
   batchSlug: string | null;
@@ -42,6 +53,7 @@ interface CartState {
   ) => boolean;
   updateQuantity: (cartItemId: string, quantity: number) => void;
   removeItem: (cartItemId: string) => void;
+  syncWithCatalog: (freshVariants: Map<string, FreshVariantInfo>) => void;
   clearCart: () => void;
   getSubtotal: () => number;
   getItemCount: () => number;
@@ -129,6 +141,36 @@ export const useCartStore = create<CartState>()(
       },
       removeItem: (cartItemId) => {
         set({ items: get().items.filter((i) => i.id !== cartItemId) });
+      },
+      syncWithCatalog: (freshVariants) => {
+        set({
+          items: get().items.map((item) => {
+            const fresh = freshVariants.get(item.variantId);
+            if (!fresh) return item;
+            const max =
+              fresh.remainingCapacity !== null
+                ? Math.max(1, fresh.remainingCapacity)
+                : Infinity;
+            return {
+              ...item,
+              unitPrice: fresh.unitPrice,
+              quantity: Math.min(item.quantity, max),
+              product: {
+                ...item.product,
+                name: fresh.productName,
+                price: fresh.productPrice,
+                images: fresh.productImages,
+                ...(fresh.imageUrl ? { imageUrl: fresh.imageUrl } : {}),
+              },
+              variant: {
+                ...item.variant,
+                size: fresh.size,
+                color: fresh.color,
+                remainingCapacity: fresh.remainingCapacity,
+              },
+            };
+          }),
+        });
       },
       clearCart: () => set({ items: [], batchId: null, batchSlug: null }),
       getSubtotal: () =>

@@ -11,6 +11,7 @@ import { DeliveryEta } from "@/components/DeliveryEta";
 import { Countdown } from "@/components/Countdown";
 import { ProductLightbox } from "@/components/ProductLightbox";
 import { formatMoney } from "@/lib/format";
+import { getBatchWindowState } from "@/lib/batches";
 import { imagesForColor, primaryImageForColor, getColorSwatch } from "@/lib/product-color-images";
 import { quantityCap } from "@/lib/variant-stock";
 import glass from "@/app/glass.module.css";
@@ -44,16 +45,24 @@ export interface Batch {
   name: string;
   slug: string;
   status: string;
+  startAt?: string | null;
   endAt: string | null;
 }
 export default function ProductPageClient({ product, batch }: { product: Product; batch: Batch }) {
   const { addItem, getItemCount, clearCart, items } = useCartStore();
   const [mounted, setMounted] = useState(false);
+  const [nowTick, setNowTick] = useState(() => new Date());
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
+    const timer = setInterval(() => setNowTick(new Date()), 5000);
+    return () => clearInterval(timer);
   }, []);
-  const isClosed = batch.status === "CLOSED" || product.preorderStatus === "CLOSED" || product.preorderStatus === "SOLD_OUT";
+  const batchWindowState = getBatchWindowState(batch, nowTick);
+  const isClosed =
+    batchWindowState !== "open" ||
+    product.preorderStatus === "CLOSED" ||
+    product.preorderStatus === "SOLD_OUT";
   const isOrderable = !isClosed && product.preorderStatus === "OPEN";
   const itemCount = mounted ? getItemCount() : 0;
   const colors = [...new Set(product.variants.filter((v) => v.color).map((v) => v.color!))];
@@ -475,7 +484,7 @@ export default function ProductPageClient({ product, batch }: { product: Product
                 <div className={styles.badgeRow} style={{ marginBottom: "var(--space-3)" }}>
                   <span className={styles.batchBadge}>{batch.name}</span>
                   {batch.endAt && <Countdown targetDate={batch.endAt} />}
-                  {batch.status === "CLOSED" && (
+                  {(batch.status === "CLOSED" || batchWindowState === "expired") && (
                     <span className="badge badge-closed">Batch Closed</span>
                   )}
                   {product.preorderStatus === "SOLD_OUT" && (
@@ -497,8 +506,10 @@ export default function ProductPageClient({ product, batch }: { product: Product
                   style={{ textAlign: "center", padding: "var(--space-8)" }}
                 >
                   <p style={{ fontSize: "var(--text-lg)", fontWeight: 600, color: "rgba(255, 255, 255, 0.9)" }}>
-                    {product.preorderStatus === "COMING_SOON"
+                    {product.preorderStatus === "COMING_SOON" || batchWindowState === "not_started"
                       ? "Coming Soon"
+                      : batchWindowState === "expired"
+                      ? "Pre-Order Window Ended"
                       : "Currently Unavailable"}
                   </p>
                 </div>

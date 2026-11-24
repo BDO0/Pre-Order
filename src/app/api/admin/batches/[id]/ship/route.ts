@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/api-guard";
-import type { OrderStatus } from "@prisma/client";
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -17,49 +16,54 @@ export async function POST(
     if (!batch) {
       return NextResponse.json({ success: false, error: { code: "BATCH_NOT_FOUND", message: "Batch not found." } }, { status: 404 });
     }
-    const updated = await prisma.$transaction(async (tx) => {
-      const ordersToShip = await tx.order.findMany({
-        where: {
-          batchId: id,
-          status: "CONFIRMED"
-        },
-        select: { id: true, status: true, reference: true }
-      });
-      if (ordersToShip.length === 0) {
-        return 0;
-      }
-      await tx.order.updateMany({
-        where: {
-          batchId: id,
-          status: "CONFIRMED"
-        },
-        data: {
-          status: "SHIPPED"
+    const updated = await prisma.$transaction(
+      async (tx) => {
+        const ordersToShip = await tx.order.findMany({
+          where: {
+            batchId: id,
+            status: "CONFIRMED",
+          },
+          select: { id: true, status: true, reference: true },
+        });
+        if (ordersToShip.length === 0) {
+          return 0;
         }
-      });
-      for (const order of ordersToShip) {
-        await tx.orderStatusHistory.create({
+        const orderIds = ordersToShip.map((o) => o.id);
+        await tx.order.updateMany({
+          where: {
+            id: { in: orderIds },
+            status: "CONFIRMED",
+          },
           data: {
-            orderId: order.id,
-            fromStatus: order.status,
-            toStatus: "SHIPPED",
-            changedBy: guard.actor,
-            note: "Marked as Shipped via Batch bulk action",
+            status: "SHIPPED",
           },
         });
-        await tx.auditLog.create({
-          data: {
+        await tx.orderStatusHistory.createMany({
+          data: ordersToShip.map((order) => ({
+            orderId: order.id,
+            fromStatus: order.status,
+            toStatus: "SHIPPED" as const,
+            changedBy: guard.actor,
+            note: "Marked as Shipped via Batch bulk action",
+          })),
+        });
+        await tx.auditLog.createMany({
+          data: ordersToShip.map((order) => ({
             orderId: order.id,
             actor: guard.actor,
             action: "order.updated",
             oldValue: { status: order.status },
             newValue: { status: "SHIPPED" },
-            metadata: { note: "Marked as Shipped via Batch bulk action", role: guard.role },
-          },
+            metadata: {
+              note: "Marked as Shipped via Batch bulk action",
+              role: guard.role,
+            },
+          })),
         });
-      }
-      return ordersToShip.length;
-    });
+        return ordersToShip.length;
+      },
+      { maxWait: 15_000, timeout: 30_000 }
+    );
     return NextResponse.json({
       success: true,
       data: {

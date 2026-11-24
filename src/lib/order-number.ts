@@ -1,13 +1,34 @@
 import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/db";
-import { format } from "date-fns";
-export async function generateOrderReference(): Promise<string> {
-  const now = new Date();
-  const prefix = `PO-${format(now, "yyyyMMdd")}-`;
-  const day = format(now, "yyyy-MM-dd");
+
+export const ORDER_REFERENCE_TIMEZONE = "Asia/Manila";
+
+export function formatManilaDateParts(now = new Date()): {
+  compact: string;
+  isoDay: string;
+} {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: ORDER_REFERENCE_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(now);
+  const year = parts.find((p) => p.type === "year")?.value ?? "1970";
+  const month = parts.find((p) => p.type === "month")?.value ?? "01";
+  const day = parts.find((p) => p.type === "day")?.value ?? "01";
+  return {
+    compact: `${year}${month}${day}`,
+    isoDay: `${year}-${month}-${day}`,
+  };
+}
+
+export async function generateOrderReference(now = new Date()): Promise<string> {
+  const { compact, isoDay } = formatManilaDateParts(now);
+  const prefix = `PO-${compact}-`;
   const rows = await prisma.$queryRaw<Array<{ last_value: number }>>`
     INSERT INTO order_counters (day, last_value, updated_at)
-    VALUES (${day}::date, 1, CURRENT_TIMESTAMP)
+    VALUES (${isoDay}::date, 1, CURRENT_TIMESTAMP)
     ON CONFLICT (day) DO UPDATE
       SET last_value = order_counters.last_value + 1,
           updated_at = CURRENT_TIMESTAMP
@@ -15,7 +36,7 @@ export async function generateOrderReference(): Promise<string> {
   `;
   const nextSequence = rows[0]?.last_value ?? 1;
   const seqPart = String(nextSequence).padStart(4, "0");
-  
+
   return `${prefix}${seqPart}-${randomReferenceSuffix(REFERENCE_SUFFIX_LENGTH)}`;
 }
 

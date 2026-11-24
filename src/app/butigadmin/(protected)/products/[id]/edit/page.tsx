@@ -16,6 +16,7 @@ import {
 import {
   compressImageClient,
   formatFileSize,
+  heifUploadHint,
   type CompressionResult,
 } from "@/lib/client-image-compression";
 import { imageUrlAtWidth } from "@/lib/image-geometry";
@@ -52,6 +53,7 @@ interface ProductDetail {
   preorderStatus: string;
   active: boolean;
   preorderLimit: number | null;
+  preorderReserved?: number;
   images: unknown;
   colorImages?: StoredColorImageRow[];
   variants?: ProductVariantDetail[];
@@ -83,6 +85,7 @@ export default function EditProductPage({
   });
   const [sizeDraft, setSizeDraft] = useState("");
   const [colorDraft, setColorDraft] = useState("");
+  const [preorderReserved, setPreorderReserved] = useState(0);
   const [isDirty, setIsDirty] = useState(false);
 
   const reportError = (msg: string) => {
@@ -223,6 +226,7 @@ export default function EditProductPage({
           preorderLimit:
             p.preorderLimit === null ? "" : String(p.preorderLimit),
         });
+        setPreorderReserved(p.preorderReserved ?? 0);
         setStock(seeded);
         setDisabledMap(initialDisabled);
         setIsDirty(false);
@@ -408,6 +412,11 @@ export default function EditProductPage({
       const limit = parseCapacityInput(formData.preorderLimit);
       if (!limit.ok)
         throw new Error(`Total for this product: ${limit.message}`);
+      if (limit.capacity !== null && limit.capacity < preorderReserved) {
+        throw new Error(
+          `Total for this product: Cannot set the limit to ${limit.capacity} because ${preorderReserved} unit(s) are already reserved.`
+        );
+      }
       if (!skipRetireCheck) {
         const retiring = describeRetirements(storedVariants, payload.variants);
         if (retiring.length > 0) {
@@ -715,6 +724,9 @@ export default function EditProductPage({
                 placeholder="no limit"
               />
               <span className="form-hint">
+                {preorderReserved > 0
+                  ? `${preorderReserved} unit${preorderReserved === 1 ? "" : "s"} already reserved across live orders. `
+                  : ""}
                 A cap across every option together. Leave it empty for no limit.
                 The boxes above are the ones that stop one size from selling out
                 quietly.
@@ -787,7 +799,15 @@ export default function EditProductPage({
                     setCompressionInfo(result);
                   } catch (err) {
                     console.error("Compression error:", err);
-                    setImageFile(file);
+                    const hint = heifUploadHint(file);
+                    if (hint) {
+                      reportError(hint);
+                      setImageFile(null);
+                      setCompressionInfo(null);
+                      e.target.value = "";
+                    } else {
+                      setImageFile(file);
+                    }
                   } finally {
                     setCompressing(false);
                   }

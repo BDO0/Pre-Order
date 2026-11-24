@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { isBatchAcceptingOrders } from "@/lib/batches";
 import { buildColorImageMap } from "@/lib/product-color-images";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 export async function GET(
@@ -37,6 +38,7 @@ export async function GET(
       );
     }
     const expired = Boolean(batch.endAt && now > batch.endAt);
+    const acceptingOrders = isBatchAcceptingOrders(batch, now);
     const activeProducts = batch.products
       .map((bp) => bp.product)
       .filter(
@@ -58,7 +60,7 @@ export async function GET(
         slug: batch.slug,
         description: batch.description,
         coverImage: batch.coverImage,
-        status: expired ? "CLOSED" : batch.status,
+        status: acceptingOrders ? "OPEN" : expired ? "CLOSED" : batch.status,
         startAt: batch.startAt,
         endAt: batch.endAt,
         products: expired
@@ -76,9 +78,10 @@ export async function GET(
               preorderStatus: p.preorderStatus,
               preorderLimit: p.preorderLimit,
               preorderReserved: p.preorderReserved,
-              preorderRemaining: p.preorderLimit
-                ? p.preorderLimit - p.preorderReserved
-                : null,
+              preorderRemaining:
+                p.preorderLimit !== null
+                  ? Math.max(0, p.preorderLimit - p.preorderReserved)
+                  : null,
               variants: p.variants.map((v) => ({
                 id: v.id,
                 size: v.size,
@@ -90,7 +93,7 @@ export async function GET(
                 active: v.active,
               })),
             })),
-        orderableCount: expired ? 0 : activeProducts.length,
+        orderableCount: acceptingOrders ? activeProducts.length : 0,
       },
     });
   } catch (error) {

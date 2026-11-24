@@ -1,1 +1,341 @@
-import { prisma } from "@/lib/db";import { generateAccessToken } from "@/lib/order-token";import { generateOrderReference } from "@/lib/order-number";import { detectDuplicate } from "@/lib/duplicate-detection";import { OrderError } from "@/lib/order-error";import { uniqueViolationTarget } from "@/lib/prisma-errors";import { buildSnapshotAnswers, toPublicField } from "@/lib/order-answers";import type { OrderSubmission } from "@/lib/validation";import type { Prisma } from "@prisma/client";export { OrderError };function isReferenceCollision(error: unknown): boolean {  return uniqueViolationTarget(error)?.includes("reference") ?? false;}function isIdempotencyCollision(error: unknown): boolean {  return uniqueViolationTarget(error)?.includes("idempotency") ?? false;}function isCustomerCollision(error: unknown): boolean {  return uniqueViolationTarget(error)?.includes("instagramhandle") ?? false;}export async function createOrder(input: OrderSubmission) {  if (input.idempotencyKey) {    const existing = await prisma.order.findUnique({      where: { idempotencyKey: input.idempotencyKey },      select: { reference: true, total: true, status: true, accessToken: true },    });    if (existing) {      return { idempotent: true, order: existing };    }  }  const batch = await prisma.batch.findUnique({    where: { id: input.batchId },  });  if (!batch) {    throw new OrderError("BATCH_NOT_FOUND", "Batch not found.");  }  if (batch.status !== "OPEN") {    throw new OrderError(      "BATCH_NOT_OPEN",      "This pre-order batch is not currently accepting orders."    );  }  const now = new Date();  if (batch.startAt && now < batch.startAt) {    throw new OrderError(      "BATCH_NOT_STARTED",      "This pre-order batch has not started yet."    );  }  if (batch.endAt && now > batch.endAt) {    throw new OrderError(      "BATCH_EXPIRED",      "This pre-order batch has ended."    );  }  const resolvedItems: {    variantId: string;    productId: string;    quantity: number;    unitPrice: number;    productName: string;    variantSnapshot: object;  }[] = [];  for (const item of input.items) {    const variant = await prisma.productVariant.findUnique({      where: { id: item.variantId, active: true },      include: { product: true },    });    if (!variant) {      throw new OrderError(        "VARIANT_NOT_FOUND",        `A selected product variant is unavailable or no longer exists.`      );    }    const product = variant.product;    if (!product.active) {      throw new OrderError(        "PRODUCT_INACTIVE",        `"${product.name}" is no longer available.`      );    }    if (!product.preorderEnabled) {      throw new OrderError(        "PRODUCT_NOT_PREORDER",        `"${product.name}" is not available for pre-order.`      );    }    if (product.preorderStatus !== "OPEN") {      throw new OrderError(        "PRODUCT_PREORDER_CLOSED",        `"${product.name}" is no longer accepting pre-orders.`      );    }    const batchProduct = await prisma.batchProduct.findUnique({      where: {        batchId_productId: {          batchId: input.batchId,          productId: product.id,        },      },    });    if (!batchProduct) {      throw new OrderError(        "PRODUCT_NOT_IN_BATCH",        `"${product.name}" is not part of this batch.`      );    }    const unitPrice = Number(variant.priceOverride ?? product.price);    resolvedItems.push({      variantId: variant.id,      quantity: item.quantity,      unitPrice,      productId: product.id,      productName: product.name,      variantSnapshot: {        size: variant.size,        color: variant.color,        sku: variant.sku,      },    });  }  const subtotal = resolvedItems.reduce(    (sum, item) => sum + item.unitPrice * item.quantity,    0  );  const total = subtotal;  const answerFields = await prisma.orderFormField.findMany({    where: { active: true, deletedAt: null },    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],    select: {      key: true,      label: true,      type: true,      placeholder: true,      helpText: true,      required: true,      options: true,      sensitive: true,    },  });  const answers = buildSnapshotAnswers(    answerFields.map((field) => ({      ...toPublicField(field),      sensitive: field.sensitive,    })),    input.answers  );  const customerFullName = input.customerInfo.fullName;  const customerHandle = input.customerInfo.instagramHandle;  const customerSnapshot: Prisma.InputJsonValue = {    fullName: customerFullName,    instagramHandle: customerHandle,    answers,  };  const duplicateRef = await detectDuplicate(    input.customerInfo.instagramHandle,    input.batchId  );  const TRANSACTION_OPTIONS = { maxWait: 15_000, timeout: 20_000 } as const;  const writeOrder = (reference: string, accessToken: string) => prisma.$transaction(async (tx) => {    for (const item of resolvedItems) {      const variantClaim = await tx.productVariant.updateMany({        where: {          id: item.variantId,          active: true,          OR: [            { remainingCapacity: null },            { remainingCapacity: { gte: item.quantity } },          ],        },        data: { remainingCapacity: { decrement: item.quantity } },      });      if (variantClaim.count !== 1) {        const current = await tx.productVariant.findUnique({          where: { id: item.variantId },          select: { active: true, remainingCapacity: true },        });        if (!current || !current.active) {          throw new OrderError(            "VARIANT_LOCKED_NOT_FOUND",            "A selected product variant is no longer available."          );        }        throw new OrderError(          "INSUFFICIENT_CAPACITY",          `Sorry, we don't have enough stock for your requested quantity. Please adjust and try again.`        );      }      const productClaim = await tx.$executeRaw`        UPDATE "products"        SET "preorderReserved" = "preorderReserved" + ${item.quantity}        WHERE "id" = ${item.productId}          AND ("preorderLimit" IS NULL OR "preorderReserved" + ${item.quantity} <= "preorderLimit")      `;      if (productClaim !== 1) {        throw new OrderError(          "PRODUCT_CAPACITY_FULL",          `"${item.productName}" has reached its pre-order limit.`        );      }    }    const existingCustomer = await tx.customer.findUnique({      where: { instagramHandle: customerHandle },      select: { id: true },    });    const customer = existingCustomer      ? await tx.customer.update({          where: { id: existingCustomer.id },          data: { fullName: customerFullName },        })      : await tx.customer.create({          data: {            fullName: customerFullName,            instagramHandle: customerHandle,          },        });    const newOrder = await tx.order.create({      data: {        reference,        accessToken,        batchId: input.batchId,        customerId: customer.id,        status: "PENDING",        paymentStatus: "UNPAID",        idempotencyKey: input.idempotencyKey,        subtotal,        total,        customerSnapshot,        isNewCustomer: !existingCustomer,        isPossibleDuplicate: !!duplicateRef,        duplicateOfRef: duplicateRef ?? null,        items: {          create: resolvedItems.map((item) => ({            variantId: item.variantId,            quantity: item.quantity,            unitPriceAtPurchase: item.unitPrice,            productNameSnapshot: item.productName,            variantSnapshot: item.variantSnapshot,          })),        },        statusHistory: {          create: {            fromStatus: null,            toStatus: "PENDING",            changedBy: "system",            note: "Order created",          },        },      },    });    await tx.auditLog.create({      data: {        orderId: newOrder.id,        actor: "customer",        action: "order.created",        newValue: { reference, total: total.toString() },        metadata: {          instagramHandle: customerHandle,          isNewCustomer: !existingCustomer,        },      },    });    return newOrder;  }, TRANSACTION_OPTIONS);  const MAX_REFERENCE_ATTEMPTS = 5;  let order: Awaited<ReturnType<typeof writeOrder>> | undefined;  for (let attempt = 1; attempt <= MAX_REFERENCE_ATTEMPTS; attempt += 1) {    const reference = await generateOrderReference();    try {      order = await writeOrder(reference, generateAccessToken());      break;    } catch (error) {      if (isCustomerCollision(error) && attempt < MAX_REFERENCE_ATTEMPTS) {        continue;      }      if (isReferenceCollision(error) && attempt < MAX_REFERENCE_ATTEMPTS) {        continue;      }      if (isIdempotencyCollision(error) && input.idempotencyKey) {        const existing = await prisma.order.findUnique({          where: { idempotencyKey: input.idempotencyKey },          select: { reference: true, total: true, status: true, accessToken: true },        });        if (existing) return { idempotent: true, order: existing };      }      throw error;    }  }  if (!order) {    throw new OrderError(      "ORDER_REFERENCE_CONFLICT",      "We could not allocate an order number. Please try again."    );  }  return {    idempotent: false,    order: {      reference: order.reference,      accessToken: order.accessToken,      total: total,      status: order.status,      isPossibleDuplicate: order.isPossibleDuplicate,    },  };}export async function releaseOrderCapacity(  tx: Prisma.TransactionClient,  orderId: string): Promise<void> {  const items = await tx.orderItem.findMany({    where: { orderId },    select: {      quantity: true,      variantId: true,      variant: { select: { productId: true } },    },  });  for (const item of items) {    await tx.productVariant.updateMany({      where: { id: item.variantId },      data: { remainingCapacity: { increment: item.quantity } },    });    await tx.$executeRaw`      UPDATE "products"      SET "preorderReserved" = GREATEST("preorderReserved" - ${item.quantity}, 0)      WHERE "id" = ${item.variant.productId}    `;  }}
+import { OrderError } from "@/lib/order-error";
+import { generateAccessToken } from "@/lib/order-token";
+import { generateOrderReference } from "@/lib/order-number";
+import { detectDuplicate } from "@/lib/duplicate-detection";
+import { prisma } from "@/lib/db";
+import { uniqueViolationTarget } from "@/lib/prisma-errors";
+import { buildSnapshotAnswers, toPublicField } from "@/lib/order-answers";
+import type { OrderSubmission } from "@/lib/validation";
+import type { Prisma } from "@prisma/client";
+export { OrderError };
+function isReferenceCollision(error: unknown): boolean {
+  return uniqueViolationTarget(error)?.includes("reference") ?? false;
+}
+function isIdempotencyCollision(error: unknown): boolean {
+  return uniqueViolationTarget(error)?.includes("idempotency") ?? false;
+}
+function isCustomerCollision(error: unknown): boolean {
+  return uniqueViolationTarget(error)?.includes("instagramhandle") ?? false;
+}
+function formatVariantLabel(productName: string, size: string | null, color: string | null): string {
+  const parts = [color, size].filter(Boolean).join(" / ");
+  return parts ? `"${productName}" (${parts})` : `"${productName}"`;
+}
+export async function createOrder(input: OrderSubmission) {
+  if (input.idempotencyKey) {
+    const existing = await prisma.order.findUnique({
+      where: { idempotencyKey: input.idempotencyKey },
+      select: { reference: true, total: true, status: true, accessToken: true },
+    });
+    if (existing) {
+      return { idempotent: true, order: existing };
+    }
+  }
+  const batch = await prisma.batch.findUnique({
+    where: { id: input.batchId },
+  });
+  if (!batch) {
+    throw new OrderError("BATCH_NOT_FOUND", "Batch not found.");
+  }
+  if (batch.status !== "OPEN") {
+    throw new OrderError(
+      "BATCH_NOT_OPEN",
+      "This pre-order batch is not currently accepting orders."
+    );
+  }
+  const now = new Date();
+  if (batch.startAt && now < batch.startAt) {
+    throw new OrderError(
+      "BATCH_NOT_STARTED",
+      "This pre-order batch has not started yet."
+    );
+  }
+  if (batch.endAt && now > batch.endAt) {
+    throw new OrderError(
+      "BATCH_EXPIRED",
+      "This pre-order batch has ended."
+    );
+  }
+  const resolvedItems: {
+    variantId: string;
+    productId: string;
+    quantity: number;
+    unitPrice: number;
+    productName: string;
+    variantLabel: string;
+    variantSnapshot: object;
+  }[] = [];
+  for (const item of input.items) {
+    const variant = await prisma.productVariant.findUnique({
+      where: { id: item.variantId },
+      include: { product: true },
+    });
+    if (!variant) {
+      throw new OrderError(
+        "VARIANT_NOT_FOUND",
+        "One of the items in your bag is no longer available. Please return to your cart, remove it, and re-select your option."
+      );
+    }
+    const product = variant.product;
+    const label = formatVariantLabel(product.name, variant.size, variant.color);
+    if (!variant.active) {
+      throw new OrderError(
+        "VARIANT_NOT_FOUND",
+        `${label} was updated or is no longer available. Please remove it from your bag and re-select from the shop.`
+      );
+    }
+    if (!product.active) {
+      throw new OrderError(
+        "PRODUCT_INACTIVE",
+        `"${product.name}" is no longer available.`
+      );
+    }
+    if (!product.preorderEnabled) {
+      throw new OrderError(
+        "PRODUCT_NOT_PREORDER",
+        `"${product.name}" is not available for pre-order.`
+      );
+    }
+    if (product.preorderStatus !== "OPEN") {
+      throw new OrderError(
+        "PRODUCT_PREORDER_CLOSED",
+        `"${product.name}" is no longer accepting pre-orders.`
+      );
+    }
+    const batchProduct = await prisma.batchProduct.findUnique({
+      where: {
+        batchId_productId: {
+          batchId: input.batchId,
+          productId: product.id,
+        },
+      },
+    });
+    if (!batchProduct) {
+      throw new OrderError(
+        "PRODUCT_NOT_IN_BATCH",
+        `"${product.name}" is not part of this batch.`
+      );
+    }
+    const unitPrice = Number(variant.priceOverride ?? product.price);
+    resolvedItems.push({
+      variantId: variant.id,
+      quantity: item.quantity,
+      unitPrice,
+      productId: product.id,
+      productName: product.name,
+      variantLabel: label,
+      variantSnapshot: {
+        size: variant.size,
+        color: variant.color,
+        sku: variant.sku,
+      },
+    });
+  }
+  const subtotal = resolvedItems.reduce(
+    (sum, item) => sum + item.unitPrice * item.quantity,
+    0
+  );
+  const total = subtotal;
+  const answerFields = await prisma.orderFormField.findMany({
+    where: { active: true, deletedAt: null },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    select: {
+      key: true,
+      label: true,
+      type: true,
+      placeholder: true,
+      helpText: true,
+      required: true,
+      options: true,
+      sensitive: true,
+    },
+  });
+  const answers = buildSnapshotAnswers(
+    answerFields.map((field) => ({
+      ...toPublicField(field),
+      sensitive: field.sensitive,
+    })),
+    input.answers
+  );
+  const customerFullName = input.customerInfo.fullName;
+  const customerHandle = input.customerInfo.instagramHandle;
+  const customerSnapshot: Prisma.InputJsonValue = {
+    fullName: customerFullName,
+    instagramHandle: customerHandle,
+    answers,
+  };
+  const duplicateRef = await detectDuplicate(
+    input.customerInfo.instagramHandle,
+    input.batchId
+  );
+  const TRANSACTION_OPTIONS = { maxWait: 15_000, timeout: 20_000 } as const;
+  const writeOrder = (reference: string, accessToken: string) => prisma.$transaction(async (tx) => {
+    for (const item of resolvedItems) {
+      const variantClaim = await tx.productVariant.updateMany({
+        where: {
+          id: item.variantId,
+          active: true,
+          OR: [
+            { remainingCapacity: null },
+            { remainingCapacity: { gte: item.quantity } },
+          ],
+        },
+        data: { remainingCapacity: { decrement: item.quantity } },
+      });
+      if (variantClaim.count !== 1) {
+        const current = await tx.productVariant.findUnique({
+          where: { id: item.variantId },
+          select: { active: true, remainingCapacity: true },
+        });
+        if (!current || !current.active) {
+          throw new OrderError(
+            "VARIANT_LOCKED_NOT_FOUND",
+            `${item.variantLabel} is no longer available.`
+          );
+        }
+        throw new OrderError(
+          "INSUFFICIENT_CAPACITY",
+          `Sorry, ${item.variantLabel} only has ${Math.max(0, current.remainingCapacity ?? 0)} pc(s) left. Please adjust your quantity and try again.`
+        );
+      }
+      const productClaim = await tx.$executeRaw`
+        UPDATE "products"
+        SET "preorderReserved" = "preorderReserved" + ${item.quantity}
+        WHERE "id" = ${item.productId}
+          AND ("preorderLimit" IS NULL OR "preorderReserved" + ${item.quantity} <= "preorderLimit")
+      `;
+      if (productClaim !== 1) {
+        throw new OrderError(
+          "PRODUCT_CAPACITY_FULL",
+          `"${item.productName}" has reached its pre-order limit.`
+        );
+      }
+    }
+    const existingCustomer = await tx.customer.findUnique({
+      where: { instagramHandle: customerHandle },
+      select: { id: true },
+    });
+    const customer = existingCustomer
+      ? await tx.customer.update({
+          where: { id: existingCustomer.id },
+          data: { fullName: customerFullName },
+        })
+      : await tx.customer.create({
+          data: {
+            fullName: customerFullName,
+            instagramHandle: customerHandle,
+          },
+        });
+    const newOrder = await tx.order.create({
+      data: {
+        reference,
+        accessToken,
+        batchId: input.batchId,
+        customerId: customer.id,
+        status: "PENDING",
+        paymentStatus: "UNPAID",
+        idempotencyKey: input.idempotencyKey,
+        subtotal,
+        total,
+        customerSnapshot,
+        isNewCustomer: !existingCustomer,
+        isPossibleDuplicate: !!duplicateRef,
+        duplicateOfRef: duplicateRef ?? null,
+        items: {
+          create: resolvedItems.map((item) => ({
+            variantId: item.variantId,
+            quantity: item.quantity,
+            unitPriceAtPurchase: item.unitPrice,
+            productNameSnapshot: item.productName,
+            variantSnapshot: item.variantSnapshot,
+          })),
+        },
+        statusHistory: {
+          create: {
+            fromStatus: null,
+            toStatus: "PENDING",
+            changedBy: "system",
+            note: "Order created",
+          },
+        },
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        orderId: newOrder.id,
+        actor: "customer",
+        action: "order.created",
+        newValue: { reference, total: total.toString() },
+        metadata: {
+          instagramHandle: customerHandle,
+          isNewCustomer: !existingCustomer,
+        },
+      },
+    });
+    return newOrder;
+  }, TRANSACTION_OPTIONS);
+  const MAX_REFERENCE_ATTEMPTS = 5;
+  let order: Awaited<ReturnType<typeof writeOrder>> | undefined;
+  for (let attempt = 1; attempt <= MAX_REFERENCE_ATTEMPTS; attempt += 1) {
+    const reference = await generateOrderReference();
+    try {
+      order = await writeOrder(reference, generateAccessToken());
+      break;
+    } catch (error) {
+      if (isCustomerCollision(error) && attempt < MAX_REFERENCE_ATTEMPTS) {
+        continue;
+      }
+      if (isReferenceCollision(error) && attempt < MAX_REFERENCE_ATTEMPTS) {
+        continue;
+      }
+      if (isIdempotencyCollision(error) && input.idempotencyKey) {
+        const existing = await prisma.order.findUnique({
+          where: { idempotencyKey: input.idempotencyKey },
+          select: { reference: true, total: true, status: true, accessToken: true },
+        });
+        if (existing) return { idempotent: true, order: existing };
+      }
+      throw error;
+    }
+  }
+  if (!order) {
+    throw new OrderError(
+      "ORDER_REFERENCE_CONFLICT",
+      "We could not allocate an order number. Please try again."
+    );
+  }
+  return {
+    idempotent: false,
+    order: {
+      reference: order.reference,
+      accessToken: order.accessToken,
+      total: total,
+      status: order.status,
+      isPossibleDuplicate: order.isPossibleDuplicate,
+    },
+  };
+}
+export async function releaseOrderCapacity(
+  tx: Prisma.TransactionClient,
+  orderId: string
+): Promise<void> {
+  const items = await tx.orderItem.findMany({
+    where: { orderId },
+    select: {
+      quantity: true,
+      variantId: true,
+      variant: { select: { productId: true } },
+    },
+  });
+  for (const item of items) {
+    await tx.productVariant.updateMany({
+      where: { id: item.variantId },
+      data: { remainingCapacity: { increment: item.quantity } },
+    });
+    await tx.$executeRaw`
+      UPDATE "products"
+      SET "preorderReserved" = GREATEST("preorderReserved" - ${item.quantity}, 0)
+      WHERE "id" = ${item.variant.productId}
+    `;
+  }
+}

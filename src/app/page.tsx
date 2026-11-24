@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import Link from "next/link";
 import { SITE_NAME } from "@/lib/site";
+import { isBatchAcceptingOrders } from "@/lib/batches";
 import { buildColorImageMap } from "@/lib/product-color-images";
 import { BrandLogo } from "@/components/BrandLogo";
 import { CartCountBadge } from "@/components/CartCountBadge";
@@ -33,7 +34,8 @@ async function getAvailableProducts(): Promise<{
     },
     orderBy: { createdAt: "desc" },
   });
-  const defaultBatch = batches[0] ?? null;
+  const defaultBatch =
+    batches.find((b) => isBatchAcceptingOrders(b)) ?? batches[0] ?? null;
   const productsMap = new Map<string, StorefrontProduct>();
   for (const batch of batches) {
     for (const batchProduct of batch.products) {
@@ -51,6 +53,8 @@ async function getAvailableProducts(): Promise<{
         batchId: batch.id,
         batchName: batch.name,
         batchSlug: batch.slug,
+        batchStatus: batch.status,
+        batchStartAt: batch.startAt ? batch.startAt.toISOString() : null,
         batchEndAt: batch.endAt ? batch.endAt.toISOString() : null,
         preorderStatus: p.preorderStatus,
         preorderRemaining:

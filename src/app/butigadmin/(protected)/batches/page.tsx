@@ -12,6 +12,7 @@ import {
 import {
   compressImageClient,
   formatFileSize,
+  heifUploadHint,
 } from "@/lib/client-image-compression";
 import { parseApiResponse } from "@/lib/api-client";
 import { copyTextToClipboard } from "@/lib/clipboard";
@@ -187,7 +188,14 @@ export default function AdminBatchesPage() {
   const uploadCover = async (file: File) => {
     setUploading(true);
     try {
-      const compressed = await compressImageClient(file);
+      let compressed;
+      try {
+        compressed = await compressImageClient(file);
+      } catch (err) {
+        const hint = heifUploadHint(file);
+        if (hint) throw new Error(hint);
+        throw err;
+      }
       URL.revokeObjectURL(compressed.previewUrl);
       const uploadData = new FormData();
       uploadData.append("file", compressed.file);

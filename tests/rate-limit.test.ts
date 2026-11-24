@@ -63,13 +63,13 @@ describe("named budgets", () => {
     expect(RATE_LIMITS.checkout.limit).toBeLessThan(RATE_LIMITS.publicRead.limit);
   });
 
-  it("denies sign-in, checkout and uploads when the limiter store is down", () => {
+  it("denies sign-in and uploads when the limiter store is down", () => {
     expect(RATE_LIMITS.login.failClosed).toBe(true);
-    expect(RATE_LIMITS.checkout.failClosed).toBe(true);
     expect(RATE_LIMITS.upload.failClosed).toBe(true);
   });
 
-  it("keeps browsing open when the limiter store is down", () => {
+  it("keeps browsing and checkout open when the limiter store is down", () => {
     expect(RATE_LIMITS.publicRead.failClosed).toBe(false);
+    expect(RATE_LIMITS.checkout.failClosed).toBe(false);
   });
 });
