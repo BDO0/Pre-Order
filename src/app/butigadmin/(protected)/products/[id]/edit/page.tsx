@@ -1,12 +1,12 @@
 "use client";
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useMemo, useRef, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   buildVariantMatrix,
   buildVariantPayload,
   describeRetirements,
-  describeVariant,
+  expandVariantPayload,
   parseCapacityInput,
   parseVariantList,
   variantKey,
@@ -18,9 +18,17 @@ import {
   formatFileSize,
   type CompressionResult,
 } from "@/lib/client-image-compression";
+import { imageUrlAtWidth } from "@/lib/image-geometry";
 import { parseApiResponse } from "@/lib/api-client";
 import ColorImageEditor from "@/components/ColorImageEditor";
-import { VariantChipInput } from "@/components/VariantChipInput";
+import {
+  VariantChipInput,
+  mergeVariantTokens,
+} from "@/components/VariantChipInput";
+import {
+  VariantAvailabilityMatrix,
+  type AnnotatedVariantRow,
+} from "@/components/VariantAvailabilityMatrix";
 import {
   clearedColorLabels,
   colorImageDraftsFromRows,
@@ -28,6 +36,7 @@ import {
   type ColorImageDraft,
   type StoredColorImageRow,
 } from "@/lib/product-color-images";
+
 interface ProductVariantDetail {
   id: string;
   size: string | null;
@@ -47,6 +56,7 @@ interface ProductDetail {
   colorImages?: StoredColorImageRow[];
   variants?: ProductVariantDetail[];
 }
+
 export default function EditProductPage({
   params,
 }: {
@@ -57,8 +67,10 @@ export default function EditProductPage({
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [colorUploading, setColorUploading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const errorBannerRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     name: "",
     category: "",
@@ -69,7 +81,19 @@ export default function EditProductPage({
     colors: [] as string[],
     preorderLimit: "",
   });
+  const [sizeDraft, setSizeDraft] = useState("");
+  const [colorDraft, setColorDraft] = useState("");
   const [isDirty, setIsDirty] = useState(false);
+
+  const reportError = (msg: string) => {
+    setError(msg);
+    setTimeout(() => {
+      errorBannerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 30);
+  };
 
   useEffect(() => {
     if (!isDirty) return;
@@ -107,7 +131,7 @@ export default function EditProductPage({
       setSuccess(resData?.message || "Product deleted permanently.");
       setTimeout(() => router.push("/butigadmin/products"), 1200);
     } catch (err: unknown) {
-      setError(
+      reportError(
         err instanceof Error ? err.message : "Failed to delete product."
       );
       setDeleting(false);
@@ -115,6 +139,10 @@ export default function EditProductPage({
   };
 
   const [stock, setStock] = useState<Record<string, string>>({});
+  const [disabledMap, setDisabledMap] = useState<Record<string, boolean>>({});
+  const [retireConfirmList, setRetireConfirmList] = useState<string[] | null>(
+    null
+  );
   const [fillValue, setFillValue] = useState("");
   const [storedVariants, setStoredVariants] = useState<StoredVariant[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
@@ -122,19 +150,18 @@ export default function EditProductPage({
   const [compressionInfo, setCompressionInfo] =
     useState<CompressionResult | null>(null);
   const [compressing, setCompressing] = useState(false);
-  // Same leak guard as the create form: the preview object URL is replaced on
-  // every file pick and has to be released with it.
   const compressionPreviewUrl = compressionInfo?.previewUrl;
   useEffect(() => {
     if (!compressionPreviewUrl) return;
     return () => URL.revokeObjectURL(compressionPreviewUrl);
   }, [compressionPreviewUrl]);
   const [colorImageDrafts, setColorImageDrafts] = useState<ColorImageDraft[]>(
-    [],
+    []
   );
   const [storedColorImages, setStoredColorImages] = useState<
     StoredColorImageRow[]
   >([]);
+
   useEffect(() => {
     const fetchProduct = async () => {
       try {
@@ -145,26 +172,45 @@ export default function EditProductPage({
           error: apiErr,
         } = await parseApiResponse<ProductDetail>(
           res,
-          "Failed to load product",
+          "Failed to load product"
         );
         if (!ok || !data) throw new Error(apiErr || "Failed to load product");
         const p = data;
         const variants = p.variants ?? [];
         const onSale = variants.filter((variant) => variant.active);
+        const expandedOnSale = expandVariantPayload(onSale);
         const sizes = [
           ...new Set(
-            onSale.flatMap((v) => (v.size ? parseVariantList(v.size) : [])),
+            onSale.flatMap((v) => (v.size ? parseVariantList(v.size) : []))
           ),
         ];
         const colors = [
           ...new Set(
-            onSale.flatMap((v) => (v.color ? parseVariantList(v.color) : [])),
+            onSale.flatMap((v) => (v.color ? parseVariantList(v.color) : []))
           ),
         ];
         const seeded: Record<string, string> = {};
-        for (const variant of onSale) {
-          seeded[variantKey(variant.size, variant.color)] =
+        // Seed inactive variant capacities first so re-enabling a retired option
+        // restores its previous capacity rather than starting blank.
+        for (const variant of expandVariantPayload(variants)) {
+          const key = variantKey(variant.size, variant.color);
+          if (!(key in seeded) && variant.capacity !== null) {
+            seeded[key] = String(variant.capacity);
+          }
+        }
+        const activeKeys = new Set<string>();
+        for (const variant of expandedOnSale) {
+          const key = variantKey(variant.size, variant.color);
+          activeKeys.add(key);
+          seeded[key] =
             variant.capacity === null ? "" : String(variant.capacity);
+        }
+        const initialDisabled: Record<string, boolean> = {};
+        for (const row of buildVariantMatrix(sizes, colors)) {
+          const key = variantKey(row.size, row.color);
+          if (!activeKeys.has(key)) {
+            initialDisabled[key] = true;
+          }
         }
         setFormData({
           name: p.name,
@@ -177,8 +223,9 @@ export default function EditProductPage({
           preorderLimit:
             p.preorderLimit === null ? "" : String(p.preorderLimit),
         });
-        setIsDirty(false);
         setStock(seeded);
+        setDisabledMap(initialDisabled);
+        setIsDirty(false);
         setStoredVariants(
           variants.map((variant) => ({
             id: variant.id,
@@ -187,92 +234,184 @@ export default function EditProductPage({
             capacity: variant.capacity,
             remainingCapacity: variant.remainingCapacity,
             active: variant.active,
-          })),
+          }))
         );
         setExistingImages(
-          Array.isArray(p.images) ? (p.images as string[]) : [],
+          Array.isArray(p.images) ? (p.images as string[]) : []
         );
         const colorImages = p.colorImages ?? [];
         setStoredColorImages(colorImages);
         setColorImageDrafts(colorImageDraftsFromRows(colorImages));
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Failed to load product");
+        reportError(
+          err instanceof Error ? err.message : "Failed to load product"
+        );
       } finally {
         setFetching(false);
       }
     };
     fetchProduct();
   }, [id]);
-  const parsedSizes = formData.sizes;
-  const parsedColors = formData.colors;
-  const baseRows = buildVariantMatrix(parsedSizes, parsedColors);
-  const rows: VariantFormRow[] = (
-    baseRows.length > 0 ? baseRows : [{ size: null, color: null }]
-  ).map((row) => ({
-    ...row,
-    capacity: stock[variantKey(row.size, row.color)] ?? "",
-  }));
-  const storedByKey = new Map(
-    storedVariants
-      .filter((variant) => variant.active)
-      .map((variant) => [variantKey(variant.size, variant.color), variant]),
+
+  // Include any un-blurred chip text so the matrix and save button always
+  // reflect what the admin has typed on an iPad keyboard.
+  const effectiveSizes = useMemo(
+    () =>
+      sizeDraft.trim()
+        ? mergeVariantTokens(formData.sizes, sizeDraft)
+        : formData.sizes,
+    [formData.sizes, sizeDraft]
   );
+  const effectiveColors = useMemo(
+    () =>
+      colorDraft.trim()
+        ? mergeVariantTokens(formData.colors, colorDraft)
+        : formData.colors,
+    [formData.colors, colorDraft]
+  );
+
+  const storedByKey = useMemo(
+    () =>
+      new Map(
+        storedVariants
+          .filter((variant) => variant.active)
+          .map((variant) => [variantKey(variant.size, variant.color), variant])
+      ),
+    [storedVariants]
+  );
+
+  const baseRows = useMemo(
+    () => buildVariantMatrix(effectiveSizes, effectiveColors),
+    [effectiveSizes, effectiveColors]
+  );
+
+  const rows: AnnotatedVariantRow[] = useMemo(() => {
+    const list =
+      baseRows.length > 0 ? baseRows : [{ size: null, color: null }];
+    return list.map((row) => {
+      const key = variantKey(row.size, row.color);
+      const stored = storedByKey.get(key);
+      let hint = "";
+      if (
+        stored &&
+        stored.capacity !== null &&
+        stored.remainingCapacity !== null
+      ) {
+        const ordered = stored.capacity - stored.remainingCapacity;
+        hint =
+          ordered > 0
+            ? `${stored.remainingCapacity} left of ${stored.capacity} — ${ordered} already ordered`
+            : `${stored.capacity} available`;
+      }
+      return {
+        ...row,
+        capacity: stock[key] ?? "",
+        enabled: !disabledMap[key],
+        hint,
+      };
+    });
+  }, [baseRows, stock, disabledMap, storedByKey]);
+
+  const enabledRows = useMemo(() => rows.filter((r) => r.enabled), [rows]);
+
   const setStockFor = (row: VariantFormRow, value: string) => {
     const key = variantKey(row.size, row.color);
     setStock((previous) => ({ ...previous, [key]: value }));
     setIsDirty(true);
   };
+
+  const setBulkStock = (keys: string[], value: string) => {
+    const parsed = parseCapacityInput(value);
+    if (!parsed.ok) {
+      reportError(parsed.message);
+      return;
+    }
+    setError("");
+    const trimmed = value.trim();
+    setStock((prev) => {
+      const next = { ...prev };
+      for (const k of keys) next[k] = trimmed;
+      return next;
+    });
+    setIsDirty(true);
+  };
+
+  const toggleRowEnabled = (row: VariantFormRow) => {
+    const key = variantKey(row.size, row.color);
+    setDisabledMap((prev) => ({ ...prev, [key]: !prev[key] }));
+    setIsDirty(true);
+  };
+
+  const setRowsEnabled = (keys: string[], enabled: boolean) => {
+    setDisabledMap((prev) => {
+      const next = { ...prev };
+      for (const k of keys) {
+        if (enabled) delete next[k];
+        else next[k] = true;
+      }
+      return next;
+    });
+    setIsDirty(true);
+  };
+
   const fillEveryBox = () => {
     const parsed = parseCapacityInput(fillValue);
     if (!parsed.ok) {
-      setError(parsed.message);
+      reportError(parsed.message);
       return;
     }
     setError("");
     const next: Record<string, string> = {};
-    for (const row of rows) {
+    for (const row of enabledRows) {
       next[variantKey(row.size, row.color)] = fillValue.trim();
     }
     setStock((previous) => ({ ...previous, ...next }));
+    setIsDirty(true);
   };
-  const stockHint = (row: VariantFormRow): string => {
-    const stored = storedByKey.get(variantKey(row.size, row.color));
-    if (
-      !stored ||
-      stored.capacity === null ||
-      stored.remainingCapacity === null
-    )
-      return "";
-    const ordered = stored.capacity - stored.remainingCapacity;
-    return ordered > 0
-      ? `${stored.remainingCapacity} left of ${stored.capacity} — ${ordered} already ordered`
-      : `${stored.capacity} available`;
-  };
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+
+  const executeSave = async (skipRetireCheck = false) => {
+    if (colorUploading || compressing) {
+      reportError("Please wait for image uploads to finish before saving.");
+      return;
+    }
+    // Commit any pending draft text from the chip inputs into formData state
+    if (sizeDraft.trim() !== "" || colorDraft.trim() !== "") {
+      setFormData((prev) => ({
+        ...prev,
+        sizes: effectiveSizes,
+        colors: effectiveColors,
+      }));
+      setSizeDraft("");
+      setColorDraft("");
+    }
     setLoading(true);
     setError("");
     setSuccess("");
     try {
-      if (rows.length === 0) {
+      if (formData.name.trim().length < 2) {
+        throw new Error("Product name is required (at least 2 characters).");
+      }
+      if (!formData.category.trim()) {
+        throw new Error("Category is required (e.g. Tops, Bottoms).");
+      }
+      const numericPrice = Number(formData.price);
+      if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+        throw new Error("Please enter a valid price greater than 0.");
+      }
+      if (enabledRows.length === 0) {
         throw new Error(
-          "This would leave the product with nothing to choose, so nobody could order it. Add a size or a colour, or set the status to Disabled to take it off the storefront.",
+          "This would leave the product with nothing to choose, so nobody could order it. Enable at least one option, or set the status to Disabled to take it off the storefront."
         );
       }
-      const payload = buildVariantPayload(rows);
+      const payload = buildVariantPayload(enabledRows);
       if (!payload.ok) throw new Error(payload.message);
       const limit = parseCapacityInput(formData.preorderLimit);
       if (!limit.ok)
         throw new Error(`Total for this product: ${limit.message}`);
-      const retiring = describeRetirements(storedVariants, payload.variants);
-      if (retiring.length > 0) {
-        const confirmed = window.confirm(
-          `Saving will take ${retiring.length} option${retiring.length === 1 ? "" : "s"} off the storefront:\n\n` +
-            retiring.map((name) => `\u2022 ${name}`).join("\n") +
-            "\n\nPast orders for them are untouched, and you can put them back by adding the size or colour again." +
-            "\n\nSave anyway?",
-        );
-        if (!confirmed) {
+      if (!skipRetireCheck) {
+        const retiring = describeRetirements(storedVariants, payload.variants);
+        if (retiring.length > 0) {
+          setRetireConfirmList(retiring);
           setLoading(false);
           return;
         }
@@ -299,9 +438,9 @@ export default function EditProductPage({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: formData.name,
-          category: formData.category,
-          price: Number(formData.price),
+          name: formData.name.trim(),
+          category: formData.category.trim(),
+          price: numericPrice,
           active: formData.active,
           preorderStatus: formData.preorderStatus,
           preorderLimit: limit.capacity,
@@ -310,7 +449,7 @@ export default function EditProductPage({
           colorImages: colorImagePayload(colorImageDrafts),
           removeColorImages: clearedColorLabels(
             storedColorImages.map((row) => row.colorLabel || row.colorKey),
-            colorImageDrafts,
+            colorImageDrafts
           ),
         }),
       });
@@ -320,26 +459,40 @@ export default function EditProductPage({
         error: updateErr,
       } = await parseApiResponse(res, "Failed to update product");
       if (!ok) throw new Error(updateErr || "Failed to update product");
-      const changes = (updateData as { meta?: { variantChanges?: { created: number; updated: number; retired: number } } } | null)?.meta?.variantChanges;
+      const changes = (
+        updateData as {
+          meta?: {
+            variantChanges?: {
+              created: number;
+              updated: number;
+              retired: number;
+            };
+          };
+        } | null
+      )?.meta?.variantChanges;
       const added = changes?.created ?? 0;
       const retired = changes?.retired ?? 0;
       const did: string[] = [];
       if (added > 0)
         did.push(`${added} new option${added === 1 ? "" : "s"} added`);
       if (retired > 0) did.push(`${retired} retired`);
+      setRetireConfirmList(null);
       setIsDirty(false);
       setSuccess(
         did.length > 0
           ? `Product updated. ${did.join(", ")}; past orders are untouched.`
-          : "Product updated successfully!",
+          : "Product updated successfully!"
       );
-      setTimeout(() => router.push("/butigadmin/products"), 1200);
+      setTimeout(() => router.push("/butigadmin/products"), 900);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to update product");
+      reportError(
+        err instanceof Error ? err.message : "Failed to update product"
+      );
     } finally {
       setLoading(false);
     }
   };
+
   if (fetching) {
     return (
       <div
@@ -355,6 +508,7 @@ export default function EditProductPage({
       </div>
     );
   }
+
   return (
     <div>
       <div style={{ marginBottom: "var(--space-6)" }}>
@@ -406,10 +560,14 @@ export default function EditProductPage({
           {success}
         </div>
       )}
-      <div className="card" style={{ maxWidth: "640px" }}>
+      <div className="card" style={{ maxWidth: "760px" }}>
         <div className="card-body">
           <form
-            onSubmit={handleSubmit}
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              void executeSave(false);
+            }}
             style={{
               display: "flex",
               flexDirection: "column",
@@ -425,9 +583,10 @@ export default function EditProductPage({
                 type="text"
                 className="form-input"
                 value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value });
+                  setIsDirty(true);
+                }}
               />
             </div>
             <div
@@ -446,9 +605,10 @@ export default function EditProductPage({
                   type="text"
                   className="form-input"
                   value={formData.category}
-                  onChange={(e) =>
-                    setFormData({ ...formData, category: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, category: e.target.value });
+                    setIsDirty(true);
+                  }}
                   placeholder="e.g. Tops, Bottoms"
                 />
               </div>
@@ -463,9 +623,10 @@ export default function EditProductPage({
                   step="0.01"
                   className="form-input"
                   value={formData.price}
-                  onChange={(e) =>
-                    setFormData({ ...formData, price: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setFormData({ ...formData, price: e.target.value });
+                    setIsDirty(true);
+                  }}
                 />
               </div>
             </div>
@@ -477,9 +638,10 @@ export default function EditProductPage({
                 required
                 className="form-input"
                 value={formData.preorderStatus}
-                onChange={(e) =>
-                  setFormData({ ...formData, preorderStatus: e.target.value })
-                }
+                onChange={(e) => {
+                  setFormData({ ...formData, preorderStatus: e.target.value });
+                  setIsDirty(true);
+                }}
               >
                 <option value="OPEN">Open — Customers can order this</option>
                 <option value="COMING_SOON">
@@ -492,129 +654,64 @@ export default function EditProductPage({
                 </option>
               </select>
             </div>
-            <div style={{ display: "flex", gap: "var(--space-4)", flexWrap: "wrap" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "var(--space-4)",
+                flexWrap: "wrap",
+              }}
+            >
               <VariantChipInput
                 label="Sizes"
                 placeholder="S, M, L, XL"
-                hint="Type a size and press Enter or comma."
+                hint="Type a size and press Enter, comma, or + Add."
                 values={formData.sizes}
                 onChange={(sizes) => {
                   setFormData({ ...formData, sizes });
                   setIsDirty(true);
                 }}
+                onDraftChange={setSizeDraft}
                 disabled={loading || deleting}
               />
               <VariantChipInput
                 label="Colours"
                 placeholder="Black, White"
-                hint="Every colour is paired with every size."
+                hint="You can customize which sizes are available for each colour below."
                 values={formData.colors}
                 onChange={(colors) => {
                   setFormData({ ...formData, colors });
                   setIsDirty(true);
                 }}
+                onDraftChange={setColorDraft}
                 disabled={loading || deleting}
               />
             </div>
-            {}
-            <div className="form-group">
-              <label className="form-label">How many you can take</label>
-              <span
-                className="form-hint"
-                style={{ display: "block", marginBottom: "var(--space-2)" }}
-              >
-                {baseRows.length === 0
-                  ? "Standard / One-Size product. Leave box empty for no limit."
-                  : `${rows.length} option${rows.length === 1 ? "" : "s"}. Leave a box empty for no limit on that one.`}
-              </span>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "var(--space-2)",
-                  alignItems: "center",
-                  marginBottom: "var(--space-3)",
-                }}
-              >
-                <input
-                  type="number"
-                  min="1"
-                  className="form-input"
-                  style={{ maxWidth: "120px" }}
-                  value={fillValue}
-                  onChange={(e) => setFillValue(e.target.value)}
-                  placeholder="e.g. 10"
-                  aria-label="Stock to give every option"
-                />
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={fillEveryBox}
-                >
-                  Give every option this many
-                </button>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "var(--space-3)",
-                }}
-              >
-                {rows.map((row) => {
-                  const hint = stockHint(row);
-                  return (
-                    <div key={variantKey(row.size, row.color)}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "var(--space-3)",
-                        }}
-                      >
-                        <span
-                          style={{
-                            flex: 1,
-                            fontSize: "var(--text-sm)",
-                            fontWeight: 500,
-                            color: "var(--color-neutral-900)",
-                          }}
-                        >
-                          {describeVariant(row)}
-                        </span>
-                        <input
-                          type="number"
-                          min="1"
-                          className="form-input"
-                          style={{ maxWidth: "130px" }}
-                          value={row.capacity}
-                          onChange={(e) => setStockFor(row, e.target.value)}
-                          placeholder="no limit"
-                          aria-label={`How many ${describeVariant(row)} you can take`}
-                        />
-                      </div>
-                      {hint && (
-                        <span
-                          className="form-hint"
-                          style={{ display: "block", marginTop: "2px" }}
-                        >
-                          {hint}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+
+            <VariantAvailabilityMatrix
+              sizes={effectiveSizes}
+              colors={effectiveColors}
+              rows={rows}
+              fillValue={fillValue}
+              onFillValueChange={setFillValue}
+              onFillEveryBox={fillEveryBox}
+              onToggleRow={toggleRowEnabled}
+              onSetRowsEnabled={setRowsEnabled}
+              onSetStock={setStockFor}
+              onSetBulkStock={setBulkStock}
+            />
+
             <div className="form-group">
               <label className="form-label">Total for this product</label>
               <input
-                type="number"
-                min="1"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 className="form-input"
                 value={formData.preorderLimit}
-                onChange={(e) =>
-                  setFormData({ ...formData, preorderLimit: e.target.value })
-                }
+                onChange={(e) => {
+                  setFormData({ ...formData, preorderLimit: e.target.value });
+                  setIsDirty(true);
+                }}
                 placeholder="no limit"
               />
               <span className="form-hint">
@@ -635,8 +732,10 @@ export default function EditProductPage({
                   }}
                 >
                   <img
-                    src={existingImages[0]}
+                    src={imageUrlAtWidth(existingImages[0], 400)}
                     alt={formData.name}
+                    loading="lazy"
+                    decoding="async"
                     style={{
                       width: "64px",
                       height: "64px",
@@ -681,6 +780,7 @@ export default function EditProductPage({
                     return;
                   }
                   setCompressing(true);
+                  setIsDirty(true);
                   try {
                     const result = await compressImageClient(file);
                     setImageFile(result.file);
@@ -698,7 +798,7 @@ export default function EditProductPage({
                   className="form-hint"
                   style={{ color: "var(--color-info)" }}
                 >
-                  ⚡ Auto-compressing & optimizing image clarity...
+                  ⚡ Auto-compressing &amp; optimizing image clarity...
                 </span>
               )}
               {compressionInfo && (
@@ -767,18 +867,22 @@ export default function EditProductPage({
                 className="form-hint"
                 style={{ display: "block", marginBottom: "var(--space-2)" }}
               >
-                Optional. A colour with its own images replaces the product image
-                above the moment a shopper picks it. Colours left empty keep
-                showing the main image.
+                Optional. A colour with its own images replaces the product
+                image above the moment a shopper picks it. Colours left empty
+                keep showing the main image.
               </span>
               <ColorImageEditor
-                colors={parsedColors}
+                colors={effectiveColors}
                 drafts={colorImageDrafts}
-                onChange={setColorImageDrafts}
+                onChange={(next) => {
+                  setColorImageDrafts(next);
+                  setIsDirty(true);
+                }}
                 fallbackImageUrl={
                   compressionInfo?.previewUrl || existingImages[0]
                 }
                 disabled={loading || compressing || deleting}
+                onUploadingChange={setColorUploading}
               />
             </div>
             <div
@@ -796,9 +900,10 @@ export default function EditProductPage({
                 type="checkbox"
                 id="active-toggle"
                 checked={formData.active}
-                onChange={(e) =>
-                  setFormData({ ...formData, active: e.target.checked })
-                }
+                onChange={(e) => {
+                  setFormData({ ...formData, active: e.target.checked });
+                  setIsDirty(true);
+                }}
                 style={{
                   width: "18px",
                   height: "18px",
@@ -817,6 +922,24 @@ export default function EditProductPage({
                 Product is Active (visible to admin, available for batches)
               </label>
             </div>
+            <div ref={errorBannerRef}>
+              {error && (
+                <div
+                  role="alert"
+                  style={{
+                    padding: "var(--space-3) var(--space-4)",
+                    background: "rgb(220 38 38 / 0.08)",
+                    border: "1px solid rgb(220 38 38 / 0.3)",
+                    borderRadius: "var(--radius-lg)",
+                    color: "var(--color-error)",
+                    fontWeight: 500,
+                    fontSize: "var(--text-sm)",
+                  }}
+                >
+                  {error}
+                </div>
+              )}
+            </div>
             <div
               style={{
                 display: "flex",
@@ -833,11 +956,15 @@ export default function EditProductPage({
               </Link>
               <button
                 type="submit"
-                disabled={loading || deleting}
+                disabled={loading || deleting || compressing || colorUploading}
                 className="btn btn-primary"
                 style={{ flex: 2 }}
               >
-                {loading ? "Saving..." : "Save Changes"}
+                {loading
+                  ? "Saving..."
+                  : colorUploading || compressing
+                  ? "Uploading images..."
+                  : "Save Changes"}
               </button>
             </div>
           </form>
@@ -847,8 +974,8 @@ export default function EditProductPage({
       <div
         className="card"
         style={{
-          maxWidth: "680px",
-          margin: "var(--space-6) auto 0",
+          maxWidth: "760px",
+          margin: "var(--space-6) 0 0",
           border: "1px solid rgb(220 38 38 / 0.2)",
           background: "rgb(254 242 242 / 0.35)",
         }}
@@ -899,7 +1026,98 @@ export default function EditProductPage({
           </div>
         </div>
       </div>
+
+      {retireConfirmList && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 350,
+            background: "rgb(13 11 10 / 0.55)",
+            backdropFilter: "blur(2px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "var(--space-4)",
+          }}
+          onClick={() => setRetireConfirmList(null)}
+        >
+          <div
+            className="card"
+            style={{
+              maxWidth: "460px",
+              width: "100%",
+              padding: "var(--space-6)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="retire-variants-title"
+          >
+            <h3
+              id="retire-variants-title"
+              style={{
+                fontSize: "var(--text-lg)",
+                fontWeight: 700,
+                marginBottom: "var(--space-2)",
+              }}
+            >
+              Take {retireConfirmList.length} option
+              {retireConfirmList.length === 1 ? "" : "s"} off the storefront?
+            </h3>
+            <p
+              style={{
+                fontSize: "var(--text-sm)",
+                color: "var(--color-neutral-600)",
+                marginBottom: "var(--space-3)",
+              }}
+            >
+              Past orders for these options are untouched, and you can re-enable
+              them anytime:
+            </p>
+            <ul
+              style={{
+                maxHeight: "180px",
+                overflowY: "auto",
+                marginBottom: "var(--space-4)",
+                paddingLeft: "var(--space-5)",
+                fontSize: "var(--text-sm)",
+                color: "var(--color-neutral-800)",
+              }}
+            >
+              {retireConfirmList.map((name) => (
+                <li key={name}>{name}</li>
+              ))}
+            </ul>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "var(--space-2)",
+              }}
+            >
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setRetireConfirmList(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={loading}
+                onClick={() => {
+                  setRetireConfirmList(null);
+                  void executeSave(true);
+                }}
+              >
+                {loading ? "Saving..." : "Save Anyway"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

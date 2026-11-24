@@ -94,25 +94,24 @@ export async function POST(request: NextRequest) {
     try {
       if (purpose === "PRODUCT_IMAGE") {
         const rungs = await renderProductLadder(input);
-        const [canonicalRung, ...smallerRungs] = rungs;
-        const canonical = await driver.save({
-          filename: imageFilename(base, canonicalRung.width),
-          bytes: canonicalRung.bytes,
-          contentType: STORED_IMAGE_MIME_TYPE,
-          purpose,
-        });
-        const variants: { width: number; url: string | null }[] = [
-          { width: canonicalRung.width, url: canonical.url },
-        ];
-        for (const rung of smallerRungs) {
-          const saved = await driver.save({
-            filename: imageFilename(base, rung.width),
-            bytes: rung.bytes,
-            contentType: STORED_IMAGE_MIME_TYPE,
-            purpose,
-          });
-          variants.push({ width: rung.width, url: saved.url });
-        }
+        const savedRungs = await Promise.all(
+          rungs.map(async (rung) => {
+            const saved = await driver.save({
+              filename: imageFilename(base, rung.width),
+              bytes: rung.bytes,
+              contentType: STORED_IMAGE_MIME_TYPE,
+              purpose,
+            });
+            return { width: rung.width, saved };
+          })
+        );
+        const canonical = savedRungs[0].saved;
+        const variants: { width: number; url: string | null }[] = savedRungs.map(
+          (entry) => ({
+            width: entry.width,
+            url: entry.saved.url,
+          })
+        );
         return NextResponse.json({
           success: true,
           data: {
@@ -138,7 +137,7 @@ export async function POST(request: NextRequest) {
           fit: "inside",
           withoutEnlargement: true,
         })
-        .webp({ quality: STORED_WEBP_QUALITY, effort: 4 })
+        .webp({ quality: STORED_WEBP_QUALITY, effort: 2 })
         .toBuffer({ resolveWithObject: true });
       const stored = await driver.save({
         filename: `${base}${STORED_EXTENSION}`,

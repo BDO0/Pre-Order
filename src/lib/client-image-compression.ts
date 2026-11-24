@@ -72,6 +72,24 @@ export async function compressImageClient(
     img.onload = () => {
       try {
         let { naturalWidth: width, naturalHeight: height } = img;
+        const origWidth = width;
+        const origHeight = height;
+        const isAlreadyCompactSupported =
+          (file.type === "image/jpeg" || file.type === "image/webp" || file.type === "image/png") &&
+          origWidth <= maxDimension &&
+          origHeight <= maxDimension &&
+          file.size <= 380 * 1024;
+        if (isAlreadyCompactSupported) {
+          return resolve({
+            file,
+            originalBytes: file.size,
+            compressedBytes: file.size,
+            savingsPercent: 0,
+            width: origWidth,
+            height: origHeight,
+            previewUrl: URL.createObjectURL(file),
+          });
+        }
         if (width > maxDimension || height > maxDimension) {
           if (width > height) {
             height = Math.round((height * maxDimension) / width);
@@ -84,7 +102,8 @@ export async function compressImageClient(
         const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
-        const ctx = canvas.getContext("2d", { alpha: true });
+        const needsAlpha = file.type === "image/png" || file.type === "image/webp";
+        const ctx = canvas.getContext("2d", { alpha: needsAlpha });
         if (!ctx) {
           return resolve({
             file,
@@ -99,7 +118,13 @@ export async function compressImageClient(
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = "high";
         ctx.drawImage(img, 0, 0, width, height);
-        const exportFormat = "image/webp";
+        // On iPadOS/iOS Safari, hardware-accelerated JPEG encoding on canvas is
+        // 5-10x faster than software WebP encoding (and older WebKit falls back
+        // from image/webp to huge multi-MB image/png blobs). The server sharp
+        // pipeline converts every upload to WebP rungs anyway, so only use WebP
+        // on the client when preserving alpha channels from PNG/WebP inputs.
+        const preferredFormat = needsAlpha ? "image/webp" : "image/jpeg";
+        const preferredExt = needsAlpha ? ".webp" : ".jpg";
         canvas.toBlob(
           (blob) => {
             if (!blob) {
@@ -113,11 +138,28 @@ export async function compressImageClient(
                 previewUrl: URL.createObjectURL(file),
               });
             }
-            const shouldUseCompressed = blob.size < file.size || file.type !== exportFormat;
+            const isSupportedOriginal =
+              file.type === "image/jpeg" ||
+              file.type === "image/png" ||
+              file.type === "image/webp";
+            // Only keep the re-encoded blob if it is genuinely smaller than the
+            // original file, OR if the original file was in a format the server
+            // does not accept directly (such as HEIC decoded by Safari).
+            const shouldUseCompressed = blob.size < file.size || !isSupportedOriginal;
             const finalBlob = shouldUseCompressed ? blob : file;
-            const newFilename = file.name.replace(/\.[^.]+$/, ".webp");
+            const actualMime = shouldUseCompressed
+              ? blob.type || preferredFormat
+              : file.type || preferredFormat;
+            const ext =
+              actualMime === "image/jpeg"
+                ? ".jpg"
+                : actualMime === "image/png"
+                ? ".png"
+                : preferredExt;
+            const baseName = file.name.replace(/\.[^.]+$/, "") || "upload";
+            const newFilename = shouldUseCompressed ? `${baseName}${ext}` : file.name;
             const compressedFile = new File([finalBlob], newFilename, {
-              type: exportFormat,
+              type: actualMime,
               lastModified: Date.now(),
             });
             const originalBytes = file.size;
@@ -136,7 +178,7 @@ export async function compressImageClient(
               previewUrl: URL.createObjectURL(compressedFile),
             });
           },
-          exportFormat,
+          preferredFormat,
           quality
         );
       } finally {

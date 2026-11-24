@@ -85,7 +85,7 @@ export async function PATCH(
         },
       });
       return { product, variantChanges, colorImageChanges, batchId };
-    });
+    }, { maxWait: 15_000, timeout: 30_000 });
     revalidateStorefront();
     return NextResponse.json({
       success: true,

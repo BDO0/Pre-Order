@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { compressImageClient, heifUploadHint } from "@/lib/client-image-compression";
 import { parseApiResponse } from "@/lib/api-client";
+import { imageUrlAtWidth } from "@/lib/image-geometry";
 import {
   MAX_IMAGES_PER_COLOR,
   normalizeColorKey,
@@ -26,6 +27,8 @@ interface ColorImageEditorProps {
   /** The product's main image: what a colour without its own gallery shows. */
   fallbackImageUrl?: string;
   disabled?: boolean;
+  /** Notifies the parent form when any colour photo upload starts or finishes. */
+  onUploadingChange?: (uploading: boolean) => void;
 }
 
 interface ColorCard {
@@ -34,11 +37,6 @@ interface ColorCard {
   retired: boolean;
 }
 
-/**
- * What one colour's card is doing right now. Uploads go out one file at a time
- * as they are picked, so on a phone the admin has to be able to see that
- * something is happening and, if it stops, what went wrong.
- */
 type CardStatus =
   | { phase: "uploading"; done: number; total: number }
   | { phase: "done"; added: number }
@@ -65,23 +63,17 @@ const miniButtonStyle: React.CSSProperties = {
   color: "var(--color-neutral-700)",
 };
 
+const UPLOAD_CONCURRENCY = 3;
+
 async function uploadProductImage(file: File): Promise<string> {
   let payload = file;
-  // The preview URL is only needed when the result is shown to the admin. Here
-  // the upload goes out as a `File`, so the object URL would otherwise stay in
-  // the page's blob store - one full-size image leaked per upload.
   let previewUrl: string | null = null;
-  // Phones shoot HEIC/HEIF by default. If this browser cannot decode it the raw
-  // file would reach the server and come back as a generic "Failed to upload
-  // image", so keep the actionable hint ready and report that instead.
   const heifHint = heifUploadHint(file);
   try {
     const compressed = await compressImageClient(file);
     payload = compressed.file;
     previewUrl = compressed.previewUrl;
   } catch (err) {
-    // Compression is an optimisation, never a reason to lose the upload - unless
-    // the browser could not read the format at all, which is the HEIC case.
     console.error("Compression error:", err);
     if (heifHint) throw new Error(heifHint);
     payload = file;
@@ -108,18 +100,23 @@ export default function ColorImageEditor({
   onChange,
   fallbackImageUrl,
   disabled = false,
+  onUploadingChange,
 }: ColorImageEditorProps) {
   const [statuses, setStatuses] = useState<Record<string, CardStatus>>({});
   const [error, setError] = useState("");
   const inputs = useRef<Record<string, HTMLInputElement | null>>({});
+  const draftsRef = useRef(drafts);
+  useEffect(() => {
+    draftsRef.current = drafts;
+  }, [drafts]);
 
-  /**
-   * Uploads are serialised, so whichever colour is uploading is the one every
-   * other card has to wait for.
-   */
-  const busyKey =
-    Object.entries(statuses).find(([, status]) => status.phase === "uploading")?.[0] ??
-    null;
+  const anyUploading = Object.values(statuses).some(
+    (status) => status.phase === "uploading"
+  );
+
+  useEffect(() => {
+    onUploadingChange?.(anyUploading);
+  }, [anyUploading, onUploadingChange]);
 
   const setStatus = (key: string, status: CardStatus | null) => {
     setStatuses((previous) => {
@@ -132,19 +129,21 @@ export default function ColorImageEditor({
 
   const clearStatus = (color: string) => setStatus(normalizeColorKey(color), null);
 
-  const urlsFor = (color: string): readonly string[] => {
+  const urlsFor = (color: string, source: readonly ColorImageDraft[] = drafts): readonly string[] => {
     const key = normalizeColorKey(color);
-    return drafts.find((draft) => normalizeColorKey(draft.color) === key)?.urls ?? [];
+    return source.find((draft) => normalizeColorKey(draft.color) === key)?.urls ?? [];
   };
 
   const setUrls = (color: string, urls: readonly string[]) => {
     const key = normalizeColorKey(color);
-    const rest = drafts.filter((draft) => normalizeColorKey(draft.color) !== key);
-    onChange(
+    const currentDrafts = draftsRef.current;
+    const rest = currentDrafts.filter((draft) => normalizeColorKey(draft.color) !== key);
+    const next =
       urls.length > 0
         ? [...rest, { color: normalizeColorLabel(color), urls: [...urls] }]
-        : rest
-    );
+        : rest;
+    draftsRef.current = next;
+    onChange(next);
   };
 
   const cards: ColorCard[] = [];
@@ -159,23 +158,17 @@ export default function ColorImageEditor({
     const key = normalizeColorKey(draft.color);
     if (key === "" || draft.urls.length === 0) continue;
     if (cards.some((card) => normalizeColorKey(card.color) === key)) continue;
-    // A colour dropped from the list keeps its photos on the product, so its card
-    // stays until the admin clears it deliberately.
     cards.push({ color: normalizeColorLabel(draft.color), retired: true });
   }
 
   const handleFiles = async (color: string, fileList: FileList | null) => {
     const key = normalizeColorKey(color);
-    // `input.files` is a live list - resetting the value empties the very list we
-    // are about to read, which is why picking photos did nothing on phones
-    // (WebKit enforces it, Chromium leaks the old files through). Take the files
-    // first, then clear the input so the same photo can be picked again.
     const files = fileList ? Array.from(fileList) : [];
     const input = inputs.current[key];
     if (input) input.value = "";
     if (files.length === 0) return;
 
-    const current = urlsFor(color);
+    const current = urlsFor(color, draftsRef.current);
     const room = MAX_IMAGES_PER_COLOR - current.length;
     if (room <= 0) {
       setError(
@@ -186,24 +179,45 @@ export default function ColorImageEditor({
 
     setError("");
     const queue = files.slice(0, room);
-    const uploaded: string[] = [];
+    const results: (string | null)[] = new Array(queue.length).fill(null);
+    let completed = 0;
     let failure = "";
-    try {
-      for (let index = 0; index < queue.length; index += 1) {
-        setStatus(key, { phase: "uploading", done: index, total: queue.length });
-        uploaded.push(await uploadProductImage(queue[index]));
+
+    setStatus(key, { phase: "uploading", done: 0, total: queue.length });
+
+    let nextIndex = 0;
+    const runWorker = async () => {
+      while (nextIndex < queue.length && !failure) {
+        const idx = nextIndex++;
+        try {
+          const url = await uploadProductImage(queue[idx]);
+          results[idx] = url;
+          completed += 1;
+          if (!failure) {
+            setStatus(key, { phase: "uploading", done: completed, total: queue.length });
+          }
+        } catch (err: unknown) {
+          if (!failure) {
+            failure = err instanceof Error ? err.message : "Failed to upload image.";
+          }
+        }
       }
-    } catch (err: unknown) {
-      failure = err instanceof Error ? err.message : "Failed to upload image.";
-    } finally {
-      if (uploaded.length > 0) setUrls(color, [...current, ...uploaded]);
-      setStatus(
-        key,
-        failure
-          ? { phase: "error", message: failure }
-          : { phase: "done", added: uploaded.length }
-      );
+    };
+
+    const workerCount = Math.min(UPLOAD_CONCURRENCY, queue.length);
+    await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+
+    const uploaded = results.filter((u): u is string => typeof u === "string" && u.length > 0);
+    if (uploaded.length > 0) {
+      const latest = urlsFor(color, draftsRef.current);
+      setUrls(color, [...latest, ...uploaded].slice(0, MAX_IMAGES_PER_COLOR));
     }
+    setStatus(
+      key,
+      failure
+        ? { phase: "error", message: failure }
+        : { phase: "done", added: uploaded.length }
+    );
     if (!failure && files.length > room) {
       setError(
         `"${color}" holds ${MAX_IMAGES_PER_COLOR} images, so ${files.length - room} file(s) were skipped.`
@@ -243,7 +257,8 @@ export default function ColorImageEditor({
         const urls = urlsFor(card.color);
         const key = normalizeColorKey(card.color);
         const status = statuses[key];
-        const locked = disabled || busyKey !== null;
+        const cardUploading = status?.phase === "uploading";
+        const locked = disabled || cardUploading;
         return (
           <div
             key={key}
@@ -296,8 +311,8 @@ export default function ColorImageEditor({
                 >
                   {status?.phase === "uploading"
                     ? status.total > 1
-                      ? `Uploading ${status.done + 1} of ${status.total}…`
-                      : "Uploading…"
+                      ? `Optimizing & uploading (${status.done}/${status.total})…`
+                      : "Optimizing & uploading…"
                     : urls.length === 0
                       ? "Showing the main product image."
                       : `${urls.length} of ${MAX_IMAGES_PER_COLOR} images. The first one is the cover.`}
@@ -359,8 +374,10 @@ export default function ColorImageEditor({
             >
               {urls.length === 0 && fallbackImageUrl && (
                 <img
-                  src={fallbackImageUrl}
+                  src={imageUrlAtWidth(fallbackImageUrl, 400)}
                   alt={`${card.color} fallback`}
+                  loading="lazy"
+                  decoding="async"
                   style={thumbStyle}
                 />
               )}
@@ -371,8 +388,10 @@ export default function ColorImageEditor({
                   style={{ display: "flex", flexDirection: "column", gap: "2px" }}
                 >
                   <img
-                    src={url}
+                    src={imageUrlAtWidth(url, 400)}
                     alt={`${card.color} image ${index + 1}`}
+                    loading="lazy"
+                    decoding="async"
                     style={thumbStyle}
                   />
                   <div style={{ display: "flex", gap: "2px", justifyContent: "center" }}>

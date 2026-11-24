@@ -81,11 +81,19 @@ export async function syncProductColorImages(
       })),
     });
   }
-  for (const row of plan.update) {
-    await tx.productColorImage.update({
-      where: { id: row.id },
-      data: { url: row.url, colorLabel: row.colorLabel },
-    });
+  if (plan.update.length > 0) {
+    const BATCH_SIZE = 20;
+    for (let i = 0; i < plan.update.length; i += BATCH_SIZE) {
+      const chunk = plan.update.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        chunk.map((row) =>
+          tx.productColorImage.update({
+            where: { id: row.id },
+            data: { url: row.url, colorLabel: row.colorLabel },
+          })
+        )
+      );
+    }
   }
 
   return {

@@ -25,7 +25,7 @@
 export const MAX_IMAGES_PER_COLOR = 6;
 
 /** Hard cap on rows a single product may store, matching the request schema. */
-export const MAX_COLOR_IMAGE_ROWS = 200;
+export const MAX_COLOR_IMAGE_ROWS = 400;
 
 /**
  * Longest colour label we accept.

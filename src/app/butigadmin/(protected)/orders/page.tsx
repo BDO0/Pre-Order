@@ -65,63 +65,63 @@ const TABS: {
   paymentFilter: string;
   countKey: keyof TabCounts;
 }[] = [
-  {
-    key: "new",
-    label: "New Orders",
-    statusFilter: "PENDING",
-    paymentFilter: "",
-    countKey: "new",
-  },
-  {
-    key: "awaiting-payment",
-    label: "Awaiting Payment",
-    statusFilter: "AWAITING_PAYMENT,PAYMENT_REVIEW,CONFIRMED",
-    paymentFilter: "UNPAID",
-    countKey: "awaitingPayment",
-  },
-  {
-    key: "approved",
-    label: "Confirmed (Paid)",
-    statusFilter: "CONFIRMED",
-    paymentFilter: "PAID",
-    countKey: "approvedPaid",
-  },
-  {
-    key: "fulfillment",
-    label: "In Fulfillment",
-    statusFilter: "PROCESSING,READY",
-    paymentFilter: "",
-    countKey: "fulfillment",
-  },
-  {
-    key: "shipped",
-    label: "Shipped",
-    statusFilter: "SHIPPED",
-    paymentFilter: "",
-    countKey: "shipped",
-  },
-  {
-    key: "completed",
-    label: "Completed",
-    statusFilter: "COMPLETED",
-    paymentFilter: "",
-    countKey: "completed",
-  },
-  {
-    key: "cancelled",
-    label: "Cancelled",
-    statusFilter: "CANCELLED,REJECTED",
-    paymentFilter: "",
-    countKey: "cancelled",
-  },
-  {
-    key: "all",
-    label: "All Orders",
-    statusFilter: "",
-    paymentFilter: "",
-    countKey: "all",
-  },
-];
+    {
+      key: "new",
+      label: "New Orders",
+      statusFilter: "PENDING",
+      paymentFilter: "",
+      countKey: "new",
+    },
+    {
+      key: "awaiting-payment",
+      label: "Awaiting Payment",
+      statusFilter: "AWAITING_PAYMENT,PAYMENT_REVIEW,CONFIRMED",
+      paymentFilter: "UNPAID",
+      countKey: "awaitingPayment",
+    },
+    {
+      key: "approved",
+      label: "Confirmed (Paid)",
+      statusFilter: "CONFIRMED",
+      paymentFilter: "PAID",
+      countKey: "approvedPaid",
+    },
+    {
+      key: "fulfillment",
+      label: "In Fulfillment",
+      statusFilter: "PROCESSING,READY",
+      paymentFilter: "",
+      countKey: "fulfillment",
+    },
+    {
+      key: "shipped",
+      label: "Shipped",
+      statusFilter: "SHIPPED",
+      paymentFilter: "",
+      countKey: "shipped",
+    },
+    {
+      key: "completed",
+      label: "Completed",
+      statusFilter: "COMPLETED",
+      paymentFilter: "",
+      countKey: "completed",
+    },
+    {
+      key: "cancelled",
+      label: "Cancelled",
+      statusFilter: "CANCELLED,REJECTED",
+      paymentFilter: "",
+      countKey: "cancelled",
+    },
+    {
+      key: "all",
+      label: "All Orders",
+      statusFilter: "",
+      paymentFilter: "",
+      countKey: "all",
+    },
+  ];
 
 function rowMatchesTab(
   status: OrderStatus,
@@ -246,7 +246,7 @@ export default function AdminOrdersPage() {
           );
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const tabStatusFilter = currentTab.statusFilter;
@@ -335,8 +335,8 @@ export default function AdminOrdersPage() {
     setOrders((o) =>
       keepInTab
         ? o.map((r) =>
-            r.id === orderId ? { ...r, status: "CONFIRMED", paymentStatus: "PAID" } : r
-          )
+          r.id === orderId ? { ...r, status: "CONFIRMED", paymentStatus: "PAID" } : r
+        )
         : o.filter((r) => r.id !== orderId)
     );
     flash(`Order ${reference} approved & marked as PAID.`);
@@ -954,28 +954,28 @@ export default function AdminOrdersPage() {
                                 {!["CANCELLED", "REJECTED", "COMPLETED", "SHIPPED"].includes(
                                   order.status
                                 ) && (
-                                  <button
-                                    type="button"
-                                    className={`${adminStyles.overflowItem} ${adminStyles.overflowItemDanger}`}
-                                    disabled={actionLoading === order.id}
-                                    onClick={() => {
-                                      setOpenMenuId(null);
-                                      if (
-                                        window.confirm(
-                                          `Cancel order ${order.reference}? Reserved stock will be returned.`
-                                        )
-                                      ) {
-                                        void handleUpdateStatus(
-                                          order.id,
-                                          order.reference,
-                                          "CANCELLED"
-                                        );
-                                      }
-                                    }}
-                                  >
-                                    Cancel Order
-                                  </button>
-                                )}
+                                    <button
+                                      type="button"
+                                      className={`${adminStyles.overflowItem} ${adminStyles.overflowItemDanger}`}
+                                      disabled={actionLoading === order.id}
+                                      onClick={() => {
+                                        setOpenMenuId(null);
+                                        if (
+                                          window.confirm(
+                                            `Cancel order ${order.reference}? Reserved stock will be returned.`
+                                          )
+                                        ) {
+                                          void handleUpdateStatus(
+                                            order.id,
+                                            order.reference,
+                                            "CANCELLED"
+                                          );
+                                        }
+                                      }}
+                                    >
+                                      Cancel Order
+                                    </button>
+                                  )}
                                 {canDeleteRow && (
                                   <button
                                     type="button"

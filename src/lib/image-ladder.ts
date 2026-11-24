@@ -23,7 +23,7 @@ export interface ImageRung {
 }
 
 export async function renderProductLadder(input: Buffer): Promise<ImageRung[]> {
-  const master = await sharp(input, READ_OPTIONS)
+  const { data: rawMaster, info } = await sharp(input, READ_OPTIONS)
     .rotate()
     .resize({
       width: HERO_WIDTH,
@@ -31,21 +31,28 @@ export async function renderProductLadder(input: Buffer): Promise<ImageRung[]> {
       fit: "cover",
       position: "attention",
     })
-    .webp({ quality: STORED_WEBP_QUALITY, effort: 4 })
-    .toBuffer();
+    .raw()
+    .toBuffer({ resolveWithObject: true });
 
-  const rungs: ImageRung[] = [];
-  for (const width of [...IMAGE_WIDTHS].sort((a, b) => b - a)) {
-    const height = heightForWidth(width);
-    const bytes =
-      width === HERO_WIDTH
-        ? master
-        : await sharp(master, READ_OPTIONS)
-            .resize({ width, height })
-            .webp({ quality: STORED_WEBP_QUALITY, effort: 4 })
-            .toBuffer();
-    rungs.push({ width, height, bytes });
-  }
+  const sortedWidths = [...IMAGE_WIDTHS].sort((a, b) => b - a);
+  const rawInput = {
+    raw: {
+      width: info.width,
+      height: info.height,
+      channels: info.channels,
+    },
+  } as const;
 
-  return rungs;
+  return Promise.all(
+    sortedWidths.map(async (width) => {
+      const height = heightForWidth(width);
+      const pipeline = sharp(rawMaster, rawInput);
+      const resized =
+        width === HERO_WIDTH ? pipeline : pipeline.resize({ width, height });
+      const bytes = await resized
+        .webp({ quality: STORED_WEBP_QUALITY, effort: 2 })
+        .toBuffer();
+      return { width, height, bytes };
+    })
+  );
 }

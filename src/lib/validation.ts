@@ -99,7 +99,7 @@ export const productVariantWriteSchema = productVariantSchema
     size: z.string().trim().max(200, "That size is too long").optional().nullable().transform(blankToNull),
     color: z.string().trim().max(200, "That colour is too long").optional().nullable().transform(blankToNull),
   });
-export const productVariantListSchema = z.array(productVariantWriteSchema).max(200);
+export const productVariantListSchema = z.array(productVariantWriteSchema).max(500);
 /**
  * One image attached to a colour option. `sortOrder` is the slot inside that
  * colour's gallery; a colour is authoritative for its own slots on save, so
@@ -138,7 +138,7 @@ export const colorImageListSchema = z
     });
   });
 /** Colours whose images should be dropped entirely on save. */
-export const colorImageRemovalSchema = z.array(z.string().trim().min(1)).max(60);
+export const colorImageRemovalSchema = z.array(z.string().trim().min(1)).max(200);
 export const productCreateSchema = productSchema.extend({
   images: z.array(z.string().max(1000)).max(10).optional(),
   variants: productVariantListSchema.optional(),

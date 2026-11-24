@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
         },
       });
       return created;
-    });
+    }, { maxWait: 15_000, timeout: 30_000 });
     revalidateStorefront();
     return NextResponse.json({ success: true, data: product }, { status: 201 });
   } catch (error) {

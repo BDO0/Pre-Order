@@ -14,28 +14,29 @@ export async function GET(request: NextRequest) {
   try {
     const guard = await requirePermission("batches.read", request);
     if (!guard.ok) return guard.response;
-    const batches = await prisma.batch.findMany({
-      include: {
-        products: { include: { product: { select: { id: true, name: true } } } },
-        _count: {
-          select: {
-            orders: {
-              where: { status: { notIn: ["CANCELLED", "REJECTED"] } },
+    const [batches, tallies] = await Promise.all([
+      prisma.batch.findMany({
+        include: {
+          products: { include: { product: { select: { id: true, name: true } } } },
+          _count: {
+            select: {
+              orders: {
+                where: { status: { notIn: ["CANCELLED", "REJECTED"] } },
+              },
             },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    const tallies = await prisma.order.groupBy({
-      by: ["batchId", "paymentStatus"],
-      where: {
-        batchId: { in: batches.map((b) => b.id) },
-        status: { notIn: ["CANCELLED", "REJECTED"] },
-      },
-      _sum: { total: true },
-      _count: { _all: true },
-    });
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.order.groupBy({
+        by: ["batchId", "paymentStatus"],
+        where: {
+          status: { notIn: ["CANCELLED", "REJECTED"] },
+        },
+        _sum: { total: true },
+        _count: { _all: true },
+      }),
+    ]);
     const data = batches.map((b) => {
         const rows = tallies.filter((row) => row.batchId === b.id);
         const totalValue = rows.reduce((sum, row) => sum + Number(row._sum.total ?? 0), 0);

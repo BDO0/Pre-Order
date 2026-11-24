@@ -11,6 +11,7 @@ import {
 } from "@/lib/variant-stock";
 import { parseApiResponse } from "@/lib/api-client";
 import { buildColorImageMap, colorImageCoverage, primaryImageForColor } from "@/lib/product-color-images";
+import { imageUrlAtWidth } from "@/lib/image-geometry";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import adminStyles from "../admin.module.css";
 
@@ -123,6 +124,16 @@ export default function AdminProductsPage() {
     }
   };
 
+  // Precompute availability overview once per product so filtering, summary KPIs,
+  // and row rendering never recompute variant aggregations on every keystroke.
+  const overviewById = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof getProductAvailabilityOverview>>();
+    for (const p of products) {
+      map.set(p.id, getProductAvailabilityOverview(p.variants));
+    }
+    return map;
+  }, [products]);
+
   // Global catalog summary metrics
   const summaryMetrics = useMemo(() => {
     let totalVariants = 0;
@@ -136,7 +147,7 @@ export default function AdminProductsPage() {
       if (p.preorderStatus === "OPEN" && p.active) {
         activePOCount++;
       }
-      const overview = getProductAvailabilityOverview(p.variants);
+      const overview = overviewById.get(p.id) ?? getProductAvailabilityOverview(p.variants);
       totalVariants += overview.activeVariants;
       totalRemainingUnits += overview.totalRemaining;
       if (overview.totalCapacity !== null) {
@@ -158,7 +169,7 @@ export default function AdminProductsPage() {
       lowStockCount,
       soldOutCount,
     };
-  }, [products]);
+  }, [products, overviewById]);
 
   // Filtered products list
   const filteredProducts = useMemo(() => {
@@ -166,7 +177,7 @@ export default function AdminProductsPage() {
 
     return products.filter((product) => {
       // Stock/status filter
-      const overview = getProductAvailabilityOverview(product.variants);
+      const overview = overviewById.get(product.id) ?? getProductAvailabilityOverview(product.variants);
       if (filter === "ACTIVE_PO" && !(product.preorderStatus === "OPEN" && product.active)) {
         return false;
       }
@@ -189,7 +200,7 @@ export default function AdminProductsPage() {
 
       return nameMatch || slugMatch || categoryMatch || colorMatch || sizeMatch;
     });
-  }, [products, filter, searchQuery]);
+  }, [products, overviewById, filter, searchQuery]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
@@ -520,7 +531,9 @@ export default function AdminProductsPage() {
                 </tr>
               ) : (
                 filteredProducts.map((product) => {
-                  const overview = getProductAvailabilityOverview(product.variants);
+                  const overview =
+                    overviewById.get(product.id) ??
+                    getProductAvailabilityOverview(product.variants);
                   const isExpanded = expandedProductId === product.id;
 
                   return (
@@ -585,12 +598,13 @@ function ProductTableRow({
   onDelete: () => void;
 }) {
   const listingText = useMemo(() => {
+    if (!isExpanded) return "";
     return buildProductListingSummary(
       product,
       overview,
       typeof window !== "undefined" ? window.location.origin : ""
     );
-  }, [product, overview]);
+  }, [isExpanded, product, overview]);
 
   // How much of this product's colour range has its own photography. The chip in
   // the name cell only shows when the product actually offers colours.
@@ -629,8 +643,10 @@ function ProductTableRow({
           >
             {thumbnail ? (
               <img
-                src={thumbnail}
+                src={imageUrlAtWidth(thumbnail, 400)}
                 alt=""
+                loading="lazy"
+                decoding="async"
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
             ) : (

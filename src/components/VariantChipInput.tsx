@@ -7,7 +7,25 @@ interface VariantChipInputProps {
   placeholder?: string;
   values: string[];
   onChange: (next: string[]) => void;
+  onDraftChange?: (draft: string) => void;
   disabled?: boolean;
+}
+
+export function mergeVariantTokens(existing: readonly string[], raw: string): string[] {
+  const parts = raw
+    .split(/[\n\r,;\uFF0C]+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return [...existing];
+  const seen = new Set(existing.map((v) => v.toLowerCase()));
+  const next = [...existing];
+  for (const part of parts) {
+    if (!seen.has(part.toLowerCase())) {
+      seen.add(part.toLowerCase());
+      next.push(part);
+    }
+  }
+  return next;
 }
 
 export function VariantChipInput({
@@ -16,28 +34,30 @@ export function VariantChipInput({
   placeholder,
   values,
   onChange,
+  onDraftChange,
   disabled = false,
 }: VariantChipInputProps) {
   const [draft, setDraft] = useState("");
 
+  const updateDraft = (nextDraft: string) => {
+    setDraft(nextDraft);
+    onDraftChange?.(nextDraft);
+  };
+
   const addTokens = (raw: string) => {
-    const parts = raw
-      .split(/[\n\r,;\uFF0C]+/)
-      .map((p) => p.trim())
-      .filter(Boolean);
-    if (parts.length === 0) return;
-    const seen = new Set(values.map((v) => v.toLowerCase()));
-    const next = [...values];
-    for (const part of parts) {
-      if (!seen.has(part.toLowerCase())) {
-        seen.add(part.toLowerCase());
-        next.push(part);
-      }
-    }
+    const next = mergeVariantTokens(values, raw);
     if (next.length !== values.length) {
       onChange(next);
     }
-    setDraft("");
+    updateDraft("");
+  };
+
+  const handleChange = (nextValue: string) => {
+    if (/[,;\n\r\uFF0C]/.test(nextValue)) {
+      addTokens(nextValue);
+      return;
+    }
+    updateDraft(nextValue);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -76,7 +96,7 @@ export function VariantChipInput({
               display: "inline-flex",
               alignItems: "center",
               gap: "6px",
-              padding: "3px 10px",
+              padding: "4px 10px",
               borderRadius: "var(--radius-full)",
               background: "var(--color-neutral-100)",
               border: "1px solid var(--color-neutral-300)",
@@ -96,9 +116,9 @@ export function VariantChipInput({
                   border: "none",
                   color: "var(--color-neutral-500)",
                   cursor: "pointer",
-                  fontSize: "13px",
+                  fontSize: "15px",
                   lineHeight: 1,
-                  padding: 0,
+                  padding: "2px 4px",
                 }}
               >
                 ×
@@ -106,26 +126,51 @@ export function VariantChipInput({
             )}
           </span>
         ))}
-        <input
-          type="text"
-          value={draft}
-          disabled={disabled}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onBlur={() => {
-            if (draft.trim()) addTokens(draft);
-          }}
-          placeholder={values.length === 0 ? placeholder : "Add & press Enter…"}
+        <div
           style={{
-            border: "none",
-            outline: "none",
-            flex: "1 1 110px",
-            minWidth: "90px",
-            fontSize: "var(--text-sm)",
-            color: "var(--color-neutral-900)",
-            background: "transparent",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            flex: "1 1 130px",
+            minWidth: "110px",
           }}
-        />
+        >
+          <input
+            type="text"
+            value={draft}
+            disabled={disabled}
+            enterKeyHint="done"
+            onChange={(e) => handleChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={() => {
+              if (draft.trim()) addTokens(draft);
+            }}
+            placeholder={values.length === 0 ? placeholder : "Type & tap Add…"}
+            style={{
+              border: "none",
+              outline: "none",
+              flex: 1,
+              minWidth: "70px",
+              fontSize: "var(--text-sm)",
+              color: "var(--color-neutral-900)",
+              background: "transparent",
+            }}
+          />
+          {!disabled && draft.trim() !== "" && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              style={{ minHeight: "30px", padding: "3px 10px", fontSize: "11px" }}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                addTokens(draft);
+              }}
+              onClick={() => addTokens(draft)}
+            >
+              + Add
+            </button>
+          )}
+        </div>
       </div>
       {hint && <span className="form-hint">{hint}</span>}
     </div>

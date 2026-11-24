@@ -173,9 +173,16 @@ export default function AdminBatchesPage() {
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
     void load();
-    void loadProducts();
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (drawerOpen && products.length === 0) {
+      void loadProducts();
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [drawerOpen, products.length]);
 
   const uploadCover = async (file: File) => {
     setUploading(true);
