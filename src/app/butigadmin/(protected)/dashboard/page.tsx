@@ -6,6 +6,8 @@ import { format } from "date-fns";
 import { describeEta } from "@/lib/batches";
 import { getOrderStatusMeta } from "@/lib/order-status-meta";
 
+export const dynamic = "force-dynamic";
+
 interface ActionItem {
   label: string;
   detail: string;
