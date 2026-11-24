@@ -99,12 +99,14 @@ model Batch {
   status      BatchStatus    @default(DRAFT)
   startAt     DateTime?
   endAt       DateTime?
+  archivedAt  DateTime?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
   products BatchProduct[]
   orders   Order[]
 
+  @@index([archivedAt])
   @@map("batches")
 }
 
@@ -128,6 +130,7 @@ model Product {
   preorderEndAt   DateTime?
   preorderLimit   Int?
   preorderReserved Int           @default(0)
+  archivedAt      DateTime?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -135,6 +138,7 @@ model Product {
   batches     BatchProduct[]
   colorImages ProductColorImage[]
 
+  @@index([archivedAt])
   @@map("products")
 }
 
@@ -265,6 +269,8 @@ model Order {
   
   notes String?
 
+  archivedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -279,13 +285,14 @@ model Order {
   @@index([batchId])
   @@index([customerId])
   @@index([createdAt])
+  @@index([archivedAt])
   @@map("orders")
 }
 
 model OrderItem {
-  id        String @id @default(cuid())
+  id        String  @id @default(cuid())
   orderId   String
-  variantId String
+  variantId String?
   quantity  Int
 
   
@@ -293,8 +300,8 @@ model OrderItem {
   productNameSnapshot String
   variantSnapshot     Json    
 
-  order   Order          @relation(fields: [orderId], references: [id])
-  variant ProductVariant @relation(fields: [variantId], references: [id])
+  order   Order           @relation(fields: [orderId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
 
   @@map("order_items")
 }

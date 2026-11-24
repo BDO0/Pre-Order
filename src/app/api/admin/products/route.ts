@@ -16,8 +16,14 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") ?? "20");
     const search = searchParams.get("search") ?? undefined;
     const where = search
-      ? { OR: [{ name: { contains: search, mode: "insensitive" as const } }, { category: { contains: search, mode: "insensitive" as const } }] }
-      : {};
+      ? {
+          archivedAt: null,
+          OR: [
+            { name: { contains: search, mode: "insensitive" as const } },
+            { category: { contains: search, mode: "insensitive" as const } },
+          ],
+        }
+      : { archivedAt: null };
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,

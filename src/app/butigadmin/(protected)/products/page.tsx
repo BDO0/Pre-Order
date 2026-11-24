@@ -65,7 +65,7 @@ export default function AdminProductsPage() {
 
   const handleDelete = async (product: AdminProductRow) => {
     const confirmed = window.confirm(
-      `Permanently delete "${product.name}"?\n\nThis will remove the product, its variants, and any associated order records from the database. This cannot be undone.`
+      `Delete "${product.name}"?\n\nThis removes the product from your active Products list and Storefront and moves it to the Archive. Paid order records and analytics are preserved.`
     );
     if (!confirmed) return;
 

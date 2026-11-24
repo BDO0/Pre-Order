@@ -4,8 +4,11 @@ import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/api-guard";
 import { batchUpdateSchema } from "@/lib/validation";
 import type { OrderStatus } from "@prisma/client";
-import { releasesCapacity } from "@/lib/order-state-machine";
-import { releaseOrderCapacity } from "@/lib/order-service";
+import {
+  releaseOrderCapacity,
+  shouldAutoCloseOnArchive,
+  shouldReleaseCapacityOnPermanentDelete,
+} from "@/lib/order-service";
 import { revalidateStorefront } from "@/lib/storefront-cache";
 import {
   assertProductsExist,
@@ -101,10 +104,23 @@ export async function DELETE(
     const guard = await requirePermission("batches.write", request);
     if (!guard.ok) return guard.response;
     const { id } = await params;
+    const permanent = request.nextUrl.searchParams.get("permanent") === "true";
+    if (permanent && guard.role !== "SUPER_ADMIN" && guard.role !== "ADMIN") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "FORBIDDEN",
+            message: "Only admins can permanently delete batches.",
+          },
+        },
+        { status: 403 }
+      );
+    }
 
     const existing = await prisma.batch.findUnique({
       where: { id },
-      select: { id: true, name: true, slug: true },
+      select: { id: true, name: true, slug: true, status: true, archivedAt: true },
     });
     if (!existing) {
       return NextResponse.json(
@@ -113,43 +129,145 @@ export async function DELETE(
       );
     }
 
+    if (permanent) {
+      await prisma.$transaction(
+        async (tx) => {
+          const orders = await tx.order.findMany({
+            where: { batchId: id },
+            select: { id: true, status: true },
+          });
+          const orderIds = orders.map((o) => o.id);
+
+          if (orderIds.length > 0) {
+            for (const order of orders) {
+              if (shouldReleaseCapacityOnPermanentDelete(order.status)) {
+                await releaseOrderCapacity(tx, order.id);
+              }
+            }
+            await tx.auditLog.deleteMany({ where: { orderId: { in: orderIds } } });
+            await tx.orderStatusHistory.deleteMany({ where: { orderId: { in: orderIds } } });
+            await tx.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
+            await tx.order.deleteMany({ where: { id: { in: orderIds } } });
+          }
+
+          await tx.batchProduct.deleteMany({ where: { batchId: id } });
+          await tx.batch.delete({ where: { id } });
+
+          await tx.auditLog.create({
+            data: {
+              actor: guard.actor,
+              action: "batch.deleted_permanently",
+              oldValue: { batchId: id, name: existing.name, slug: existing.slug },
+              metadata: { role: guard.role, deletedOrders: orderIds.length },
+            },
+          });
+        },
+        { maxWait: 15_000, timeout: 30_000 }
+      );
+
+      revalidateStorefront();
+      revalidatePath(`/preorder/${existing.slug}`);
+
+      return NextResponse.json({
+        success: true,
+        data: { deleted: true, archived: false, id, name: existing.name },
+      });
+    }
+
+    if (existing.archivedAt) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          deleted: true,
+          archived: true,
+          id,
+          name: existing.name,
+          message: `Batch "${existing.name}" is already in the Archive.`,
+        },
+      });
+    }
+
+    // Default seamless delete: move batch and its orders to Archive, free the
+    // batch slug, and auto-close only unpaid pre-acceptance intake orders.
+    const now = new Date();
+    const archivedSlug = existing.slug.includes("-archived-")
+      ? existing.slug
+      : `${existing.slug.slice(0, 44)}-archived-${id.slice(-6).toLowerCase()}`;
+
     await prisma.$transaction(
       async (tx) => {
         const orders = await tx.order.findMany({
-          where: { batchId: id },
-          select: { id: true, status: true },
+          where: { batchId: id, archivedAt: null },
+          select: { id: true, status: true, paymentStatus: true },
         });
-        const orderIds = orders.map((o) => o.id);
 
-        if (orderIds.length > 0) {
-          // Deleting an order takes its reserved units with it, so the same rule
-          // the order delete route applies has to run here: a status that has not
-          // already released capacity would otherwise leave the units consumed by
-          // an order that no longer exists.
-          for (const order of orders) {
-            if (!releasesCapacity(order.status as OrderStatus)) {
+        for (const order of orders) {
+          if (shouldAutoCloseOnArchive(order)) {
+            const claim = await tx.order.updateMany({
+              where: { id: order.id, status: order.status as OrderStatus },
+              data: { status: "CANCELLED", archivedAt: now },
+            });
+            if (claim.count === 1) {
               await releaseOrderCapacity(tx, order.id);
+              await tx.orderStatusHistory.create({
+                data: {
+                  orderId: order.id,
+                  fromStatus: order.status as OrderStatus,
+                  toStatus: "CANCELLED",
+                  changedBy: guard.actor,
+                  note: `Auto-closed when batch "${existing.name}" was archived`,
+                },
+              });
+            } else {
+              // Status changed concurrently (e.g. confirmed); still archive the order
+              // with its batch without overwriting its new status.
+              await tx.order.update({
+                where: { id: order.id },
+                data: { archivedAt: now },
+              });
             }
+          } else {
+            await tx.order.update({
+              where: { id: order.id },
+              data: { archivedAt: now },
+            });
           }
-          await tx.auditLog.deleteMany({ where: { orderId: { in: orderIds } } });
-          await tx.orderStatusHistory.deleteMany({ where: { orderId: { in: orderIds } } });
-          await tx.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
-          await tx.order.deleteMany({ where: { id: { in: orderIds } } });
         }
 
-        await tx.batchProduct.deleteMany({ where: { batchId: id } });
-        await tx.batch.delete({ where: { id } });
+        await tx.batch.update({
+          where: { id },
+          data: {
+            status: "ARCHIVED",
+            archivedAt: now,
+            slug: archivedSlug,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            actor: guard.actor,
+            action: "batch.archived",
+            oldValue: { batchId: id, name: existing.name, slug: existing.slug, status: existing.status },
+            newValue: { status: "ARCHIVED", archivedAt: now.toISOString(), archivedOrders: orders.length },
+            metadata: { role: guard.role },
+          },
+        });
       },
       { maxWait: 15_000, timeout: 30_000 }
     );
 
-    // The batch page itself is now a 404 on top of the storefront changing.
     revalidateStorefront();
     revalidatePath(`/preorder/${existing.slug}`);
 
     return NextResponse.json({
       success: true,
-      data: { deleted: true, id, name: existing.name },
+      data: {
+        deleted: true,
+        archived: true,
+        id,
+        name: existing.name,
+        message: `Batch "${existing.name}" moved to Archive.`,
+      },
     });
   } catch (error) {
     console.error("[DELETE /api/admin/batches/[id]]", error);

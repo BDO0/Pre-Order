@@ -11,6 +11,7 @@ export async function DELETE(request: NextRequest) {
     const batchId = searchParams.get("batchId") ?? undefined;
 
     const where = {
+      archivedAt: null,
       status: { in: ["CANCELLED", "REJECTED"] as ("CANCELLED" | "REJECTED")[] },
       ...(batchId ? { batchId } : {}),
     };
@@ -25,18 +26,17 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: true, data: { deleted: 0 } });
     }
 
-    await prisma.$transaction([
-      prisma.auditLog.deleteMany({ where: { orderId: { in: ids } } }),
-      prisma.orderStatusHistory.deleteMany({ where: { orderId: { in: ids } } }),
-      prisma.orderItem.deleteMany({ where: { orderId: { in: ids } } }),
-      prisma.order.deleteMany({ where: { id: { in: ids } } }),
-    ]);
+    const now = new Date();
+    await prisma.order.updateMany({
+      where: { id: { in: ids } },
+      data: { archivedAt: now },
+    });
 
     await prisma.auditLog.create({
       data: {
         actor: guard.actor,
-        action: "orders.bulk_deleted_cancelled",
-        newValue: { count: ids.length, batchId: batchId ?? "all" },
+        action: "orders.bulk_archived_cancelled",
+        newValue: { count: ids.length, batchId: batchId ?? "all", archivedAt: now.toISOString() },
       },
     });
 

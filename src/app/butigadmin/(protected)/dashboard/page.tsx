@@ -28,12 +28,14 @@ async function getStats() {
   ] = await Promise.all([
     prisma.order.groupBy({
       by: ["status", "paymentStatus"],
+      where: { archivedAt: null },
       _count: { id: true },
       _sum: { total: true },
     }),
-    prisma.order.count({ where: { createdAt: { gte: todayStart } } }),
-    prisma.batch.count({ where: { status: "OPEN" } }),
+    prisma.order.count({ where: { archivedAt: null, createdAt: { gte: todayStart } } }),
+    prisma.batch.count({ where: { archivedAt: null, status: "OPEN" } }),
     prisma.order.findMany({
+      where: { archivedAt: null },
       take: 10,
       orderBy: { createdAt: "desc" },
       include: {
@@ -42,12 +44,14 @@ async function getStats() {
     }),
     prisma.order.count({
       where: {
+        archivedAt: null,
         paymentStatus: "UNPAID",
         status: { in: ["AWAITING_PAYMENT", "PAYMENT_REVIEW", "CONFIRMED"] },
       },
     }),
     prisma.batch.findMany({
       where: {
+        archivedAt: null,
         endAt: {
           not: null,
           gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),

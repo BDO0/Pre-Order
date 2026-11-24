@@ -32,12 +32,17 @@ async function liveOrderedByVariant(
   const rows = await tx.orderItem.groupBy({
     by: ["variantId"],
     where: {
+      variantId: { not: null },
       variant: { productId },
       order: { status: { notIn: CAPACITY_RELEASING_STATUSES } },
     },
     _sum: { quantity: true },
   });
-  return new Map(rows.map((row) => [row.variantId, row._sum.quantity ?? 0]));
+  return new Map(
+    rows
+      .filter((row): row is typeof row & { variantId: string } => row.variantId !== null)
+      .map((row) => [row.variantId, row._sum.quantity ?? 0])
+  );
 }
 export async function syncProductVariants(
   tx: Prisma.TransactionClient,

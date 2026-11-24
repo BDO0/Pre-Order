@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       prisma.order.count({ where }),
       prisma.order.groupBy({
         by: ["status", "paymentStatus"],
-        where: batchId ? { batchId } : {},
+        where: { archivedAt: null, ...(batchId ? { batchId } : {}) },
         _count: { _all: true },
       }),
     ]);

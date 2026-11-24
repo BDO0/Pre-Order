@@ -315,6 +315,33 @@ export async function createOrder(input: OrderSubmission) {
     },
   };
 }
+export const INTAKE_AUTO_CLOSE_STATUSES: readonly Prisma.OrderScalarFieldEnum[] | readonly ("PENDING" | "AWAITING_PAYMENT" | "PAYMENT_REVIEW")[] = [
+  "PENDING",
+  "AWAITING_PAYMENT",
+  "PAYMENT_REVIEW",
+];
+
+export function shouldAutoCloseOnArchive(order: {
+  status: string;
+  paymentStatus: string;
+}): boolean {
+  return (
+    order.paymentStatus === "UNPAID" &&
+    (order.status === "PENDING" ||
+      order.status === "AWAITING_PAYMENT" ||
+      order.status === "PAYMENT_REVIEW")
+  );
+}
+
+export function shouldReleaseCapacityOnPermanentDelete(status: string): boolean {
+  return (
+    status !== "CANCELLED" &&
+    status !== "REJECTED" &&
+    status !== "SHIPPED" &&
+    status !== "COMPLETED"
+  );
+}
+
 export async function releaseOrderCapacity(
   tx: Prisma.TransactionClient,
   orderId: string
@@ -328,10 +355,16 @@ export async function releaseOrderCapacity(
     },
   });
   for (const item of items) {
-    await tx.productVariant.updateMany({
-      where: { id: item.variantId },
-      data: { remainingCapacity: { increment: item.quantity } },
-    });
+    if (!item.variantId || !item.variant) continue;
+    await tx.$executeRaw`
+      UPDATE "product_variants"
+      SET "remainingCapacity" = CASE
+        WHEN "remainingCapacity" IS NULL THEN NULL
+        WHEN "capacity" IS NOT NULL THEN LEAST("capacity", "remainingCapacity" + ${item.quantity})
+        ELSE "remainingCapacity" + ${item.quantity}
+      END
+      WHERE "id" = ${item.variantId}
+    `;
     await tx.$executeRaw`
       UPDATE "products"
       SET "preorderReserved" = GREATEST("preorderReserved" - ${item.quantity}, 0)

@@ -1,1 +1,28 @@
-import type { MetadataRoute } from "next";import { siteUrl } from "@/lib/site";export const revalidate = 3600;export default async function sitemap(): Promise<MetadataRoute.Sitemap> {  const base = siteUrl().origin;  const entries: MetadataRoute.Sitemap = [    { url: `${base}/`, changeFrequency: "daily", priority: 1 },  ];  try {    const { prisma } = await import("@/lib/db");    const batches = await prisma.batch.findMany({      where: { status: "OPEN" },      select: { slug: true, updatedAt: true },      orderBy: { updatedAt: "desc" },      take: 200,    });    for (const batch of batches) {      entries.push({        url: `${base}/preorder/${batch.slug}`,        lastModified: batch.updatedAt,        changeFrequency: "daily",        priority: 0.9,      });    }  } catch {  }  return entries;}
+import type { MetadataRoute } from "next";
+import { siteUrl } from "@/lib/site";
+export const revalidate = 3600;
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const base = siteUrl().origin;
+  const entries: MetadataRoute.Sitemap = [
+    { url: `${base}/`, changeFrequency: "daily", priority: 1 },
+  ];
+  try {
+    const { prisma } = await import("@/lib/db");
+    const batches = await prisma.batch.findMany({
+      where: { status: "OPEN", archivedAt: null },
+      select: { slug: true, updatedAt: true },
+      orderBy: { updatedAt: "desc" },
+      take: 200,
+    });
+    for (const batch of batches) {
+      entries.push({
+        url: `${base}/preorder/${batch.slug}`,
+        lastModified: batch.updatedAt,
+        changeFrequency: "daily",
+        priority: 0.9,
+      });
+    }
+  } catch {
+  }
+  return entries;
+}

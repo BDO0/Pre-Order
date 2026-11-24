@@ -217,8 +217,9 @@ export async function GET(request: NextRequest) {
     const guard = await requirePermission("orders.read", request);
     if (!guard.ok) return guard.response;
     const { searchParams } = new URL(request.url);
+    const includeArchived = searchParams.get("includeArchived") !== "false";
     const orders = await prisma.order.findMany({
-      where: buildOrderWhere(searchParams),
+      where: buildOrderWhere(searchParams, { includeArchived }),
       orderBy: { createdAt: "asc" },
       select: {
         id: true,

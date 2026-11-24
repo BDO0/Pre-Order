@@ -266,8 +266,8 @@ export default function AdminBatchesPage() {
   const remove = async (batch: BatchRow) => {
     const prompt =
       batch.orderCount > 0
-        ? `Permanently delete "${batch.name}" and ALL ${batch.orderCount} order(s) in this batch?\n\nThis will remove them from the database permanently. This cannot be undone.`
-        : `Permanently delete "${batch.name}"? This cannot be undone.`;
+        ? `Delete "${batch.name}"?\n\nThis removes the batch and its ${batch.orderCount} order(s) from your active tabs and moves them to the Archive (unpaid pending orders will be automatically closed).`
+        : `Delete "${batch.name}"?\n\nThis removes the batch from your active list and moves it to the Archive.`;
     const confirmed = window.confirm(prompt);
     if (!confirmed) return;
     setBusy(true);
@@ -281,7 +281,7 @@ export default function AdminBatchesPage() {
       );
       if (!ok) throw new Error(error || "Failed to delete the batch");
       await load();
-      showMsg("success", "Batch and associated orders deleted permanently.");
+      showMsg("success", `Batch "${batch.name}" moved to Archive.`);
     } catch (err) {
       showMsg(
         "error",

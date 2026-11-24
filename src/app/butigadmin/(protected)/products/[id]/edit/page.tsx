@@ -110,7 +110,7 @@ export default function EditProductPage({
 
   const handleDelete = async () => {
     const confirmed = window.confirm(
-      `Permanently delete "${formData.name || "this product"}"?\n\nThis will remove the product and its variants from the database. This cannot be undone.`
+      `Delete "${formData.name || "this product"}"?\n\nThis removes the product from your active Products list and Storefront and moves it to the Archive. Paid order records and analytics are preserved.`
     );
     if (!confirmed) return;
 
@@ -1027,7 +1027,7 @@ export default function EditProductPage({
                   marginTop: "var(--space-1)",
                 }}
               >
-                Permanently delete this product from the database.
+                Remove this product from your active Products list and move it to the Archive.
               </div>
             </div>
             <button

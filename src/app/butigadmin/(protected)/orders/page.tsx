@@ -178,7 +178,6 @@ export default function AdminOrdersPage() {
   const [clearLoading, setClearLoading] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminOrderRow | null>(null);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [refreshTick, setRefreshTick] = useState(0);
   const refreshOrders = () => setRefreshTick((t) => t + 1);
 
@@ -428,9 +427,8 @@ export default function AdminOrdersPage() {
       if (!ok) throw new Error(error || "Failed to delete order");
       setOrders((prev) => prev.filter((o) => o.id !== deleteTarget.id));
       setTotalCount((c) => Math.max(0, c - 1));
-      flash(`Order ${deleteTarget.reference} deleted permanently.`);
+      flash(`Order ${deleteTarget.reference} moved to Archive.`);
       setDeleteTarget(null);
-      setDeleteConfirmText("");
       refreshOrders();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to delete order");
@@ -442,7 +440,7 @@ export default function AdminOrdersPage() {
   const handleClearCancelled = async () => {
     const scope = batchFilter ? "this batch" : "ALL batches";
     const confirmed = window.confirm(
-      `Permanently delete ALL cancelled orders from ${scope}?\n\nThis cannot be undone.`
+      `Move ALL cancelled orders from ${scope} to the Archive?`
     );
     if (!confirmed) return;
 
@@ -459,7 +457,7 @@ export default function AdminOrdersPage() {
         "Failed to clear cancelled orders"
       );
       if (!ok) throw new Error(error || "Failed to clear cancelled orders");
-      flash(`Cleared ${(data as { deleted: number }).deleted} cancelled order(s).`);
+      flash(`Moved ${(data as { deleted: number }).deleted} cancelled order(s) to Archive.`);
       refreshOrders();
     } catch (err) {
       setActionError(
@@ -982,11 +980,10 @@ export default function AdminOrdersPage() {
                                     className={`${adminStyles.overflowItem} ${adminStyles.overflowItemDanger}`}
                                     onClick={() => {
                                       setOpenMenuId(null);
-                                      setDeleteConfirmText("");
                                       setDeleteTarget(order);
                                     }}
                                   >
-                                    Delete Permanently
+                                    Delete Order
                                   </button>
                                 )}
                               </div>
@@ -1055,7 +1052,7 @@ export default function AdminOrdersPage() {
               id="delete-order-title"
               style={{ fontSize: "var(--text-lg)", fontWeight: 700, color: "var(--color-error)" }}
             >
-              Permanently delete {deleteTarget.reference}?
+              Delete {deleteTarget.reference}?
             </h3>
             <p
               style={{
@@ -1064,18 +1061,9 @@ export default function AdminOrdersPage() {
                 marginTop: "var(--space-2)",
               }}
             >
-              This removes the order, its items, and its audit history forever. Type{" "}
-              <strong>{deleteTarget.reference}</strong> to confirm.
+              This removes the order from your active Orders tab and moves it to the{" "}
+              <strong>Archive</strong> (unpaid active orders are automatically closed and their stock is released).
             </p>
-            <input
-              type="text"
-              className="form-input"
-              style={{ marginTop: "var(--space-3)" }}
-              value={deleteConfirmText}
-              onChange={(e) => setDeleteConfirmText(e.target.value)}
-              placeholder={deleteTarget.reference}
-              autoFocus
-            />
             <div
               style={{
                 display: "flex",
@@ -1094,13 +1082,10 @@ export default function AdminOrdersPage() {
               <button
                 type="button"
                 className="btn btn-danger btn-sm"
-                disabled={
-                  deleteConfirmText.trim() !== deleteTarget.reference ||
-                  actionLoading === deleteTarget.id
-                }
+                disabled={actionLoading === deleteTarget.id}
                 onClick={() => void confirmDeleteOrder()}
               >
-                {actionLoading === deleteTarget.id ? "Deleting..." : "Delete Permanently"}
+                {actionLoading === deleteTarget.id ? "Deleting..." : "Delete Order"}
               </button>
             </div>
           </div>

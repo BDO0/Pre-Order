@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     const batches = await prisma.batch.findMany({
       where: {
+        archivedAt: null,
         status: { in: ["OPEN", "SCHEDULED"] },
       },
       select: {

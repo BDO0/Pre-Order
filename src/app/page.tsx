@@ -15,7 +15,7 @@ async function getAvailableProducts(): Promise<{
   activeBatch: { name: string; description: string | null; endAt: string | null } | null;
 }> {
   const batches = await prisma.batch.findMany({
-    where: { status: "OPEN" },
+    where: { status: "OPEN", archivedAt: null },
     include: {
       products: {
         include: {
@@ -40,7 +40,7 @@ async function getAvailableProducts(): Promise<{
   for (const batch of batches) {
     for (const batchProduct of batch.products) {
       const p = batchProduct.product;
-      if (!p.active) continue;
+      if (!p.active || p.archivedAt) continue;
       productsMap.set(p.id, {
         id: p.id,
         name: p.name,

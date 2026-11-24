@@ -40,10 +40,10 @@ const loadBatch = cache(async (slug: string) => {
       },
     },
   });
-  if (!batch) return null;
+  if (!batch || batch.archivedAt) return null;
   const products: StorefrontProduct[] = batch.products
     .map((bp) => bp.product)
-    .filter((p) => p.active)
+    .filter((p) => p.active && !p.archivedAt)
     .map((p) => ({
       id: p.id,
       name: p.name,
@@ -104,17 +104,18 @@ const loadProduct = cache(async (slug: string) => {
       },
     },
   });
-  if (!product || !product.active) return null;
+  if (!product || !product.active || product.archivedAt) return null;
   const linkedBatch =
-    product.batches.find((b) => b.batch.status === "OPEN")?.batch ||
-    product.batches[0]?.batch;
+    product.batches.find((b) => b.batch.status === "OPEN" && !b.batch.archivedAt)?.batch ||
+    product.batches.find((b) => !b.batch.archivedAt)?.batch;
   const batch =
     linkedBatch ??
     (await prisma.batch.findFirst({
-      where: { status: "OPEN" },
+      where: { status: "OPEN", archivedAt: null },
       orderBy: { createdAt: "desc" },
     })) ??
     (await prisma.batch.findFirst({
+      where: { archivedAt: null },
       orderBy: { createdAt: "desc" },
     }));
   if (!batch) return null;

@@ -16,12 +16,13 @@ export async function GET(request: NextRequest) {
     if (!guard.ok) return guard.response;
     const [batches, tallies] = await Promise.all([
       prisma.batch.findMany({
+        where: { archivedAt: null },
         include: {
           products: { include: { product: { select: { id: true, name: true } } } },
           _count: {
             select: {
               orders: {
-                where: { status: { notIn: ["CANCELLED", "REJECTED"] } },
+                where: { archivedAt: null, status: { notIn: ["CANCELLED", "REJECTED"] } },
               },
             },
           },
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
       prisma.order.groupBy({
         by: ["batchId", "paymentStatus"],
         where: {
+          archivedAt: null,
           status: { notIn: ["CANCELLED", "REJECTED"] },
         },
         _sum: { total: true },

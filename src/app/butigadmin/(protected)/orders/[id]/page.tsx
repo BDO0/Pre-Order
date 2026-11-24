@@ -46,6 +46,7 @@ interface OrderDetail {
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   createdAt: string;
+  archivedAt?: string | null;
   subtotal: string | number;
   total: string | number;
   notes?: string | null;
@@ -75,7 +76,6 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
@@ -106,13 +106,39 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
       );
       if (!ok) throw new Error(errText || "Failed to delete order");
       setDeleteModalOpen(false);
-      flash(`Order ${order.reference} deleted permanently.`);
+      flash(`Order ${order.reference} moved to Archive.`);
       setTimeout(() => router.push("/butigadmin/orders"), 800);
     } catch (err) {
       setActionError(
         err instanceof Error ? err.message : "Failed to delete order"
       );
       setDeleting(false);
+    }
+  };
+
+  const handleRestoreOrder = async () => {
+    if (!order) return;
+    setUpdating(true);
+    setActionError("");
+    try {
+      const res = await fetch("/api/admin/archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "order", id, action: "restore" }),
+      });
+      const { ok, data, error: errText } = await parseApiResponse<{ message?: string }>(
+        res,
+        "Failed to restore order"
+      );
+      if (!ok) throw new Error(errText || "Failed to restore order");
+      setOrder((prev) => (prev ? { ...prev, archivedAt: null } : prev));
+      flash(data?.message || `Order ${order.reference} restored to active Orders.`);
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Failed to restore order"
+      );
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -369,9 +395,43 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
         </div>
       )}
       <div style={{ marginBottom: "var(--space-5)" }}>
-        <Link href="/butigadmin/orders" style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)", textDecoration: "none", fontWeight: 500 }}>
-          ← Back to Orders
+        <Link
+          href={order.archivedAt ? "/butigadmin/archive" : "/butigadmin/orders"}
+          style={{ fontSize: "var(--text-xs)", color: "var(--color-neutral-500)", textDecoration: "none", fontWeight: 500 }}
+        >
+          ← Back to {order.archivedAt ? "Archive" : "Orders"}
         </Link>
+        {order.archivedAt && (
+          <div
+            style={{
+              marginTop: "var(--space-3)",
+              padding: "var(--space-3) var(--space-4)",
+              background: "var(--color-neutral-100)",
+              border: "1px solid var(--color-neutral-300)",
+              borderRadius: "var(--radius-lg)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "var(--space-3)",
+            }}
+          >
+            <div style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-700)" }}>
+              <strong>Archived Order</strong> — Moved to Archive on{" "}
+              {format(new Date(order.archivedAt), "MMM d, yyyy 'at' h:mm a")}.
+            </div>
+            {capabilities.updateOrder && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={updating}
+                onClick={() => void handleRestoreOrder()}
+              >
+                {updating ? "Restoring..." : "Restore to Orders"}
+              </button>
+            )}
+          </div>
+        )}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: "var(--space-2)", flexWrap: "wrap", gap: "var(--space-4)" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
@@ -655,19 +715,16 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
                     ))}
                   </div>
                 )}
-                {capabilities.deleteOrder && (
+                {capabilities.deleteOrder && !order.archivedAt && (
                   <div style={{ borderTop: "1px solid var(--color-neutral-100)", paddingTop: "var(--space-2)", marginTop: "var(--space-2)" }}>
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm"
                       style={{ color: "var(--color-error)", fontSize: "var(--text-xs)", width: "100%", textAlign: "center" }}
-                      onClick={() => {
-                        setDeleteConfirmText("");
-                        setDeleteModalOpen(true);
-                      }}
+                      onClick={() => setDeleteModalOpen(true)}
                       disabled={updating || deleting}
                     >
-                      {deleting ? "Deleting..." : "Delete Order Permanently"}
+                      {deleting ? "Deleting..." : "Delete Order"}
                     </button>
                   </div>
                 )}
@@ -854,18 +911,9 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
               Delete Order {order.reference}?
             </h3>
             <p style={{ fontSize: "var(--text-sm)", color: "var(--color-neutral-600)", marginTop: "var(--space-2)" }}>
-              This permanently removes the order, its items, and its audit history. Type{" "}
-              <strong>{order.reference}</strong> to confirm.
+              This removes the order from your active Orders tab and moves it to the{" "}
+              <strong>Archive</strong> (unpaid active orders are automatically closed and their stock is released).
             </p>
-            <input
-              type="text"
-              className="form-input"
-              style={{ marginTop: "var(--space-3)" }}
-              value={deleteConfirmText}
-              onChange={(e) => setDeleteConfirmText(e.target.value)}
-              placeholder={order.reference}
-              autoFocus
-            />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)", marginTop: "var(--space-4)" }}>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDeleteModalOpen(false)}>
                 Cancel
@@ -873,10 +921,10 @@ export default function AdminOrderDetailPage({ params }: { params: Promise<{ id:
               <button
                 type="button"
                 className="btn btn-danger btn-sm"
-                disabled={deleteConfirmText.trim() !== order.reference || deleting}
+                disabled={deleting}
                 onClick={() => void handleDeleteOrder()}
               >
-                {deleting ? "Deleting..." : "Delete Permanently"}
+                {deleting ? "Deleting..." : "Delete Order"}
               </button>
             </div>
           </div>

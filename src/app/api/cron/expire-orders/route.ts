@@ -17,6 +17,7 @@ export async function GET(request: Request) {
   try {
     const expiredOrders = await prisma.order.findMany({
       where: {
+        archivedAt: null,
         status: "PENDING",
         createdAt: {
           lt: fortyEightHoursAgo,
@@ -32,25 +33,26 @@ export async function GET(request: Request) {
     let cancelledCount = 0;
     for (const order of expiredOrders) {
       await prisma.$transaction(async (tx) => {
-        const current = await tx.order.findUnique({
-          where: { id: order.id },
-          select: { status: true },
+        const claim = await tx.order.updateMany({
+          where: {
+            id: order.id,
+            status: "PENDING",
+            archivedAt: null,
+          },
+          data: {
+            status: "CANCELLED",
+          },
         });
 
-        if (current?.status === "PENDING") {
-          await tx.order.update({
-            where: { id: order.id },
+        if (claim.count === 1) {
+          await tx.orderStatusHistory.create({
             data: {
-              status: "CANCELLED",
-              statusHistory: {
-                create: {
-                  fromStatus: "PENDING",
-                  toStatus: "CANCELLED",
-                  changedBy: "system_cron",
-                  note: "Auto-cancelled after 48 hours of inactivity",
-                }
-              }
-            }
+              orderId: order.id,
+              fromStatus: "PENDING",
+              toStatus: "CANCELLED",
+              changedBy: "system_cron",
+              note: "Auto-cancelled after 48 hours of inactivity",
+            },
           });
 
           await tx.auditLog.create({
@@ -59,7 +61,7 @@ export async function GET(request: Request) {
               actor: "system",
               action: "order.expired",
               metadata: { reason: "48_hour_timeout" },
-            }
+            },
           });
 
           await releaseOrderCapacity(tx, order.id);

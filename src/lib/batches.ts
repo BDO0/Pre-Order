@@ -49,6 +49,9 @@ export function slugifyBatchName(name: string): string {
     .slice(0, 60)
     .replace(/-+$/g, "");
 }
+export function stripArchivedSlugSuffix(slug: string): string {
+  return slug.replace(/-archived-[a-z0-9]+$/i, "") || "item";
+}
 export function toDateTimeInputValue(value: Date | string | null | undefined): string {
   if (!value) return "";
   const date = value instanceof Date ? value : new Date(value);

@@ -25,12 +25,28 @@ function manyOf<T extends string>(value: string | null, allowed: readonly T[]): 
     .map((part) => part.trim())
     .filter((part): part is T => listed.includes(part));
 }
-export function buildOrderWhere(searchParams: URLSearchParams): Prisma.OrderWhereInput {
+export interface BuildOrderWhereOptions {
+  includeArchived?: boolean;
+  onlyArchived?: boolean;
+}
+export function buildOrderWhere(
+  searchParams: URLSearchParams,
+  options?: BuildOrderWhereOptions
+): Prisma.OrderWhereInput {
   const statuses = manyOf(searchParams.get("status"), ORDER_STATUSES);
   const paymentStatus = oneOf(searchParams.get("paymentStatus"), PAYMENT_STATUSES);
   const batchId = searchParams.get("batchId") ?? undefined;
   const customerType = searchParams.get("customerType") ?? undefined;
   const search = (searchParams.get("search") ?? "").trim();
+  const includeArchived =
+    options?.includeArchived ?? searchParams.get("includeArchived") === "true";
+  const onlyArchived =
+    options?.onlyArchived ?? searchParams.get("onlyArchived") === "true";
+  const archiveFilter: Prisma.OrderWhereInput = onlyArchived
+    ? { archivedAt: { not: null } }
+    : includeArchived
+    ? {}
+    : { archivedAt: null };
   const searchFilter = search
     ? {
         OR: [
@@ -57,6 +73,7 @@ export function buildOrderWhere(searchParams: URLSearchParams): Prisma.OrderWher
       ? { status: { in: statuses } }
       : {};
   return {
+    ...archiveFilter,
     ...statusFilter,
     ...(paymentStatus ? { paymentStatus } : {}),
     ...(batchId ? { batchId } : {}),

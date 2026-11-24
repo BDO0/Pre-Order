@@ -31,7 +31,7 @@ export async function GET(
         },
       },
     });
-    if (!batch) {
+    if (!batch || batch.archivedAt) {
       return NextResponse.json(
         { success: false, error: { code: "BATCH_NOT_FOUND", message: "Batch not found." } },
         { status: 404 }
@@ -66,33 +66,33 @@ export async function GET(
         products: expired
           ? []
           : browseProducts.map((p) => ({
-              id: p.id,
-              name: p.name,
-              slug: p.slug,
-              description: p.description,
-              price: p.price,
-              currency: p.currency,
-              images: p.images,
-              colorImages: buildColorImageMap(p.colorImages),
-              category: p.category,
-              preorderStatus: p.preorderStatus,
-              preorderLimit: p.preorderLimit,
-              preorderReserved: p.preorderReserved,
-              preorderRemaining:
-                p.preorderLimit !== null
-                  ? Math.max(0, p.preorderLimit - p.preorderReserved)
-                  : null,
-              variants: p.variants.map((v) => ({
-                id: v.id,
-                size: v.size,
-                color: v.color,
-                sku: v.sku,
-                priceOverride: v.priceOverride,
-                capacity: v.capacity,
-                remainingCapacity: v.remainingCapacity,
-                active: v.active,
-              })),
+            id: p.id,
+            name: p.name,
+            slug: p.slug,
+            description: p.description,
+            price: p.price,
+            currency: p.currency,
+            images: p.images,
+            colorImages: buildColorImageMap(p.colorImages),
+            category: p.category,
+            preorderStatus: p.preorderStatus,
+            preorderLimit: p.preorderLimit,
+            preorderReserved: p.preorderReserved,
+            preorderRemaining:
+              p.preorderLimit !== null
+                ? Math.max(0, p.preorderLimit - p.preorderReserved)
+                : null,
+            variants: p.variants.map((v) => ({
+              id: v.id,
+              size: v.size,
+              color: v.color,
+              sku: v.sku,
+              priceOverride: v.priceOverride,
+              capacity: v.capacity,
+              remainingCapacity: v.remainingCapacity,
+              active: v.active,
             })),
+          })),
         orderableCount: acceptingOrders ? activeProducts.length : 0,
       },
     });

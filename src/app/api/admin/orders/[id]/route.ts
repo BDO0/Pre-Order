@@ -8,7 +8,11 @@ import {
   getValidNextStatuses,
   releasesCapacity,
 } from "@/lib/order-state-machine";
-import { releaseOrderCapacity } from "@/lib/order-service";
+import {
+  releaseOrderCapacity,
+  shouldAutoCloseOnArchive,
+  shouldReleaseCapacityOnPermanentDelete,
+} from "@/lib/order-service";
 import { revalidateStorefront } from "@/lib/storefront-cache";
 import { redactCustomerSnapshot, REDACTED_FIELD } from "@/lib/redaction";
 import type { OrderStatus } from "@prisma/client";
@@ -47,7 +51,7 @@ export async function GET(
     const canUpdateOrder = hasPermission(guard.role, "orders.update");
     const canVerifyPayment = hasPermission(guard.role, "payments.verify");
     const canReadCustomer = hasPermission(guard.role, "customers.read");
-    const canDeleteOrder = guard.role === "SUPER_ADMIN" || guard.role === "ADMIN";
+    const canDeleteOrder = canUpdateOrder;
     const customerSnapshot = canReadCustomer
       ? order.customerSnapshot
       : redactCustomerSnapshot(
@@ -180,7 +184,8 @@ export async function DELETE(
   try {
     const guard = await requirePermission("orders.update", request);
     if (!guard.ok) return guard.response;
-    if (guard.role !== "SUPER_ADMIN" && guard.role !== "ADMIN") {
+    const permanent = request.nextUrl.searchParams.get("permanent") === "true";
+    if (permanent && guard.role !== "SUPER_ADMIN" && guard.role !== "ADMIN") {
       return NextResponse.json(
         { success: false, error: { code: "FORBIDDEN", message: "Only admins can permanently delete orders." } },
         { status: 403 }
@@ -190,7 +195,7 @@ export async function DELETE(
 
     const order = await prisma.order.findUnique({
       where: { id },
-      select: { id: true, reference: true, status: true },
+      select: { id: true, reference: true, status: true, paymentStatus: true, archivedAt: true },
     });
 
     if (!order) {
@@ -200,21 +205,103 @@ export async function DELETE(
       );
     }
 
+    if (permanent) {
+      await prisma.$transaction(async (tx) => {
+        if (shouldReleaseCapacityOnPermanentDelete(order.status)) {
+          await releaseOrderCapacity(tx, id);
+        }
+        await tx.auditLog.deleteMany({ where: { orderId: id } });
+        await tx.orderStatusHistory.deleteMany({ where: { orderId: id } });
+        await tx.orderItem.deleteMany({ where: { orderId: id } });
+        await tx.order.delete({ where: { id } });
+        await tx.auditLog.create({
+          data: {
+            actor: guard.actor,
+            action: "order.deleted_permanently",
+            oldValue: { orderId: id, reference: order.reference, status: order.status },
+            metadata: { role: guard.role },
+          },
+        });
+      });
+
+      revalidateStorefront();
+      return NextResponse.json({
+        success: true,
+        data: { deleted: true, archived: false, id, reference: order.reference },
+      });
+    }
+
+    if (order.archivedAt) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          deleted: true,
+          archived: true,
+          id,
+          reference: order.reference,
+          message: `Order ${order.reference} is already in the Archive.`,
+        },
+      });
+    }
+
+    const now = new Date();
+    const shouldAutoClose = shouldAutoCloseOnArchive(order);
+
     await prisma.$transaction(async (tx) => {
-      if (!releasesCapacity(order.status as OrderStatus)) {
-        await releaseOrderCapacity(tx, id);
+      if (shouldAutoClose) {
+        const claim = await tx.order.updateMany({
+          where: { id, status: order.status as OrderStatus },
+          data: { status: "CANCELLED", archivedAt: now },
+        });
+        if (claim.count === 1) {
+          await releaseOrderCapacity(tx, id);
+          await tx.orderStatusHistory.create({
+            data: {
+              orderId: id,
+              fromStatus: order.status as OrderStatus,
+              toStatus: "CANCELLED",
+              changedBy: guard.actor,
+              note: "Auto-closed when order was moved to Archive",
+            },
+          });
+        } else {
+          await tx.order.update({
+            where: { id },
+            data: { archivedAt: now },
+          });
+        }
+      } else {
+        await tx.order.update({
+          where: { id },
+          data: { archivedAt: now },
+        });
       }
-      await tx.auditLog.deleteMany({ where: { orderId: id } });
-      await tx.orderStatusHistory.deleteMany({ where: { orderId: id } });
-      await tx.orderItem.deleteMany({ where: { orderId: id } });
-      await tx.order.delete({ where: { id } });
+
+      await tx.auditLog.create({
+        data: {
+          orderId: id,
+          actor: guard.actor,
+          action: "order.archived",
+          oldValue: { status: order.status, paymentStatus: order.paymentStatus },
+          newValue: {
+            status: shouldAutoClose ? "CANCELLED" : order.status,
+            archivedAt: now.toISOString(),
+          },
+          metadata: { role: guard.role, autoClosed: shouldAutoClose },
+        },
+      });
     });
 
-    // Deleting a live order frees its units; the storefront has to be rebuilt.
     revalidateStorefront();
     return NextResponse.json({
       success: true,
-      data: { deleted: true, id, reference: order.reference },
+      data: {
+        deleted: true,
+        archived: true,
+        id,
+        reference: order.reference,
+        message: `Order ${order.reference} moved to Archive.`,
+      },
     });
   } catch (error) {
     console.error("[DELETE /api/admin/orders/[id]]", error);

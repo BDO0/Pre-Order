@@ -90,7 +90,7 @@ export class BatchWriteError extends Error {}
 export async function assertProductsExist(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   const found = await prisma.product.findMany({
-    where: { id: { in: ids } },
+    where: { id: { in: ids }, archivedAt: null },
     select: { id: true },
   });
   if (found.length === ids.length) return;
@@ -124,7 +124,7 @@ export async function ensureProductInOpenBatch(
   });
   if (linked) return linked.batchId;
   const openBatch = await tx.batch.findFirst({
-    where: { status: "OPEN" },
+    where: { status: "OPEN", archivedAt: null },
     orderBy: { createdAt: "desc" },
     select: { id: true },
   });
